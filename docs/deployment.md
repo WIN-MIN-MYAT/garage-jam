@@ -27,6 +27,61 @@ The repository includes `Dockerfile` and `render.yaml`.
 
 The server listens on `PORT` (default `8082`) and serves the built client from `client/dist` when it exists. `/health` is available for the platform health check.
 
+## Other container hosts
+
+The same `Dockerfile` works on Fly.io, Railway, Koyeb, a VPS, or any host that supports long-lived WebSockets and persistent storage. The host does **not** carry the video; WebRTC media stays peer-to-peer over the local Wi-Fi. Host choice affects page load, signaling/API latency, cold starts and token persistence.
+
+| Host | Best for | Notes |
+|---|---|---|
+| Render | Easiest managed deploy | `render.yaml` uses Singapore by default; use the Starter plan to avoid spin-down |
+| Fly.io | Region control and always-on signaling | `fly.toml` included; create a volume for `/app/server/data` |
+| Railway | Simple Docker deploy and volumes | Add a volume at `/app/server/data`, then set the env vars |
+| VPS + Caddy | Cheapest long-running production | Full control; put Caddy/NGINX in front for TLS |
+| Cloudflare Tunnel + local PC | Best same-LAN demo latency | Signaling stays on the LAN; PC must stay awake |
+| Vercel/Netlify/GitHub Pages | Static UI only | Not enough for `/sender`, `/signal` or the API |
+
+### Fly.io
+
+```bash
+fly launch --no-deploy
+fly volumes create garage_data --region sin --size 1
+fly secrets set SPOTIFY_CLIENT_ID=... SPOTIFY_REDIRECT_URI=https://garagejam.com/api/plugins/spotify/callback
+fly deploy
+fly certs add garagejam.com
+```
+
+Change `app` and `primary_region` in `fly.toml` as needed (`sin`, `hkg`, `nrt`, etc.). The volume is required to keep the encrypted Spotify/Notion tokens across deploys. `auto_stop_machines = "off"` and `min_machines_running = 1` keep the WebSocket signaling warm.
+
+### Railway
+
+Create a project from the GitHub repository; Railway detects the Dockerfile. Add a volume mounted at `/app/server/data`, set the same environment variables, and add `garagejam.com` as a custom domain. Railway supports WebSockets and always-on services.
+
+### Cloudflare Tunnel to a local PC
+
+If the host PC is always on, this gives the lowest same-LAN signaling latency and no cold starts:
+
+```bash
+npm run build
+$env:PORT=8082
+npm start
+cloudflared tunnel --url http://localhost:8082
+```
+
+For `garagejam.com`, create a named tunnel and route DNS:
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create garage-jam
+cloudflared tunnel route dns garage-jam garagejam.com
+cloudflared tunnel run --url http://localhost:8082 garage-jam
+```
+
+Cloudflare terminates TLS and supports WSS. The WebXR page and `/sender` load from `https://garagejam.com`, while `/signal` goes to the local Node process. Media remains local WebRTC. The PC must not sleep, and the Node process/tunnel must restart with the machine.
+
+### Render region
+
+The default `render.yaml` uses **Singapore**. If the host and headset are in another region, change `region:` to the nearest Render region. Judges in other countries mostly load static assets and call the API; Cloudflare in front of the host can cache static assets.
+
 ## Docker on a VPS
 
 ```bash
