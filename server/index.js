@@ -1,20 +1,24 @@
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import express from 'express';
 import cors from 'cors';
 import { createServer } from 'node:http';
-import { join } from 'node:path';
+import { existsSync } from 'node:fs';
+import { extname, join } from 'node:path';
 import { listTasks, markDone, createTask, flushDoneQueue } from './notion.js';
 import { completeLocalTask, createLocalTask, isLocalTaskId, listLocalTasks } from './tasks.js';
 import { readJson, writeJson } from './store.js';
-import { attachSignaling, getSignalLog } from './signaling.js';
+import { attachSignaling, getSignalLog, validChannel } from './signaling.js';
 import { createPluginRouter } from './plugins.js';
 
+dotenv.config({ path: join(import.meta.dirname, '.env') });
+
 const app = express();
+app.set('trust proxy', 1);
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/plugins', createPluginRouter());
 app.use(cors({ origin: true }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
-app.get('/api/signal-log', (req, res) => res.json(getSignalLog(/^monitor[123]$/.test(req.query.channel) ? req.query.channel : undefined)));
+app.get('/api/signal-log', (req, res) => res.json(getSignalLog(validChannel(req.query.channel) ? req.query.channel : undefined)));
 app.get('/api/tasks', async (_req, res) => {
   try {
     const [notion, local] = await Promise.all([listTasks(), listLocalTasks()]);
@@ -53,6 +57,25 @@ app.get('/sender/timecode', (_req, res) => res.sendFile(join(import.meta.dirname
 app.get('/connect', (_req, res) => res.sendFile(join(import.meta.dirname, 'plugin-manager', 'connect.html')));
 app.get('/sender-timecode.js', (_req, res) => res.type('application/javascript').sendFile(join(import.meta.dirname, '..', 'sender', 'timecode.js')));
 app.use('/stream-shared', express.static(join(import.meta.dirname, '..', 'client', 'src', 'stream-shared')));
+
+// Production: one origin serves the built WebXR client, the sender page, the
+// API and the signaling socket. Vite still serves the app on 8091 in development.
+const clientDist = join(import.meta.dirname, '..', 'client', 'dist');
+if (existsSync(clientDist)) {
+  app.use(express.static(clientDist, {
+    index: false,
+    maxAge: '1h',
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith('index.html') || filePath.endsWith('sw.js')) res.setHeader('Cache-Control', 'no-cache');
+    },
+  }));
+  app.get('*', (req, res, next) => {
+    if (extname(req.path) || req.path.startsWith('/api/') || req.path.startsWith('/sender') ||
+        req.path.startsWith('/connect') || req.path === '/signal' || req.path === '/health') return next();
+    res.sendFile(join(clientDist, 'index.html'));
+  });
+}
+
 const server = createServer(app);
 attachSignaling(server);
 if (process.env.NODE_ENV !== 'test') {

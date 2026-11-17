@@ -5,6 +5,7 @@ import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { garageRootsVisible, registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
 import { streamConfig } from '../stream-shared/config.js';
+import { getStreamRoom, streamChannel } from '../stream-room.js';
 import { ConnectionLog, watchPeer } from '../stream-shared/ConnectionLog.js';
 import { ConnectionStateMachine } from '../stream-shared/ConnectionStateMachine.js';
 import { SignalingClient } from '../stream-shared/SignalingClient.js';
@@ -60,6 +61,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   private saving = 0;
   private wasGrabbed = false;
   private layoutKey = 'garage-jam-monitor-layout-v1';
+  private room = getStreamRoom();
   init() {
     const config = roomConfig.monitors;
     const query = new URLSearchParams(location.search);
@@ -83,7 +85,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       const video = document.createElement('video'); video.muted = true; video.autoplay = true; video.playsInline = true;
       video.disableRemotePlayback = true; video.controls = false; video.style.cssText = 'position:absolute;width:1px;height:1px;left:-10000px;top:-10000px'; document.body.append(video);
       const probeCanvas = document.createElement('canvas');
-      const channel: Channel = { name: `monitor${i + 1}`, root, screen, frame, video, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity, curve: 0, locked: false, baseWidth: 1.25, baseHeight: 0.7 };
+      const channel: Channel = { name: streamChannel(this.room, i + 1), root, screen, frame, video, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity, curve: 0, locked: false, baseWidth: 1.25, baseHeight: 0.7 };
       channel.log = new ConnectionLog('viewer', channel.name);
       channel.machine = new ConnectionStateMachine(channel.log, streamConfig, () => this.updateStatus());
       for (const name of ['stalled', 'waiting', 'playing', 'pause', 'emptied', 'resize']) video.addEventListener(name, () => channel.log.add(`video-${name}`));
@@ -146,6 +148,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     });
     if (location.hostname === 'localhost') {
       (window as any).garageStreamDebug = {
+        room: this.room,
         recenter: () => this.layout(),
         get states() { return system.channels.map(channel => ({ name: channel.name, state: channel.machine.state, live: channel.machine.state === 'live' })); },
       };

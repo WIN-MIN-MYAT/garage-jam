@@ -103,9 +103,10 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 ## Gate 10 streaming integration
 
 - `StreamSystem` registers in the room build; the three monitors are placed on an arc in front of the seat at about 1.75 m and table-derived height, hidden in passthrough mode and re-centered by the wrist Room action.
-- S9b shows the `/sender` address, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. The laptop opens the sender page and starts each channel; there is no streaming pairing code. The 6-character `/connect` code is for plugin sign-in only.
+- S9b shows the room-scoped `/sender?room=...` address, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. The headset generates an 8-character room code; the viewer and sender join `room:monitor1`–`room:monitor3`. The laptop opens the exact link and starts each channel. There is no streaming pairing code; the 6-character `/connect` code is for plugin sign-in only.
 - Monitor controls are implemented in `client/src/systems/monitor-manager-system.ts`: grab/move, selection, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, saved layout and recenter. The `table` preset anchors the panels above the measured tabletop.
 - The sender page is a dark, Garage Jam-themed dashboard with three channel cards. The default formats are **Best quality** (1080p30, 4 Mbps, keep resolution, sharp text) and **Lowest latency** (720p60, 2.5 Mbps, keep frame rate, high motion); both prefer **AV1**, and **Auto quality is off** by default. Advanced exposes codec, bitrate, degradation, content hint and auto-quality overrides. Evidence: `scripts/sender-ui.png`.
+- Production hosting is covered by `Dockerfile`, `render.yaml` and [deployment.md](deployment.md): one HTTPS origin serves the built WebXR client, `/sender`, `/api` and the `/signal` WebSocket. S9b links are room-scoped (`?room=`), and hosted signaling leaves mDNS candidates intact for same-LAN media. `client/scripts/emulator-stream-room.mjs` verifies a room-scoped sender reaches the viewer over direct UDP.
 - The 30-minute soak and measured latency targets remain physical checks; the existing diagnostics and sender fault tests are unchanged.
 
 ## Gate 11 P1 features

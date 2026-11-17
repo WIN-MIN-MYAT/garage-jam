@@ -1,0 +1,15 @@
+services:
+  - type: web
+    name: garage-jam
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_ENV
+        value: production
+    disk:
+      name: garage-data
+      mountPath: /app/server/data
+      sizeGB: 1

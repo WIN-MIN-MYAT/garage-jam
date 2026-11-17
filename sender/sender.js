@@ -8,6 +8,20 @@ import { isUdpCandidate, udpOnlyDescription } from '/stream-shared/IcePolicy.js'
 
 const channels = document.getElementById('channels');
 const states = new Map();
+const requestedRoom = new URLSearchParams(location.search).get('room');
+const roomCode = requestedRoom && /^[A-Za-z0-9_-]{4,32}$/.test(requestedRoom) ? requestedRoom : '';
+const channelPrefix = roomCode ? `${roomCode}:` : '';
+const roomChip = document.getElementById('room-chip');
+const roomNote = document.getElementById('room-note');
+if (roomCode) {
+  roomChip.hidden = false;
+  roomChip.textContent = `Room ${roomCode}`;
+  roomChip.title = 'This sender is scoped to the room link from the headset.';
+} else {
+  roomChip.hidden = false;
+  roomChip.textContent = requestedRoom ? 'Invalid room link' : 'No room link';
+  roomNote.hidden = false;
+}
 const startLabel = 'Start streaming';
 const stopLabel = 'Stop streaming';
 const reShareLabel = 'Re-share window';
@@ -302,11 +316,11 @@ async function start(state) {
 for (let i = 1; i <= 3; i++) {
   const section = document.createElement('section');
   section.className = 'channel';
-  section.dataset.channel = `monitor${i}`;
+  section.dataset.channel = `${channelPrefix}monitor${i}`;
   section.innerHTML = `<div class="channel-head"><div><span class="channel-kicker">CHANNEL 0${i}</span><h2>Monitor 0${i}</h2></div><span class="status" data-state="idle" aria-live="polite">Idle</span></div><div class="preview"><video muted autoplay playsinline></video><div class="preview-empty"><span>No source</span><small>Start and choose a window</small></div></div><div class="formats" role="group" aria-label="Stream format"><button type="button" class="format" data-format="best" aria-pressed="true"><strong>Best quality</strong><span>1080p · 30 fps · sharp text</span></button><button type="button" class="format" data-format="lowLatency" aria-pressed="false"><strong>Lowest latency</strong><span>720p · 60 fps · high motion</span></button></div><button type="button" class="start">${startLabel}</button><p class="notice" hidden></p><details class="advanced"><summary>Advanced</summary><div class="advanced-grid"><label class="field">Codec<select class="codec"><option value="av1" selected>AV1 (default)</option><option value="h264">H.264</option><option value="vp9">VP9</option><option value="vp8">VP8</option></select></label><label class="field">Max Mbps<input class="bitrate" type="number" min="0.5" max="6" step="0.25" value="4"></label><label class="field">Degrade<select class="degradation"><option value="maintain-resolution" selected>Keep resolution</option><option value="maintain-framerate">Keep frame rate</option><option value="balanced">Balanced</option></select></label><label class="field">Content<select class="hint"><option value="text" selected>Text / UI</option><option value="detail">Detail</option><option value="motion">Motion</option></select></label><label class="check"><input class="auto" type="checkbox"> Auto quality</label><select class="preset" hidden><option value="balanced">1080p30 balanced</option><option value="fast">720p60 fast</option><option value="weak">900p30 weak laptop</option><option value="sharp">1440p30 sharp text</option><option value="multi">720p30 multi</option><option value="low">720p15 low</option></select></div><div class="codec-note">AV1 is selected by default. If this Chrome build cannot send AV1, the best available codec is used.</div></details><details class="diagnostics"><summary>Diagnostics</summary><pre class="stats">Waiting for a live connection.</pre><div class="diag-actions"><button type="button" class="ghost record">Download run JSON</button><button type="button" class="ghost retry">Retry signaling</button></div></details>`;
   channels.append(section);
   const state = {
-    channel: `monitor${i}`, button: section.querySelector('.start'), label: section.querySelector('.status'),
+    channel: `${channelPrefix}monitor${i}`, button: section.querySelector('.start'), label: section.querySelector('.status'),
     preview: section.querySelector('video'), empty: section.querySelector('.preview-empty'), stats: section.querySelector('.stats'),
     presetSelect: section.querySelector('.preset'), contentHint: section.querySelector('.hint'), codec: section.querySelector('.codec'),
     maxBitrate: section.querySelector('.bitrate'), degradation: section.querySelector('.degradation'), autoQuality: section.querySelector('.auto'),

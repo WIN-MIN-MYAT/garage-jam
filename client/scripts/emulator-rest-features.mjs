@@ -8,7 +8,7 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('response', response => { if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`); });
-  await page.goto('https://localhost:8091/?revealSpeed=3', { waitUntil: 'domcontentloaded' });
+  await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/?revealSpeed=3`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.garageWristDebug && window.garageManualDebug?.panel && window.IWER_DEVICE);
   const click = (owner, id) => page.evaluate(({ owner, id }) => window[owner].panel.requireElementById(id).dispatchEvent({ type: 'click' }), { owner, id });
   const waitStage = stage => page.waitForFunction(stage => window.garageFlowDebug.stage === stage, stage, { timeout: 25000 });
@@ -49,6 +49,9 @@ try {
   }));
   assert.equal(pairing.stage, 'S9b');
   assert.ok(pairing.url && pairing.url.includes('/sender'), JSON.stringify(pairing));
+  assert.match(pairing.url, /\/sender\?room=[A-Za-z0-9_-]{4,32}$/, 'S9b must show the room-scoped sender link');
+  const streamRoom = await page.evaluate(() => window.garageStreamDebug?.room);
+  assert.ok(streamRoom && pairing.url.includes(`room=${streamRoom}`), JSON.stringify({ pairing, streamRoom }));
   assert.equal(pairing.states.length, 3);
   await click('garageFlowDebug', 'flow-continue-2');
   await waitStage('S10');

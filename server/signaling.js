@@ -1,11 +1,13 @@
 import { WebSocketServer, WebSocket } from 'ws';
 
-const validChannel = value => /^monitor[123]$/.test(value);
+const channelPattern = /^[A-Za-z0-9_-]{4,32}:monitor[123]$/;
+export const validChannel = value => typeof value === 'string' && (/^monitor[123]$/.test(value) || channelPattern.test(value));
 const signalEvents = [];
 export const getSignalLog = channel => signalEvents.filter(event => !channel || event.channel === channel).slice(-3000);
 const peerIp = request => (request.headers['x-forwarded-for']?.split(',')[0]?.trim() || request.socket.remoteAddress || '').replace(/^::ffff:/, '');
+const privateIp = ip => /^(?:10\.|192\.168\.|172\.(?:1[6-9]|2\d|3[0-1])\.)/.test(ip);
 export function rewriteMdns(candidate, ip) {
-  if (typeof candidate !== 'string' || !/^\d{1,3}(?:\.\d{1,3}){3}$/.test(ip)) return candidate;
+  if (typeof candidate !== 'string' || !privateIp(ip)) return candidate;
   return candidate.replace(/\b[a-zA-Z0-9-]+\.local\b/g, ip);
 }
 export function attachSignaling(server) {

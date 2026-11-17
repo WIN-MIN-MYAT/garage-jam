@@ -10,7 +10,7 @@ try {
   const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
-  await page.goto('https://localhost:8091/?roomBuild=1&roomSource=demo&revealOff=1');
+  await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/?roomBuild=1&roomSource=demo&revealOff=1`);
   await page.waitForFunction(() => window.garageDeviceDebug?.panel && window.IWER_DEVICE);
   await page.locator('#garage-test-badge').click();
   await page.waitForFunction(() => window.garageBuildDebug?.ready && window.garageTableDebug?.panel.visible);

@@ -459,7 +459,7 @@ export class WristMenuSystem extends createSystem({}) {
       set(`wm-plugin-${provider}`, status?.connected ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');
     }
     set('wm-plugin-note', this.pluginPairing
-      ? `CODE ${this.pluginPairing.code} / ${location.host}/connect`
+      ? `CODE ${this.pluginPairing.code} / ${location.host}/api/plugins/connect`
       : this.pluginStatus.spotify?.connected ? 'Spotify connected' : 'Tap a provider, then open /connect');
   }
 

@@ -63,7 +63,7 @@
 
   <Panel id="page-pairing" class="page" style="display: none">
     <div class="title">PAIR YOUR LAPTOP</div>
-    <div class="body">Open <span id="flow-pair-url" class="title-accent">this device /sender</span> in Chrome on the laptop. Start Monitor 1-3 there; each channel pairs when it connects.</div>
+    <div class="body">Open this exact address in Chrome on the laptop: <span id="flow-pair-url" class="title-accent">this device /sender</span>. The room code is already in the link. Start Monitor 1-3 there; each channel pairs when it connects.</div>
     <div id="flow-monitor-status" class="body">Pairing: checking streams...</div>
     <div class="row">
       <button id="flow-refresh-streams" class="button-ghost">CHECK STREAMS</button>

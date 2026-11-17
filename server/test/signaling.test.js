@@ -3,12 +3,20 @@ import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
-import { attachSignaling, rewriteMdns } from '../signaling.js';
+import { attachSignaling, rewriteMdns, validChannel } from '../signaling.js';
 
-test('mDNS host candidates are replaced with the sending peer IP', () => {
+test('mDNS host candidates are replaced only for private LAN signalling', () => {
   const candidate = 'candidate:1 1 udp 2122260223 abc-123.local 52444 typ host';
   assert.match(rewriteMdns(candidate, '192.168.1.25'), /192\.168\.1\.25 52444/);
+  assert.equal(rewriteMdns(candidate, '203.0.113.5'), candidate);
   assert.equal(rewriteMdns(candidate, '::1'), candidate);
+});
+
+test('signalling channels support legacy and per-room names', () => {
+  assert.equal(validChannel('monitor1'), true);
+  assert.equal(validChannel('abcd1234:monitor1'), true);
+  assert.equal(validChannel('abcd1234:monitor4'), false);
+  assert.equal(validChannel('x:monitor1'), false);
 });
 
 test('socket rejoin preserves session, while a second owner is replaced', async () => {

@@ -58,8 +58,8 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 ## Gate 10: streaming
 
-- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows the `/sender` address and the three monitor states.
-- [ ] Open the sender page on the laptop, choose **Best quality** or **Lowest latency**, and start Monitors 1-3. Confirm AV1 is selected and Auto quality is off by default.
+- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows the room-scoped `/sender?room=...` link and the three monitor states.
+- [ ] Open that exact sender link on the laptop, choose **Best quality** or **Lowest latency**, and start Monitors 1-3. Confirm AV1 is selected and Auto quality is off by default.
 - [ ] Confirm all three monitor placeholders turn into live video and remain readable at the chosen distance.
 - [ ] Open **Monitor controls** from the wrist Room page. Test grab/move, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, save and recenter.
 - [ ] Toggle passthrough and back. Confirm monitors hide/return with the garage.

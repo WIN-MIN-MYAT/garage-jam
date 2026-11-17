@@ -44,7 +44,7 @@ async function openBuild(query, manualRoom = null) {
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
-  await page.goto(`https://localhost:8091/?roomBuild=1&v=1${query}`, { waitUntil: 'domcontentloaded' });
+  await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/?roomBuild=1&v=1${query}`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => !!window.garageEmulatorWorld, { timeout: 30000 });
   await page.locator('#garage-test-badge').click();
   await page.waitForFunction(() => window.garageEmulatorWorld.renderer.xr.isPresenting, { timeout: 15000 });

@@ -12,7 +12,7 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   const open = async query => {
-    await page.goto(`https://localhost:8091/sender${query}`, { waitUntil: 'domcontentloaded' });
+    await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/sender${query}`, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => document.querySelectorAll('.channel').length === 3);
   };
   const card = () => page.evaluate(() => {
@@ -47,6 +47,23 @@ try {
   assert.equal(lowLatency.degradation, 'maintain-framerate');
   assert.equal(lowLatency.content, 'motion');
   assert.equal(lowLatency.auto, false);
+
+  await open('?room=testroom1');
+  const room = await page.evaluate(() => ({
+    channel: document.querySelector('.channel').dataset.channel,
+    chip: document.getElementById('room-chip').textContent,
+    noteHidden: document.getElementById('room-note').hidden,
+  }));
+  assert.equal(room.channel, 'testroom1:monitor1');
+  assert.match(room.chip, /testroom1/);
+  assert.equal(room.noteHidden, true);
+  await open('');
+  const legacy = await page.evaluate(() => ({
+    channel: document.querySelector('.channel').dataset.channel,
+    noteHidden: document.getElementById('room-note').hidden,
+  }));
+  assert.equal(legacy.channel, 'monitor1');
+  assert.equal(legacy.noteHidden, false);
 
   await open('?preset=fast');
   assert.equal((await card()).format, 'lowLatency');

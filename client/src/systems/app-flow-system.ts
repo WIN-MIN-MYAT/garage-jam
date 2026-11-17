@@ -16,6 +16,7 @@ import { showComicWord } from '../comic-word.js';
 import { bindPress, sendPanelToFront } from '../ui-press.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
+import { streamSenderUrl } from '../stream-room.js';
 
 type PanelPage = 'scan' | 'mode' | 'devices' | 'pairing' | 'ready';
 
@@ -428,7 +429,7 @@ export class AppFlowSystem extends createSystem({}) {
     const pages: PanelPage[] = ['scan', 'mode', 'devices', 'pairing', 'ready'];
     for (const name of pages) this.panel.getElementById(`page-${name}`)?.setProperties({ display: name === page ? 'flex' : 'none' });
     if (page === 'pairing') {
-      this.panel.getElementById('flow-pair-url')?.setProperties({ text: `${location.host}/sender` });
+      this.panel.getElementById('flow-pair-url')?.setProperties({ text: streamSenderUrl() });
       emit('stream-refresh');
     }
     const opening = !this.panel.visible && this.sessionWasVisible;

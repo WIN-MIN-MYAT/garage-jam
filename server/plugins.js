@@ -127,7 +127,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     let supplied = code();
     while (pairingCodes.has(supplied)) supplied = code();
     pairingCodes.set(supplied, { profile: req.pluginSession, id: req.params.id, expires: Date.now() + pairDuration });
-    res.json({ code: supplied, url: `${req.pluginOrigin}/connect?code=${supplied}`, expiresIn: pairDuration });
+    res.json({ code: supplied, url: `${req.pluginOrigin}${path}/connect?code=${supplied}`, expiresIn: pairDuration });
   }));
 
   async function withConnection(session, id, operation) {
