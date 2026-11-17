@@ -1,4 +1,4 @@
-import { streamConfig, presets } from '/stream-shared/config.js';
+import { streamConfig, presets, formats } from '/stream-shared/config.js';
 import { ConnectionLog, watchPeer } from '/stream-shared/ConnectionLog.js';
 import { ConnectionStateMachine } from '/stream-shared/ConnectionStateMachine.js';
 import { SignalingClient } from '/stream-shared/SignalingClient.js';
@@ -8,6 +8,32 @@ import { isUdpCandidate, udpOnlyDescription } from '/stream-shared/IcePolicy.js'
 
 const channels = document.getElementById('channels');
 const states = new Map();
+const startLabel = 'Start streaming';
+const stopLabel = 'Stop streaming';
+const reShareLabel = 'Re-share window';
+const statusLabels = {
+  idle: 'Idle', pairing: 'Pairing', connecting: 'Connecting', live: 'Live', degraded: 'Degraded',
+  failed: 'Failed', recovering: 'Recovering', 'source-paused': 'Source paused',
+  'source-stopped': 'Source stopped', 'taken-over': 'Taken over',
+};
+
+function setStatus(state, value) {
+  const key = String(value);
+  const text = statusLabels[key] ?? key.replace(/-/g, ' ').replace(/\b\w/g, character => character.toUpperCase());
+  state.label.textContent = text;
+  state.label.title = text;
+  state.label.dataset.state = key === 'live' ? 'live'
+    : key === 'failed' ? 'failed'
+      : ['pairing', 'connecting', 'recovering'].includes(key) ? 'connecting'
+        : ['degraded', 'source-paused', 'source-stopped'].includes(key) ? 'warn' : 'idle';
+}
+function showNotice(state, text) {
+  state.notice.textContent = text;
+  state.notice.hidden = !text;
+}
+function codecSupported(value) {
+  return !!RTCRtpSender.getCapabilities?.('video')?.codecs?.some(codec => codec.mimeType.toLowerCase() === `video/${value}`);
+}
 const named = state => `${state.channel} ${state.machine.state}`;
 function send(state, message) { return state.signal?.send(message); }
 function closePeer(state, reason) {
@@ -19,13 +45,21 @@ function closePeer(state, reason) {
 function stop(state, reason = 'manual-stop') {
   closePeer(state, reason); state.signal?.stop(); state.signal = null;
   state.stream?.getTracks().forEach(track => track.stop()); state.stream = null;
-  state.preview.srcObject = null; state.button.textContent = 'Start'; state.machine.set('idle', reason);
+  state.preview.srcObject = null; state.empty.hidden = false;
+  state.button.textContent = startLabel; state.button.classList.remove('stop');
+  showNotice(state, '');
+  void selectFormat(state, state.mode, false);
+  state.machine.set('idle', reason);
 }
 function setSource(state, event) {
   state.log.add(`source-${event}`);
   if (event === 'ended') {
     closePeer(state, 'source-stopped'); state.signal?.stop(); state.signal = null;
-    state.stream = null; state.preview.srcObject = null; state.button.textContent = 'Re-share'; state.machine.set('source-stopped', 'track-ended');
+    state.stream = null; state.preview.srcObject = null; state.empty.hidden = false;
+    state.button.textContent = reShareLabel; state.button.classList.remove('stop');
+    showNotice(state, 'Source window closed. Choose a new window to re-share.');
+    void selectFormat(state, state.mode, false);
+    state.machine.set('source-stopped', 'track-ended');
   } else if (event === 'mute') state.machine.set('source-paused', 'track-muted');
   else if (state.peer?.connectionState === 'connected') state.machine.set('live', 'track-unmuted');
 }
@@ -51,9 +85,12 @@ function makePeer(state, reason) {
   if (codecs && transceiver.setCodecPreferences) {
     const choice = state.codec.value.toLowerCase();
     const preferred = codec => codec.mimeType.toLowerCase() === `video/${choice}` && (choice !== 'h264' || /packetization-mode=1/.test(codec.sdpFmtpLine || ''));
+    const supported = codecs.some(preferred);
     try {
       transceiver.setCodecPreferences([...codecs].sort((a, b) => Number(preferred(b)) - Number(preferred(a))));
-      state.log.add('codec-preference', { choice, supported: codecs.some(preferred) });
+      state.log.add('codec-preference', { choice, supported });
+      if (!supported) state.codecNote.textContent = `${choice.toUpperCase()} is not available in this Chrome build; using the best available codec.`;
+      else if (choice === 'av1') state.codecNote.textContent = 'AV1 selected. The active codec appears in Diagnostics.';
     }
     catch (error) { state.log.add('codec-preference-error', { message: String(error) }); }
   }
@@ -180,7 +217,7 @@ async function updateStats(state) {
   } catch (error) { state.log.add('stats-error', { message: String(error) }); }
 }
 async function lowerQuality(state, reason) {
-  const ladder = ['balanced', 'weak', 'multi', 'low'];
+  const ladder = state.mode === 'lowLatency' ? ['fast', 'multi', 'low'] : ['balanced', 'weak', 'multi', 'low'];
   const next = reason === 'software-encoder' ? 'multi' : ladder[Math.min(ladder.length - 1, Math.max(0, ladder.indexOf(state.preset)) + 1)];
   if (next === state.preset) return;
   state.preset = next; state.presetSelect.value = next; state.lastStepAt = Date.now(); state.stableSince = null; state.log.add('quality-step-down', { reason, preset: next });
@@ -191,7 +228,7 @@ async function lowerQuality(state, reason) {
   catch (error) { state.log.add('capture-constraint-unsupported', { message: String(error) }); }
 }
 async function raiseQuality(state) {
-  const ladder = ['balanced', 'weak', 'multi', 'low'];
+  const ladder = state.mode === 'lowLatency' ? ['fast', 'multi', 'low'] : ['balanced', 'weak', 'multi', 'low'];
   const current = ladder.indexOf(state.preset), requested = ladder.indexOf(state.requestedPreset);
   if (current <= requested || current < 1 || requested < 0) return;
   const next = ladder[current - 1]; state.preset = next; state.presetSelect.value = next;
@@ -205,45 +242,87 @@ function updateProbe(state) {
   const sample = latencySample(state.preview, state.probeCanvas, state.probeContext, Date.now() + (state.signal?.offset || 0));
   if (sample != null) { state.previewSamples.push(sample); if (state.previewSamples.length > 120) state.previewSamples.shift(); state.log.sample({ previewLatencyMs: sample }); }
 }
+async function selectFormat(state, mode, apply = true) {
+  const format = formats[mode];
+  if (!format) return;
+  state.mode = mode;
+  state.preset = format.preset;
+  state.requestedPreset = format.preset;
+  state.presetSelect.value = format.preset;
+  state.contentHint.value = format.contentHint;
+  state.degradation.value = format.degradation;
+  state.maxBitrate.value = String(format.bitrate / 1000000);
+  for (const button of state.formatButtons) button.setAttribute('aria-pressed', String(button.dataset.format === mode));
+  state.log.add('format-selected', { mode, preset: format.preset, bitrate: format.bitrate });
+  if (!apply || !state.stream) return;
+  const preset = presets[format.preset] || presets.balanced;
+  try {
+    const track = state.stream.getVideoTracks()[0];
+    await track?.applyConstraints({ width: { ideal: preset.width }, height: { ideal: preset.height }, frameRate: { ideal: preset.fps, max: preset.fps } });
+  } catch (error) { state.log.add('format-constraint-error', { message: String(error) }); }
+  const sender = state.peer?.getSenders().find(item => item.track?.kind === 'video');
+  if (sender) await applyPreset(state, sender);
+}
+
 async function start(state) {
   if (state.stream) { stop(state); return; }
   try {
-    const selected = state.presetSelect.value;
-    state.requestedPreset = selected;
-    const activeCount = [...states.values()].filter(item => item.stream).length;
-    state.preset = activeCount && selected === 'balanced' ? 'multi' : selected;
+    state.requestedPreset = state.preset;
     const p = presets[state.preset] || presets.balanced;
     const stream = await navigator.mediaDevices.getDisplayMedia({ monitorTypeSurfaces: 'exclude', video: { displaySurface: 'window', width: { ideal: p.width }, height: { ideal: p.height }, frameRate: { ideal: p.fps, max: p.fps }, cursor: 'always' }, audio: false });
-    state.stream = stream; state.preview.srcObject = stream; void state.preview.play();
+    state.stream = stream; state.preview.srcObject = stream; state.empty.hidden = true; showNotice(state, ''); void state.preview.play();
     const track = stream.getVideoTracks()[0]; track.contentHint = state.contentHint.value;
     state.surface = track.getSettings().displaySurface || 'unknown';
     if (track.getSettings().displaySurface === 'monitor' && !streamConfig.allowScreen) {
-      stream.getTracks().forEach(item => item.stop()); state.stream = null; state.preview.srcObject = null;
-      state.label.textContent = 'Choose an app window or tab, not the whole screen'; return;
+      stream.getTracks().forEach(item => item.stop()); state.stream = null; state.preview.srcObject = null; state.empty.hidden = false;
+      state.machine.set('failed', 'whole-screen-blocked');
+      state.label.textContent = 'Choose window';
+      state.label.title = 'Choose an app window or tab, not the whole screen.';
+      state.label.dataset.state = 'failed';
+      state.codecNote.textContent = 'Choose an app window or tab. Whole-screen capture is disabled by default.';
+      showNotice(state, 'Choose an app window or tab. Whole-screen capture is disabled by default.');
+      return;
     }
     track.onended = () => setSource(state, 'ended'); track.onmute = () => setSource(state, 'mute'); track.onunmute = () => setSource(state, 'unmute');
     state.log.add('capture-start', { preset: state.preset, settings: track.getSettings(), contentHint: track.contentHint, codec: state.codec.value, bitrateOverrideMbps: state.maxBitrate.value || null, degradation: state.degradation.value });
-    state.button.textContent = 'Stop'; state.machine.set('pairing', 'capture-start');
+    state.button.textContent = stopLabel; state.button.classList.add('stop'); state.machine.set('pairing', 'capture-start');
     state.signal = new SignalingClient(state.channel, 'sender', state.log, streamConfig, msg => void onMessage(state, msg), status => {
-      if (status === 'replaced') { closePeer(state, 'taken-over'); state.machine.set('failed', 'taken over by another device'); state.label.textContent = 'Taken over by another device'; }
+      if (status === 'replaced') { closePeer(state, 'taken-over'); state.machine.set('failed', 'taken-over'); state.label.textContent = 'Taken over by another device'; showNotice(state, 'This channel was opened in another sender tab.'); }
       else if (status === 'failed' && !state.peer) state.machine.set('failed', 'signaling-retries-exhausted');
       else if (status === 'closed') state.log.add('signaling-lost-media-kept');
     });
     state.signal.start();
-  } catch (error) { state.log.add('capture-error', { message: String(error) }); state.machine.set('failed', 'capture-failed'); state.label.textContent = `Capture failed: ${error.message}`; }
+  } catch (error) {
+    state.log.add('capture-error', { message: String(error) });
+    state.empty.hidden = false; state.button.textContent = startLabel; state.button.classList.remove('stop');
+    state.machine.set('failed', 'capture-failed'); state.label.title = error.message;
+    showNotice(state, `Capture failed: ${error.message}`);
+  }
 }
 for (let i = 1; i <= 3; i++) {
   const section = document.createElement('section');
-  section.innerHTML = `<h2>Monitor ${i}</h2><div class="controls"><button class="start">Start</button><span class="status">Idle</span></div><div class="controls"><label>Preset <select class="preset"><option value="balanced">1080p30 balanced</option><option value="fast">720p60 fast</option><option value="weak">900p30 weak laptop</option><option value="sharp">1440p30 sharp text</option><option value="multi">720p30 multi</option><option value="low">720p15 low</option></select></label><label>Content <select class="hint"><option>detail</option><option>text</option><option>motion</option></select></label><label>Codec <select class="codec"><option value="h264">H.264</option><option value="vp8">VP8</option><option value="vp9">VP9</option><option value="av1">AV1</option></select></label><label>Max Mbps <input class="bitrate" type="number" min="0.5" max="2" step="0.25" placeholder="2 cap" style="width:5em"></label><label>Degrade <select class="degradation"><option value="maintain-framerate">keep FPS</option><option value="maintain-resolution">keep resolution</option><option value="balanced">balanced</option></select></label><label><input class="auto" type="checkbox" checked> Auto quality</label></div><video muted autoplay playsinline></video><pre class="stats">Stats available after connection</pre><button class="record">Download run JSON</button> <button class="retry">Retry signaling</button>`;
+  section.className = 'channel';
+  section.dataset.channel = `monitor${i}`;
+  section.innerHTML = `<div class="channel-head"><div><span class="channel-kicker">CHANNEL 0${i}</span><h2>Monitor 0${i}</h2></div><span class="status" data-state="idle" aria-live="polite">Idle</span></div><div class="preview"><video muted autoplay playsinline></video><div class="preview-empty"><span>No source</span><small>Start and choose a window</small></div></div><div class="formats" role="group" aria-label="Stream format"><button type="button" class="format" data-format="best" aria-pressed="true"><strong>Best quality</strong><span>1080p · 30 fps · sharp text</span></button><button type="button" class="format" data-format="lowLatency" aria-pressed="false"><strong>Lowest latency</strong><span>720p · 60 fps · high motion</span></button></div><button type="button" class="start">${startLabel}</button><p class="notice" hidden></p><details class="advanced"><summary>Advanced</summary><div class="advanced-grid"><label class="field">Codec<select class="codec"><option value="av1" selected>AV1 (default)</option><option value="h264">H.264</option><option value="vp9">VP9</option><option value="vp8">VP8</option></select></label><label class="field">Max Mbps<input class="bitrate" type="number" min="0.5" max="6" step="0.25" value="4"></label><label class="field">Degrade<select class="degradation"><option value="maintain-resolution" selected>Keep resolution</option><option value="maintain-framerate">Keep frame rate</option><option value="balanced">Balanced</option></select></label><label class="field">Content<select class="hint"><option value="text" selected>Text / UI</option><option value="detail">Detail</option><option value="motion">Motion</option></select></label><label class="check"><input class="auto" type="checkbox"> Auto quality</label><select class="preset" hidden><option value="balanced">1080p30 balanced</option><option value="fast">720p60 fast</option><option value="weak">900p30 weak laptop</option><option value="sharp">1440p30 sharp text</option><option value="multi">720p30 multi</option><option value="low">720p15 low</option></select></div><div class="codec-note">AV1 is selected by default. If this Chrome build cannot send AV1, the best available codec is used.</div></details><details class="diagnostics"><summary>Diagnostics</summary><pre class="stats">Waiting for a live connection.</pre><div class="diag-actions"><button type="button" class="ghost record">Download run JSON</button><button type="button" class="ghost retry">Retry signaling</button></div></details>`;
   channels.append(section);
-  const state = { channel: `monitor${i}`, button: section.querySelector('.start'), label: section.querySelector('.status'), preview: section.querySelector('video'), stats: section.querySelector('.stats'), presetSelect: section.querySelector('.preset'), contentHint: section.querySelector('.hint'), codec: section.querySelector('.codec'), maxBitrate: section.querySelector('.bitrate'), degradation: section.querySelector('.degradation'), autoQuality: section.querySelector('.auto'), stream: null, signal: null, peer: null, generation: 0, pendingCandidates: [], previewSamples: [], probeCanvas: document.createElement('canvas'), recoveryAttempts: 0, overloadCount: 0 };
+  const state = {
+    channel: `monitor${i}`, button: section.querySelector('.start'), label: section.querySelector('.status'),
+    preview: section.querySelector('video'), empty: section.querySelector('.preview-empty'), stats: section.querySelector('.stats'),
+    presetSelect: section.querySelector('.preset'), contentHint: section.querySelector('.hint'), codec: section.querySelector('.codec'),
+    maxBitrate: section.querySelector('.bitrate'), degradation: section.querySelector('.degradation'), autoQuality: section.querySelector('.auto'),
+    codecNote: section.querySelector('.codec-note'), notice: section.querySelector('.notice'), formatButtons: [...section.querySelectorAll('.format')],
+    mode: 'best', stream: null, signal: null, peer: null, generation: 0, pendingCandidates: [],
+    previewSamples: [], probeCanvas: document.createElement('canvas'), recoveryAttempts: 0, overloadCount: 0,
+  };
   state.probeContext = state.probeCanvas.getContext('2d', { willReadFrequently: true });
   state.log = new ConnectionLog('sender', state.channel);
-  state.machine = new ConnectionStateMachine(state.log, streamConfig, value => { state.label.textContent = value; });
+  state.machine = new ConnectionStateMachine(state.log, streamConfig, value => setStatus(state, value));
   state.button.addEventListener('click', () => start(state));
+  for (const button of state.formatButtons) button.addEventListener('click', () => void selectFormat(state, button.dataset.format));
   section.querySelector('.record').addEventListener('click', () => state.log.download());
   section.querySelector('.retry').addEventListener('click', () => state.signal?.retryNow());
-  state.presetSelect.value = streamConfig.preset in presets ? streamConfig.preset : 'balanced';
+  if (!codecSupported('av1')) state.codecNote.textContent = 'AV1 is not advertised by this Chrome build; the best available codec will be used.';
+  void selectFormat(state, ['fast', 'low'].includes(streamConfig.preset) ? 'lowLatency' : 'best', false);
   states.set(state.channel, state);
 }
 document.getElementById('timecode-link').href = '/sender/timecode';

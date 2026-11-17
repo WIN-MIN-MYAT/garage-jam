@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, Quaternion, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
+import { BoxGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, Quaternion, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
 import type { Entity } from '@iwsdk/core';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
@@ -78,6 +78,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private loading = false;
   private crumpledTemplate?: Group;
   private paperLoader = new GLTFLoader();
+  private paperShell = new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
   private tasks = new Map<string, Task>();
   private roomHidden = false;
   private highlightingZone = false;
@@ -106,8 +107,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     const onReset = () => {
       this.loaded = false; this.loading = false;
       for (const entity of this.queries.papers.entities) {
-        (entity.object3D as Mesh)?.userData.paperTexture?.dispose?.();
-        entity.dispose();
+        this.disposePaper(entity);
       }
       this.previous.clear(); this.trashContacts.clear(); this.motion.clear(); this.tasks.clear();
     };
@@ -136,6 +136,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('task-created', onCreated));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-hidden', onRoomHidden));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-shown', onRoomShown));
+    this.cleanupFuncs.push(() => this.paperShell.dispose());
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
       if (state === VisibilityState.Visible && (this.demo || garageState.room) && !this.started) {
         this.started = true;
@@ -145,8 +146,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
       if (state === VisibilityState.NonImmersive && this.started) {
         this.started = false; this.loaded = false; this.loading = false;
         for (const entity of this.queries.papers.entities) {
-          (entity.object3D as Mesh)?.userData.paperTexture?.dispose?.();
-          entity.dispose();
+          this.disposePaper(entity);
         }
         this.previous.clear();
         this.trashContacts.clear();
@@ -280,6 +280,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     );
     mesh.rotation.y = yaw + (index % 7 - 3) * 0.045;
     mesh.userData.paperTexture = texture;
+    mesh.userData.paperMaterials = [edge, face];
     const entity = this.world.createTransformEntity(mesh);
     entity.addComponent(PaperTask, { taskId: task.id, state: 'flat', completed: false });
     entity.addComponent(RayInteractable, {});
@@ -310,37 +311,67 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private crumple(entity: Entity) {
     if (entity.getValue(PaperTask, 'state') !== 'flat') return;
     const mesh = entity.object3D as Mesh;
-    const texture = mesh.userData.paperTexture as CanvasTexture;
-    texture.dispose();
-    mesh.geometry.dispose();
-    if (this.crumpledTemplate) {
-      const visual = this.crumpledTemplate.clone(true);
+    try {
+      // Keep the original paper geometry, texture and physics body alive.
+      // Disposing or replacing a live mesh while it is grabbed can take down
+      // Quest Browser; the crumpled model is added as a child instead.
+      if (!mesh.userData.paperMaterials) {
+        mesh.userData.paperMaterials = Array.isArray(mesh.material) ? [...new Set(mesh.material)] : [mesh.material];
+      }
+      mesh.material = this.paperShell;
+      let visual: Group;
+      let template = false;
+      try {
+        visual = this.crumpledTemplate ? this.crumpledTemplate.clone(true) : new Group();
+        template = !!this.crumpledTemplate;
+      } catch (error) {
+        console.warn('Crumpled paper model clone failed', error);
+        visual = new Group();
+      }
       visual.name = 'Crumpled paper visual';
-      visual.scale.setScalar(0.09);
-      visual.position.y = -0.045;
-      mesh.geometry = new BufferGeometry();
-      mesh.material = new MeshBasicMaterial({ visible: false });
+      if (template) {
+        visual.scale.setScalar(0.09);
+        visual.position.y = -0.045;
+      } else {
+        const geometry = new IcosahedronGeometry(0.045, 1);
+        const material = new MeshBasicMaterial({ color: 0xf4dfbb });
+        const ball = new Mesh(geometry, material);
+        ball.name = 'Crumpled paper fallback';
+        visual.add(ball);
+        mesh.userData.crumpledDisposables = [geometry, material];
+      }
       mesh.add(visual);
-    } else {
-      mesh.geometry = new IcosahedronGeometry(0.045, 1);
-      mesh.material = new MeshBasicMaterial({ color: 0xf4dfbb });
+      entity.setValue(PaperTask, 'state', 'crumpled');
+      emit('status', 'CRUNCH! Throw it in the trash');
+      emit('paper-crumpled', { id: entity.getValue(PaperTask, 'taskId') });
+      const position = mesh.getWorldPosition(this.position);
+      revealAudio.playPaperCrumple(position);
+      showComicWord('KRRUNCH!', position);
+      this.pulse(0.32, 45);
+    } catch (error) {
+      console.warn('Paper crumple failed', error);
+      emit('status', 'Paper crumple failed; try again');
     }
-    entity.setValue(PaperTask, 'state', 'crumpled');
-    entity.setValue(PhysicsShape, 'shape', PhysicsShapeType.Sphere);
-    const dimensions = entity.getVectorView(PhysicsShape, 'dimensions');
-    dimensions[0] = 0.045; dimensions[1] = 0; dimensions[2] = 0;
-    emit('status', 'CRUNCH! Throw it in the trash');
-    emit('paper-crumpled', { id: entity.getValue(PaperTask, 'taskId') });
-    const position = mesh.getWorldPosition(this.position);
-    revealAudio.playPaperCrumple(position);
-    showComicWord('KRRUNCH!', position);
-    this.pulse(0.32, 45);
+  }
+
+  private disposePaper(entity: Entity) {
+    const mesh = entity.object3D as Mesh | undefined;
+    mesh?.userData.paperTexture?.dispose?.();
+    mesh?.geometry?.dispose?.();
+    const materials = mesh?.userData.paperMaterials as Array<{ dispose?: () => void }> | undefined;
+    materials?.forEach(material => material.dispose?.());
+    const disposables = mesh?.userData.crumpledDisposables as Array<{ dispose?: () => void }> | undefined;
+    disposables?.forEach(disposable => disposable.dispose?.());
+    entity.dispose();
   }
 
   private pulse(duration = 0.32, ms = 45) {
     [this.input.xr.gamepads.left, this.input.xr.gamepads.right].forEach(pad => {
       const actuator = (pad as any)?.gamepad?.hapticActuators?.[0];
-      actuator?.pulse?.(duration, ms);
+      try {
+        const result = actuator?.pulse?.(duration, ms);
+        result?.catch?.(() => { /* haptics are optional */ });
+      } catch { /* haptics are optional */ }
     });
   }
 
@@ -378,7 +409,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.previous.delete(entity.index);
     this.trashContacts.delete(entity.index);
     this.motion.delete(entity.index);
-    entity.dispose();
+    this.disposePaper(entity);
     if (!this.roomHidden && this.world.session) revealAudio.playTaskDone(this.trash);
     showComicWord('KA-CHAK!');
     this.pulse(0.45, 55);

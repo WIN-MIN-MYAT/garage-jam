@@ -1,3 +1,146 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="icon" href="data:,"><title>Garage Jam Sender</title><style>
-body{font:16px system-ui;background:#151920;color:#faf4e8;max-width:960px;margin:2rem auto;padding:1rem}h1{color:#ffce54}section{background:#252a34;border:2px solid #363f4e;border-radius:16px;padding:1.2rem;margin:1rem 0}button,select{font:inherit;background:#ef48a6;color:#151920;border:0;border-radius:9px;padding:.5rem .8rem;cursor:pointer;font-weight:700}select{background:#fff}button:disabled{opacity:.5}.controls{display:flex;gap:1rem;align-items:center;flex-wrap:wrap;margin:.6rem 0}label{font-size:14px}video{width:240px;max-height:150px;background:#000}pre{white-space:pre-wrap;font:13px ui-monospace,monospace}small{color:#aeb8c8}a{color:#7fe4eb}
-</style></head><body><h1>Garage Jam / Window Sender</h1><p>Open this page in Chrome on the laptop. Start each monitor and choose an app window or tab in Chrome's picker; whole-screen capture is rejected by default. Keep this page open while working. For latency tests, <a id="timecode-link">open the timecode tab</a> and share it.</p><div id="channels"></div><small>The chosen window streams to one Quest viewer on this local network. Chrome asks for capture permission every session.</small><script type="module" src="/sender.js"></script></body></html>
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="icon" href="data:,">
+  <title>Garage Jam / Window Sender</title>
+  <style>
+    :root {
+      --bg: #0c0f14;
+      --panel: #141922;
+      --panel-2: #10151d;
+      --line: #28313e;
+      --line-soft: #202833;
+      --ink: #f1eadc;
+      --muted: #8c97a7;
+      --dim: #657181;
+      --yellow: #e8ff2a;
+      --pink: #ff3d9f;
+      --cyan: #19e3ff;
+      --green: #c8ff4d;
+      --orange: #ffce54;
+      --red: #ff8da8;
+    }
+    * { box-sizing: border-box; }
+    html { background: var(--bg); }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--ink);
+      font: 14px/1.5 ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(900px 500px at 8% -10%, rgba(232, 255, 42, 0.10), transparent 62%),
+        radial-gradient(700px 440px at 96% 4%, rgba(25, 227, 255, 0.08), transparent 58%),
+        var(--bg);
+    }
+    a { color: var(--cyan); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .page { width: min(1480px, 100%); margin: 0 auto; padding: 42px clamp(18px, 4vw, 56px) 54px; }
+    .hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 26px; flex-wrap: wrap; padding-bottom: 26px; border-bottom: 1px solid var(--line); }
+    .brand { display: flex; align-items: center; gap: 16px; }
+    .mark { width: 50px; height: 50px; display: grid; place-items: center; border-radius: 15px; background: var(--yellow); color: #10131a; font: 900 17px/1 ui-sans-serif, system-ui, sans-serif; letter-spacing: -0.04em; box-shadow: 0 0 0 7px rgba(232, 255, 42, 0.08); }
+    .eyebrow { margin: 0 0 5px; color: var(--pink); font-size: 10px; font-weight: 900; letter-spacing: 0.16em; text-transform: uppercase; }
+    h1 { margin: 0; max-width: 780px; font-size: clamp(30px, 4vw, 50px); line-height: 0.98; letter-spacing: -0.045em; font-weight: 900; }
+    .subhead { margin: 10px 0 0; max-width: 740px; color: var(--muted); font-size: 13px; }
+    .hero-meta { display: flex; align-items: center; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 0 11px; border: 1px solid var(--line); border-radius: 999px; background: rgba(20, 25, 34, 0.72); color: #b8c2cf; font-size: 9px; font-weight: 900; letter-spacing: 0.10em; text-transform: uppercase; white-space: nowrap; }
+    .chip::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: var(--cyan); box-shadow: 0 0 10px var(--cyan); }
+    .chip.warm::before { background: var(--yellow); box-shadow: 0 0 10px var(--yellow); }
+    .chip.soft::before { background: var(--muted); box-shadow: none; }
+    .guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 22px 0 26px; }
+    .step { display: flex; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(180deg, rgba(20, 25, 34, 0.9), rgba(13, 18, 25, 0.9)); }
+    .step-num { color: var(--cyan); font: 900 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; }
+    .step strong { display: block; margin-bottom: 3px; color: var(--ink); font-size: 12px; }
+    .step span { color: var(--muted); font-size: 11px; }
+    .channels { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px; align-items: start; }
+    .channel { display: flex; flex-direction: column; gap: 14px; padding: 17px; border: 1px solid var(--line); border-radius: 20px; background: linear-gradient(180deg, rgba(24, 30, 40, 0.98), rgba(15, 20, 28, 0.98)); box-shadow: 0 18px 40px rgba(0, 0, 0, 0.22); }
+    .channel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .channel-kicker { display: block; margin-bottom: 3px; color: var(--pink); font-size: 9px; font-weight: 900; letter-spacing: 0.16em; }
+    .channel h2 { margin: 0; font-size: 21px; line-height: 1; letter-spacing: -0.035em; }
+    .status { flex: 0 0 auto; max-width: 48%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; padding: 7px 10px; border: 1px solid #333d4d; border-radius: 999px; background: #0d1219; color: #9aa6b6; font-size: 9px; font-weight: 900; letter-spacing: 0.08em; text-transform: uppercase; }
+    .status[data-state="live"] { border-color: var(--green); background: var(--green); color: #101408; }
+    .status[data-state="connecting"] { border-color: #195a6a; background: #0b2830; color: var(--cyan); }
+    .status[data-state="warn"] { border-color: #5a4518; background: #241e0e; color: var(--orange); }
+    .status[data-state="failed"] { border-color: #5e2639; background: #261017; color: var(--red); }
+    .preview { position: relative; overflow: hidden; aspect-ratio: 16 / 9; border: 1px solid #222b37; border-radius: 13px; background: #070a0e; }
+    .preview video { display: block; width: 100%; height: 100%; object-fit: contain; background: #070a0e; }
+    .preview-empty { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; background: radial-gradient(360px 160px at 50% 45%, rgba(25, 227, 255, 0.08), transparent 70%), #090d12; color: #b8c2cf; pointer-events: none; }
+    .preview-empty[hidden] { display: none; }
+    .preview-empty span { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; }
+    .preview-empty small { color: var(--dim); font-size: 10px; }
+    .formats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .format { display: flex; flex-direction: column; align-items: flex-start; gap: 3px; min-height: 58px; padding: 10px 11px; border: 1px solid #2a3442; border-radius: 11px; background: #10161f; color: #d5dde8; text-align: left; cursor: pointer; transition: border-color 120ms ease, background 120ms ease, transform 120ms ease; }
+    .format:hover { border-color: #466071; transform: translateY(-1px); }
+    .format strong { font-size: 11px; line-height: 1.15; }
+    .format span { color: var(--dim); font-size: 9px; line-height: 1.35; }
+    .format[aria-pressed="true"] { border-color: var(--yellow); background: #1e250c; box-shadow: inset 0 0 0 1px var(--yellow); }
+    .format[aria-pressed="true"] strong { color: var(--yellow); }
+    .format[aria-pressed="true"] span { color: #aab77a; }
+    .start { width: 100%; min-height: 46px; padding: 12px 15px; border: 0; border-radius: 12px; background: var(--yellow); color: #10131a; font-size: 12px; font-weight: 900; letter-spacing: 0.03em; cursor: pointer; transition: filter 120ms ease, transform 120ms ease; }
+    .start:hover { filter: brightness(1.06); transform: translateY(-1px); }
+    .start.stop { background: var(--pink); }
+    .notice { margin: 0; padding: 8px 10px; border: 1px solid #5e2639; border-radius: 9px; background: #261017; color: #ffb3c6; font-size: 10px; line-height: 1.4; }
+    .notice[hidden] { display: none; }
+    details { border-top: 1px solid var(--line-soft); padding-top: 11px; }
+    summary { color: #aab4c2; font-size: 10px; font-weight: 900; letter-spacing: 0.10em; text-transform: uppercase; cursor: pointer; list-style: none; }
+    summary::-webkit-details-marker { display: none; }
+    summary::after { content: "+"; float: right; color: var(--cyan); font-size: 13px; line-height: 0.7; }
+    details[open] summary::after { content: "–"; }
+    .advanced-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 12px; }
+    label.field { display: flex; flex-direction: column; gap: 5px; color: #8f9bab; font-size: 9px; font-weight: 800; letter-spacing: 0.05em; text-transform: uppercase; }
+    select, input[type="number"] { width: 100%; min-height: 34px; padding: 7px 8px; border: 1px solid #2c3644; border-radius: 8px; background: #0b1016; color: #eef2f8; font: 11px ui-sans-serif, system-ui, sans-serif; outline: none; }
+    select:focus, input[type="number"]:focus { border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(25, 227, 255, 0.16); }
+    .check { display: flex; align-items: center; gap: 8px; min-height: 34px; padding-top: 15px; color: #aab4c2; font-size: 10px; font-weight: 700; }
+    .check input { width: 15px; height: 15px; accent-color: var(--yellow); }
+    .stats { min-height: 84px; max-height: 150px; margin: 11px 0 0; overflow: auto; padding: 10px; border: 1px solid #202a36; border-radius: 9px; background: #080c11; color: #8ea0b5; font: 10px/1.55 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+    .diag-actions { display: flex; gap: 7px; margin-top: 9px; }
+    .ghost { min-height: 30px; padding: 0 10px; border: 1px solid #2c3644; border-radius: 8px; background: #111721; color: #aab4c2; font-size: 9px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; cursor: pointer; }
+    .ghost:hover { border-color: #466071; color: var(--ink); }
+    .page-footer { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; flex-wrap: wrap; margin-top: 30px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--dim); font-size: 10px; }
+    .page-footer strong { color: #aab4c2; }
+    @media (max-width: 1120px) { .channels { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+    @media (max-width: 760px) {
+      .page { padding-top: 28px; }
+      .hero { align-items: flex-start; }
+      .hero-meta { justify-content: flex-start; }
+      .channels, .guide { grid-template-columns: 1fr; }
+      .status { max-width: 45%; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <div class="brand">
+        <div class="mark" aria-hidden="true">GJ</div>
+        <div>
+          <p class="eyebrow">Garage Jam / Window Sender</p>
+          <h1>Send windows to your VR monitors</h1>
+          <p class="subhead">Start a channel below, then pick the app window or tab you want in the headset. Capture stays local to this laptop.</p>
+        </div>
+      </div>
+      <div class="hero-meta">
+        <span class="chip">Local WebRTC</span>
+        <span class="chip warm">AV1 default</span>
+        <span class="chip soft">One viewer / channel</span>
+        <a id="timecode-link" class="chip soft" href="/sender/timecode">Latency test</a>
+      </div>
+    </header>
+
+    <section class="guide" aria-label="How it works">
+      <div class="step"><div class="step-num">01</div><div><strong>Open Garage Jam on Quest</strong><span>Enter the garage and choose Stream my laptop.</span></div></div>
+      <div class="step"><div class="step-num">02</div><div><strong>Start a monitor</strong><span>Use Monitor 1, 2, or 3 below. Each channel is independent.</span></div></div>
+      <div class="step"><div class="step-num">03</div><div><strong>Pick a window or tab</strong><span>Whole-screen capture is blocked by default. Use Advanced only if needed.</span></div></div>
+    </section>
+
+    <section id="channels" class="channels" aria-label="Stream channels"></section>
+
+    <footer class="page-footer">
+      <div><strong>Capture stays local.</strong> Mouse and keyboard input remain on this laptop. Chrome asks for a window each session.</div>
+      <div>AV1 needs a recent Chrome build and a Quest viewer that supports it. If AV1 is unavailable, Chrome falls back to the best available codec.</div>
+    </footer>
+  </main>
+  <script type="module" src="/sender.js"></script>
+</body>
+</html>

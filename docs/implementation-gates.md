@@ -90,7 +90,7 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 - Local tasks are stored server-side in `server/data/tasks-local.json` and merged with Notion tasks. New tasks default to local; `TASKS_SEND_TO=notion` sends them to Notion. `server/tasks.js` is unit-tested, including the 100-task cap.
 - Completion emits `task-done`, adds a splat through `TaskBoardSystem`, records completed-by-day/focus minutes in `client/src/progress-store.ts` and `/api/state`, and calls the Notion done endpoint with the existing retry/outbox path.
 - The crumple/throw path keeps the five-sample release velocity estimate, adds procedural paper/crunch/trash sounds and haptic pulses, and uses a segment-to-rim test so a fast throw cannot tunnel past the sensor.
-- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-papers.png`, `scripts/rest-trash-pop.png`, `scripts/rest-boards.png`. The trash-impact comic text is drawn above the bin and floor; physical release velocity and hand crumple feel remain.
+- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-papers.png`, `scripts/rest-crumple.png`, `scripts/rest-trash-pop.png`, `scripts/rest-boards.png`. The rest test now grabs and crumples a paper through the controller path and asserts XR stays up. The trash-impact comic text is drawn above the bin and floor; physical release velocity and hand crumple feel remain.
 
 ## Gate 9 connectors
 
@@ -103,22 +103,23 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 ## Gate 10 streaming integration
 
 - `StreamSystem` registers in the room build; the three monitors are placed on an arc in front of the seat at about 1.75 m and table-derived height, hidden in passthrough mode and re-centered by the wrist Room action.
-- S9b now shows a 6-character pairing code and `/connect`, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. The sender claims the code through the server, then starts the usual channels.
+- S9b shows the `/sender` address, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. The laptop opens the sender page and starts each channel; there is no streaming pairing code. The 6-character `/connect` code is for plugin sign-in only.
 - Monitor controls are implemented in `client/src/systems/monitor-manager-system.ts`: grab/move, selection, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, saved layout and recenter. The `table` preset anchors the panels above the measured tabletop.
+- The sender page is a dark, Garage Jam-themed dashboard with three channel cards. The default formats are **Best quality** (1080p30, 4 Mbps, keep resolution, sharp text) and **Lowest latency** (720p60, 2.5 Mbps, keep frame rate, high motion); both prefer **AV1**, and **Auto quality is off** by default. Advanced exposes codec, bitrate, degradation, content hint and auto-quality overrides. Evidence: `scripts/sender-ui.png`.
 - The 30-minute soak and measured latency targets remain physical checks; the existing diagnostics and sender fault tests are unchanged.
 
 ## Gate 11 P1 features
 
 - `FocusSystem` builds a procedural roll-down shutter over the chosen door, dims the `Golden hour sky`/sun beam/dust, shows a countdown sign and drives focus/break phases. Focus minutes persist through `progress-store`.
 - `TaskBoardSystem` draws the stats, calendar, Top 3 and whiteboard boards from live tasks/calendar/focus data, and paints persistent offset-layer mural splats on the largest non-door wall.
-- `PaperSystem` pins a task when a flat paper is released within 65 cm of the corkboard, freezes the sheet on the board, and respawns pinned papers there next session. The Settings page has **Clear board**.
+- `PaperSystem` pins a task when a flat paper is released within 65 cm of the corkboard, freezes the sheet on the board, and respawns pinned papers there next session. Crumpling now keeps the original paper mesh, texture and physics body alive and adds the crumpled visual as a child; it no longer disposes or swaps live geometry while the paper is grabbed, and haptic failures are ignored. **Clear board** is in wrist SET.
 - `PresenceSystem` stores the usual seated head pose. With **Stand fade** enabled, sitting triggers the quick reveal and standing/walking away reverses the reveal and hides garage roots. Focus/voice/video systems stay outside this transition.
 - `VoiceSystem` uses the Web Speech API and local task creation when available. `NudgeSystem` flashes break messages. `RevealAudio` adds paper, trash, task, focus, nudge, stream cues and a procedural lo-fi fallback. A procedural boombox is anchored in a floor corner and its speakers pulse while music plays.
 - Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-focus.png`, `scripts/rest-boards.png`, `scripts/rest-trash-pop.png`, `scripts/monitor-manager.png`, `scripts/boombox-corner.png`, `scripts/wrist-compact-home.png`, `scripts/wrist-compact-settings.png`. Physical feel, legibility, stand/sit detection and voice availability remain.
 
 ## Verification handoff
 
-`docs/user-verification.md` is the physical Quest checklist. `docs/user-questions.md` lists the open product decisions (boombox, pairing code, monitor manager depth, focus handle, Top 3 freeze, whiteboard reset, provider naming and local-music defaults).
+`docs/user-verification.md` is the physical Quest checklist. `docs/user-questions.md` lists the open product decisions (boombox, plugin pairing code, monitor manager depth, focus handle, Top 3 freeze, whiteboard reset, provider naming and local-music defaults).
 
 
 ## Step 3 single-entry flow and Room Build Reveal
@@ -132,7 +133,7 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 - **S4/S5** complete inside the scan normalization and solver; the blueprint beat is the visual collapse.
 - **S6** runs the full reveal.
 - **S7** shows the table panel only when the flow needs confirmation.
-- **S8** shows the passthrough/streaming choice. **S9a** runs Gate 7 device marking (laptop, monitor + keyboard, extra zones) with skip; **S9b** remains the streaming pairing placeholder. **S10** shows the wrist-menu hint and then hands over to the live session. **S11** persists the room/settings on exit and offers `RESUME THE GARAGE`; a restored room runs the 2.2–3 s quick reveal and skips table confirmation when the stored height matches within 3 cm.
+- **S8** shows the passthrough/streaming choice. **S9a** runs Gate 7 device marking (laptop, monitor + keyboard, extra zones) with skip; **S9b** shows the `/sender` address and live monitor states. **S10** shows the wrist-menu hint and then hands over to the live session. **S11** persists the room/settings on exit and offers `RESUME THE GARAGE`; a restored room runs the 2.2-3 s quick reveal and skips table confirmation when the stored height matches within 3 cm.
 
 ### Reveal implementation
 

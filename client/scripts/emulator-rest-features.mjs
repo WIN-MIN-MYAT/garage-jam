@@ -14,6 +14,8 @@ try {
   const waitStage = stage => page.waitForFunction(stage => window.garageFlowDebug.stage === stage, stage, { timeout: 25000 });
   const points = corners => page.evaluate(corners => corners.forEach(point => window.garageManualDebug.addPoint(...point)), corners);
   const lookAt = target => page.evaluate(target => window.IWER_DEVICE.remote.dispatch('look_at', { device: 'headset', target }), target);
+  const remote = (method, params) => page.evaluate(({ method, params }) => window.IWER_DEVICE.remote.dispatch(method, params), { method, params });
+  const controllerButtons = buttons => remote('set_gamepad_state', { device: 'controller-right', buttons });
 
   await page.locator('#gj-enter').click();
   await waitStage('S2');
@@ -139,7 +141,32 @@ try {
   await page.screenshot({ path: 'scripts/rest-focus.png' });
   await page.evaluate(() => window.garageFocusDebug.cancel());
 
-  await page.evaluate(() => window.garageDebug.crumpleFirst());
+  const paper = await page.evaluate(() => {
+    let found = null;
+    window.garageEmulatorWorld.scene.traverse(object => {
+      if (found || !object.isMesh || !object.name?.startsWith('Paper ')) return;
+      const point = object.getWorldPosition(object.position.clone());
+      found = { x: point.x, y: point.y, z: point.z };
+    });
+    return found;
+  });
+  assert.ok(paper, 'expected a paper to grab');
+  await lookAt({ x: paper.x, y: paper.y, z: paper.z });
+  await remote('set_transform', {
+    device: 'controller-right',
+    position: { x: paper.x, y: paper.y + 0.03, z: paper.z + 0.03 },
+    orientation: { x: 0, y: 0, z: 0, w: 1 },
+  });
+  await page.waitForTimeout(350);
+  await controllerButtons([{ index: 1, value: 1, touched: true }]);
+  await page.waitForTimeout(250);
+  await controllerButtons([{ index: 0, value: 1, touched: true }]);
+  await page.waitForTimeout(500);
+  await controllerButtons([{ index: 0, value: 0, touched: false }, { index: 1, value: 0, touched: false }]);
+  await page.waitForTimeout(300);
+  assert.ok(await page.evaluate(() => window.garageDebug.papers().some(item => item.state === 'crumpled')), 'controller grab + trigger must crumple a paper');
+  assert.equal(await page.evaluate(() => window.garageEmulatorWorld.renderer.xr.isPresenting), true, 'XR must stay up after crumpling');
+  await page.screenshot({ path: 'scripts/rest-crumple.png' });
   await page.evaluate(() => window.garageDebug.dropFirstInTrash());
   await page.waitForFunction(() => window.garageDebug.papers().length === 1, null, { timeout: 10000 });
   const after = await page.evaluate(() => ({
@@ -154,7 +181,7 @@ try {
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'scripts/rest-boards.png' });
   assert.deepEqual(errors, []);
-  console.log('Papers, native task completion, mural, focus door, boards, streaming pairing and plugin status passed.');
+  console.log('Papers, native task completion, mural, focus door, boards, streaming sender and plugin status passed.');
 } finally {
   await browser.close();
 }

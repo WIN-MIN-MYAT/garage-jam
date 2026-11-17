@@ -5,7 +5,7 @@ The starred decisions were answered on 2026-11-17 and are implemented. A few imp
 ## Resolved decisions
 
 - **Boombox / music source.** The boombox is back as a code-built retro prop (body, speakers, handle, antenna, comic outline). It is placed on the floor in a wall corner, not on the table.
-- **Streaming pairing flow.** Implemented a 6-character, single-use, 10-minute pairing code. S9b shows the code and `host/connect`; the laptop opens `/connect`, enters the code, and continues in the provider page. No headset navigation is required.
+- **Streaming pairing flow.** Streaming uses the direct `/sender` page and per-monitor WebRTC channels; S9b shows the sender address and live states. The 6-character `/connect` code is only for plugin sign-in. No headset navigation is required for either flow.
 - **Stand-up fade.** The first seated head pose is stored locally. With **Stand fade** enabled, sitting at that pose runs the quick reveal and shows the garage; standing/walking away reverses the reveal and fades all garage roots to passthrough. The wrist Settings page has the toggle.
 - **Monitor manager.** Added grab/move, monitor selection, width/height resize controls, curve, lock, presets (arc, table, stacked, ultrawide, free), saved layout, and recenter. The **table** preset places the monitors above the measured table. The manager is opened from the wrist Room page.
 - **Focus door trigger.** Wrist start/pause remains the trigger; the procedural shutter and countdown are unchanged.

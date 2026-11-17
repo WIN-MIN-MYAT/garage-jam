@@ -28,8 +28,10 @@ const assetsPlugin = {
   },
 };
 
+const httpMode = process.env.GARAGE_HTTP === '1';
+
 export default defineConfig({
-  plugins: [process.env.GARAGE_HTTP === '1' ? null : basicSsl(), assetsPlugin, iwsdkDev()].filter(Boolean),
+  plugins: [httpMode ? null : basicSsl(), assetsPlugin, iwsdkDev(httpMode ? { https: false } : {})].filter(Boolean),
   server: { host: '0.0.0.0', port: 8091, open: false, proxy: {
     '/api': { target: 'http://localhost:8082', xfwd: true },
     '/signal': { target: 'ws://localhost:8082', ws: true, xfwd: true },
