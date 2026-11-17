@@ -3,13 +3,24 @@
   "cautious": false,
   "placements": [
     {
+      "slotId": "boombox",
+      "position": [
+        3,
+        0,
+        -1.9
+      ],
+      "yaw": -1.006,
+      "scale": 1,
+      "wallId": null
+    },
+    {
       "slotId": "crates",
       "position": [
-        -3,
+        3,
         0,
-        -2.4
+        -0.5
       ],
-      "yaw": 0.896,
+      "yaw": -1.406,
       "scale": 1,
       "wallId": null
     },
@@ -49,11 +60,11 @@
     {
       "slotId": "mini-fridge",
       "position": [
-        2.7,
+        -2.7,
         0,
-        -0.2
+        -0.6
       ],
-      "yaw": -1.497,
+      "yaw": 1.352,
       "scale": 1,
       "wallId": null
     },
@@ -82,11 +93,11 @@
     {
       "slotId": "shelf",
       "position": [
-        2.9,
+        -2.9,
         0,
-        -2.1
+        -1.6
       ],
-      "yaw": -0.944,
+      "yaw": 1.067,
       "scale": 1,
       "wallId": null
     },
@@ -104,22 +115,22 @@
     {
       "slotId": "tires",
       "position": [
-        -2.8,
+        3,
         0,
-        -0.7
+        0.5
       ],
-      "yaw": 1.326,
+      "yaw": -1.736,
       "scale": 1,
       "wallId": null
     },
     {
       "slotId": "toolbox",
       "position": [
-        -0.6,
+        2.5,
         0,
         -2.7
       ],
-      "yaw": 0.219,
+      "yaw": -0.747,
       "scale": 1,
       "wallId": null
     },

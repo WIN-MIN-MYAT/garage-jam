@@ -3,6 +3,17 @@
   "cautious": true,
   "placements": [
     {
+      "slotId": "boombox",
+      "position": [
+        1.7,
+        0,
+        -0.6
+      ],
+      "yaw": -1.232,
+      "scale": 1,
+      "wallId": null
+    },
+    {
       "slotId": "calendar-board",
       "position": [
         -1.05,
@@ -16,13 +27,13 @@
     {
       "slotId": "corkboard",
       "position": [
-        1.942,
+        1.5,
         1.2,
-        -1
+        0.942
       ],
-      "yaw": -1.571,
+      "yaw": -3.142,
       "scale": 1,
-      "wallId": "wall-1"
+      "wallId": "wall-2"
     },
     {
       "slotId": "door",
@@ -71,20 +82,20 @@
     {
       "slotId": "patch-bay",
       "position": [
-        1.45,
+        1.942,
         1.2,
-        0.942
+        -0.75
       ],
-      "yaw": -3.142,
+      "yaw": -1.571,
       "scale": 1,
-      "wallId": "wall-2"
+      "wallId": "wall-1"
     },
     {
       "slotId": "pegboard",
       "position": [
         1.902,
         1.175,
-        0
+        0.2
       ],
       "yaw": -1.571,
       "scale": 1,

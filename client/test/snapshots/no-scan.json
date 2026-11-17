@@ -27,6 +27,10 @@
   ],
   "unplaced": [
     {
+      "slotId": "boombox",
+      "reason": "removed to make room for P0 paper-zone"
+    },
+    {
       "slotId": "calendar-board",
       "reason": "no valid candidate after gap/scale fallback"
     },

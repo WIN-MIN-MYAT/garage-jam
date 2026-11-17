@@ -3,6 +3,17 @@
   "cautious": false,
   "placements": [
     {
+      "slotId": "boombox",
+      "position": [
+        1.7,
+        0,
+        0.3
+      ],
+      "yaw": -1.745,
+      "scale": 1,
+      "wallId": null
+    },
+    {
       "slotId": "calendar-board",
       "position": [
         -1.942,
