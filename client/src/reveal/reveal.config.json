@@ -1,9 +1,9 @@
 {
-  "fullDuration": 7.0,
-  "quickDuration": 2.6,
+  "fullDuration": 8.9,
+  "quickDuration": 3.1,
   "reducedDuration": 0.6,
   "minDuration": 4.0,
-  "maxDuration": 8.0,
+  "maxDuration": 10.0,
   "quantizeFps": 12,
   "edgeWidth": 0.026,
   "edgeColor": [0.94, 0.48, 0.58],
@@ -17,14 +17,14 @@
     "questOnly": true
   },
   "beats": {
-    "blueprint": [0.0, 1.0],
-    "floor": [1.0, 1.0],
-    "walls": [2.0, 1.5],
-    "stickers": [4.35, 1.25],
-    "ceiling": [3.5, 0.7],
-    "door": [4.2, 0.8],
-    "table": [4.5, 1.3],
-    "props": [5.0, 1.5],
-    "finish": [6.5, 0.5]
+    "blueprint": [0.0, 1.15],
+    "floor": [1.15, 1.25],
+    "walls": [2.4, 2.25],
+    "ceiling": [4.55, 0.95],
+    "door": [5.0, 1.25],
+    "stickers": [5.25, 1.5],
+    "table": [5.65, 1.55],
+    "props": [6.55, 1.65],
+    "finish": [8.25, 0.65]
   }
 }

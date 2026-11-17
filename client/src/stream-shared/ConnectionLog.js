@@ -1,7 +1,8 @@
 export class ConnectionLog {
-  constructor(role, channel) {
+  constructor(role, channel, apiBase = '') {
     this.role = role;
     this.channel = channel;
+    this.apiBase = apiBase;
     this.events = [];
     this.samples = [];
     this.offset = 0;
@@ -22,7 +23,7 @@ export class ConnectionLog {
   }
   async download() {
     let serverEvents = [];
-    try { const response = await fetch(`/api/signal-log?channel=${encodeURIComponent(this.channel)}`); if (response.ok) serverEvents = await response.json(); }
+    try { const response = await fetch(`${this.apiBase}/api/signal-log?channel=${encodeURIComponent(this.channel)}`); if (response.ok) serverEvents = await response.json(); }
     catch {}
     const blob = new Blob([JSON.stringify({ role: this.role, channel: this.channel, config: location.search, clockOffsetMs: this.offset, events: this.events, serverEvents, samples: this.samples }, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);

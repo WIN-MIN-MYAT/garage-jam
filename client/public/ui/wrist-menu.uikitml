@@ -1,39 +1,41 @@
 <style>
-  .card { width: 232px; height: 292px; flex-direction: column; padding: 12px; gap: 7px; background-color: #121419; border-color: #2a2f39; border-width: 1px; border-radius: 14px; }
-  .head { flex-direction: row; align-items: center; justify-content: space-between; height: 22px; }
+  .card { width: 256px; height: 332px; flex-direction: column; padding: 12px; gap: 8px; background-color: #121419; border-color: #2a2f39; border-width: 1px; border-radius: 14px; }
+  .head { flex-direction: row; align-items: center; justify-content: space-between; height: 30px; }
   .brand { flex-direction: row; align-items: center; gap: 7px; }
   .dot { width: 7px; height: 7px; border-radius: 4px; background-color: #e8ff70; }
-  .name { color: #f1eadc; font-size: 11px; font-weight: 800; letter-spacing: 1.2px; }
+  .name { color: #f1eadc; font-size: 11.5px; font-weight: 800; letter-spacing: 1.2px; }
   .tools { flex-direction: row; align-items: center; gap: 5px; }
-  .pin { height: 20px; padding: 2px; border-radius: 6px; background-color: #22262e; color: #c9c4b8; font-size: 9px; font-weight: 800; letter-spacing: 0.5px; }
+  .pin { height: 30px; padding: 4px; border-radius: 7px; background-color: #22262e; color: #c9c4b8; font-size: 10px; font-weight: 800; letter-spacing: 0.4px; }
   .pin-on { background-color: #e8ff70; color: #14161c; }
-  .close { width: 22px; height: 20px; border-radius: 6px; background-color: #22262e; color: #c9c4b8; font-size: 12px; font-weight: 800; }
+  .close { width: 30px; height: 30px; border-radius: 7px; background-color: #22262e; color: #c9c4b8; font-size: 13px; font-weight: 800; }
   .tabs { flex-direction: row; padding: 3px; gap: 3px; background-color: #191c23; border-radius: 8px; }
-  .tab { flex-grow: 1; height: 24px; border-radius: 6px; background-color: #191c23; color: #7f848f; font-size: 9px; font-weight: 800; letter-spacing: 0.3px; }
+  .tab { flex-grow: 1; height: 30px; border-radius: 6px; background-color: #191c23; color: #7f848f; font-size: 10px; font-weight: 800; letter-spacing: 0; }
   .tab-active { background-color: #2a303a; color: #e8ff70; }
   .rule { height: 1px; background-color: #242832; }
-  .page { height: 190px; flex-direction: column; gap: 6px; }
-  .action { height: 36px; padding: 8px; border-radius: 8px; background-color: #1d2129; color: #f1eadc; font-size: 11.5px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
+  .page { height: 216px; flex-direction: column; gap: 7px; }
+  .subpage { flex-direction: column; gap: 6px; }
+  .action { height: 38px; padding: 8px; border-radius: 8px; background-color: #1d2129; color: #f1eadc; font-size: 12px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
   .primary { background-color: #e8ff70; color: #14161c; }
   .primary-label { color: #14161c; }
   .primary-value { color: #14161c; }
-  .row { flex-direction: row; gap: 6px; }
-  .half { flex-grow: 1; height: 28px; padding: 5px; border-radius: 7px; background-color: #1d2129; color: #e8e2d6; font-size: 10.5px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
-  .third { flex-grow: 1; height: 30px; padding: 5px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10.5px; font-weight: 700; flex-direction: row; align-items: center; justify-content: center; }
-  .label { font-size: 10.5px; font-weight: 700; color: #e8e2d6; }
-  .value { font-size: 9.5px; font-weight: 800; color: #9de6ef; letter-spacing: 0.3px; }
+  .row { flex-direction: row; gap: 8px; }
+  .half { flex-grow: 1; height: 30px; padding: 5px; border-radius: 7px; background-color: #1d2129; color: #e8e2d6; font-size: 11px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
+  .third { flex-grow: 1; height: 30px; padding: 5px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 11px; font-weight: 700; flex-direction: row; align-items: center; justify-content: center; }
+  .subtab { height: 30px; }
+  .label { font-size: 11px; font-weight: 700; color: #e8e2d6; }
+  .value { font-size: 10.5px; font-weight: 800; color: #9de6ef; letter-spacing: 0.2px; }
   .danger { color: #ff9a9a; }
   .foot { flex-direction: row; align-items: center; justify-content: space-between; height: 14px; padding-top: 1px; }
-  .hint { color: #7f8590; font-size: 9px; letter-spacing: 0.2px; }
+  .hint { color: #7f8590; font-size: 10.5px; letter-spacing: 0.2px; }
   .track { flex-direction: column; gap: 2px; justify-content: center; padding: 2px; }
-  .song { color: #f1eadc; font-size: 12.5px; font-weight: 800; }
-  .artist { color: #9de6ef; font-size: 9.5px; font-weight: 700; }
-  .wide { flex-grow: 1; height: 30px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10.5px; font-weight: 700; }
-  .grid { flex-direction: row; gap: 5px; }
-  .cell { flex-grow: 1; height: 28px; padding: 4px; border-radius: 7px; background-color: #1d2129; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
-  .celllabel { font-size: 9px; font-weight: 700; color: #aeb3be; letter-spacing: 0.2px; }
-  .cellvalue { font-size: 9px; font-weight: 800; color: #9de6ef; letter-spacing: 0.3px; }
-  .cellaction { flex-grow: 1; height: 28px; padding: 4px; border-radius: 7px; background-color: #1d2129; color: #e8e2d6; font-size: 9px; font-weight: 700; align-items: center; justify-content: center; }
+  .song { color: #f1eadc; font-size: 13px; font-weight: 800; }
+  .artist { color: #9de6ef; font-size: 10.5px; font-weight: 700; }
+  .wide { flex-grow: 1; height: 30px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 11px; font-weight: 700; }
+  .grid { flex-direction: row; gap: 8px; }
+  .cell { flex-grow: 1; height: 30px; padding: 4px; border-radius: 7px; background-color: #1d2129; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
+  .celllabel { font-size: 10px; font-weight: 700; color: #aeb3be; letter-spacing: 0.2px; }
+  .cellvalue { font-size: 10.5px; font-weight: 800; color: #9de6ef; letter-spacing: 0.2px; }
+  .cellaction { flex-grow: 1; height: 30px; padding: 4px; border-radius: 7px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; align-items: center; justify-content: center; }
 </style>
 <Panel id="wm-card" class="card">
   <div class="head">
@@ -54,37 +56,28 @@
 
   <Panel id="page-home" class="page">
     <button id="wm-passthrough" class="action primary"><div id="wm-passthrough-label" class="label primary-label">Show passthrough</div><div class="value primary-value">VIEW</div></button>
+    <button id="wm-place" class="action">Center wrist panel</button>
     <div class="row">
-      <button id="wm-table-view" class="half"><div class="label">Table</div><div id="wm-table-view-value" class="value">REAL</div></button>
-      <button id="wm-cutouts" class="half"><div class="label">Cutouts</div><div id="wm-cutouts-value" class="value">ON</div></button>
-    </div>
-    <div class="row">
-      <button id="wm-mark-devices" class="half">Mark devices</button>
-      <button id="wm-place" class="half">Center panel</button>
-    </div>
-    <div class="row">
-      <button id="wm-focus" class="half"><div class="label">Focus</div><div id="wm-focus-value" class="value">START</div></button>
+      <button id="wm-focus" class="half"><div id="wm-focus-label" class="label">Start focus</div><div id="wm-focus-value" class="value">25M</div></button>
       <button id="wm-voice" class="half">Voice task</button>
     </div>
+    <button id="wm-focus-end" class="action danger" style="display: none">End focus</button>
     <div class="foot"><div id="wm-next-event" class="hint">No events today</div><div id="wm-page-label" class="hint">HOME</div></div>
   </Panel>
 
   <Panel id="page-room" class="page" style="display: none">
-    <button id="wm-mark-table" class="action primary"><div class="label">Mark table corners</div><div class="value">TOUCH</div></button>
     <div class="row">
-      <button id="wm-edit-table" class="half">Adjust height</button>
-      <button id="wm-rearrange" class="half">Rearrange</button>
+      <button id="wm-mode-real" class="third">Physical displays</button>
+      <button id="wm-mode-stream" class="third">Streamed displays</button>
     </div>
-    <div class="row">
-      <button id="wm-rescan" class="half">Rescan room</button>
-      <button id="wm-debug" class="half"><div class="label">Debug</div><div id="wm-debug-value" class="value">OFF</div></button>
+    <div id="wm-physical-controls" class="subpage">
+      <button id="wm-mark-devices" class="action">Mark physical devices</button>
+      <button id="wm-cutouts" class="action"><div class="label">Show real screens</div><div id="wm-cutouts-value" class="value">ON</div></button>
     </div>
-    <div class="row">
-      <button id="wm-mode" class="half"><div class="label">Mode</div><div id="wm-mode-value" class="value">PASS</div></button>
-      <button id="wm-monitors" class="half">Manage monitors</button>
+    <div id="wm-stream-controls" class="subpage" style="display: none">
+      <button id="wm-monitors" class="action">Manage monitors</button>
+      <div class="hint">Find your room code in Connect.</div>
     </div>
-    <button id="wm-forget" class="wide danger">Forget room</button>
-    <div class="foot"><div class="hint">Table, props and room</div><div class="hint">ROOM</div></div>
   </Panel>
 
   <Panel id="page-music" class="page" style="display: none">
@@ -99,37 +92,57 @@
     </div>
     <div class="row">
       <button id="wm-music-vol-down" class="half">Volume -</button>
+      <div id="wm-music-volume" class="value">40%</div>
       <button id="wm-music-vol-up" class="half">Volume +</button>
     </div>
-    <div class="row">
-      <button id="wm-music-device" class="half"><div class="label">Device</div><div id="wm-music-device-value" class="value">NONE</div></button>
-      <button id="wm-music-playlist" class="half"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">NONE</div></button>
-    </div>
+    <button id="wm-music-playlist" class="action"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">NONE</div></button>
     <div class="foot"><div id="wm-music-note" class="hint">Local fallback available</div><div class="hint">MUSIC</div></div>
   </Panel>
 
   <Panel id="page-settings" class="page" style="display: none">
-    <div class="grid">
-      <button id="wm-units" class="cell"><div class="celllabel">Units</div><div id="wm-units-value" class="cellvalue">CM</div></button>
-      <button id="wm-hand" class="cell"><div class="celllabel">Hand</div><div id="wm-hand-value" class="cellvalue">RIGHT</div></button>
-      <button id="wm-motion" class="cell"><div class="celllabel">Motion</div><div id="wm-motion-value" class="cellvalue">FULL</div></button>
+    <div class="row">
+      <button id="wm-settings-preferences" class="third subtab">Preferences</button>
+      <button id="wm-settings-room" class="third subtab">Room setup</button>
     </div>
-    <div class="grid">
-      <button id="wm-reveal" class="cell"><div class="celllabel">Reveal</div><div id="wm-reveal-value" class="cellvalue">ON</div></button>
-      <button id="wm-sound" class="cell"><div class="celllabel">Sound</div><div id="wm-sound-value" class="cellvalue">ON</div></button>
-      <button id="wm-outlines" class="cell"><div class="celllabel">Outlines</div><div id="wm-outlines-value" class="cellvalue">ON</div></button>
+    <div id="wm-settings-page-preferences" class="subpage">
+      <div class="grid">
+        <button id="wm-units" class="cell"><div class="celllabel">Units</div><div id="wm-units-value" class="cellvalue">CM</div></button>
+        <button id="wm-hand" class="cell"><div class="celllabel">Hand</div><div id="wm-hand-value" class="cellvalue">RIGHT</div></button>
+        <button id="wm-motion" class="cell"><div class="celllabel">Motion</div><div id="wm-motion-value" class="cellvalue">FULL</div></button>
+      </div>
+      <div class="grid">
+        <button id="wm-reveal" class="cell"><div class="celllabel">Reveal</div><div id="wm-reveal-value" class="cellvalue">ON</div></button>
+        <button id="wm-sound" class="cell"><div class="celllabel">Effects</div><div id="wm-sound-value" class="cellvalue">ON</div></button>
+        <button id="wm-outlines" class="cell"><div class="celllabel">Outlines</div><div id="wm-outlines-value" class="cellvalue">ON</div></button>
+      </div>
+      <div class="grid">
+        <button id="wm-sky" class="cell"><div class="celllabel">Sky</div><div id="wm-sky-value" class="cellvalue">GOLD</div></button>
+        <button id="wm-focus-length" class="cell"><div class="celllabel">Focus length</div><div id="wm-focus-length-value" class="cellvalue">25M</div></button>
+      </div>
+      <div class="grid">
+        <button id="wm-standup" class="cell"><div class="celllabel">Stand fade</div><div id="wm-standup-value" class="cellvalue">OFF</div></button>
+        <button id="wm-save-seat" class="cell"><div class="celllabel">Save seat</div><div id="wm-save-seat-value" class="cellvalue">SET</div></button>
+      </div>
     </div>
-    <div class="grid">
-      <button id="wm-sky" class="cell"><div class="celllabel">Sky</div><div id="wm-sky-value" class="cellvalue">GOLD</div></button>
-      <button id="wm-focus-length" class="cell"><div class="celllabel">Focus</div><div id="wm-focus-length-value" class="cellvalue">25M</div></button>
-      <button id="wm-standup" class="cell"><div class="celllabel">Stand fade</div><div id="wm-standup-value" class="cellvalue">OFF</div></button>
+    <div id="wm-settings-page-room" class="subpage" style="display: none">
+      <button id="wm-mark-table" class="half">Mark table corners</button>
+      <div class="row">
+        <button id="wm-table-view" class="half"><div class="label">Table</div><div id="wm-table-view-value" class="value">WORKBENCH</div></button>
+        <button id="wm-edit-table" class="half">Adjust height</button>
+      </div>
+      <div class="row">
+        <button id="wm-rearrange" class="half">Rearrange</button>
+        <button id="wm-rescan" class="half">Rescan room</button>
+      </div>
+      <div class="row">
+        <button id="wm-clear-board" class="half">Clear board</button>
+        <button id="wm-debug" class="half"><div class="label">Debug</div><div id="wm-debug-value" class="value">OFF</div></button>
+      </div>
+      <div class="row">
+        <button id="wm-reset" class="half">Reset preferences</button>
+        <button id="wm-forget" class="half danger">Forget room</button>
+      </div>
     </div>
-    <div class="grid">
-      <button id="wm-save-seat" class="cell"><div class="celllabel">Save seat</div><div id="wm-save-seat-value" class="cellvalue">SET</div></button>
-      <button id="wm-clear-board" class="cellaction">Clear board</button>
-      <button id="wm-reset" class="cellaction">Reset prefs</button>
-    </div>
-    <div class="foot"><div class="hint">Preferences save automatically</div><div class="hint">SET</div></div>
   </Panel>
 
   <Panel id="page-plugins" class="page" style="display: none">

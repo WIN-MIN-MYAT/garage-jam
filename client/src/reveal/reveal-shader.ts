@@ -43,11 +43,21 @@ function makeDripTexture() {
   const data = new Uint8Array(width * 4);
   let seed = 913;
   const random = () => { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; };
+  const marks = new Float32Array(width);
   for (let i = 0; i < width; i++) {
-    const slow = 0.28 + 0.18 * Math.sin(i * 0.11) + 0.10 * Math.sin(i * 0.037 + 1.7);
-    const spike = random() > 0.955 ? 0.45 + random() * 0.5 : 0;
-    const tall = Math.max(0.05, Math.min(1, slow + spike));
-    const value = Math.round(tall * 255);
+    if (random() < 0.974) continue;
+    const radius = 5 + Math.floor(random() * 6);
+    const height = 0.16 + random() * 0.22;
+    for (let offset = -radius; offset <= radius; offset++) {
+      const falloff = 0.5 + 0.5 * Math.cos(Math.PI * offset / radius);
+      const index = (i + offset + width) % width;
+      marks[index] = Math.max(marks[index], height * falloff);
+    }
+  }
+  for (let i = 0; i < width; i++) {
+    const phase = i / width * Math.PI * 2;
+    const edge = 0.32 + 0.12 * Math.sin(phase * 4) + 0.08 * Math.sin(phase * 2 + 1.7) + marks[i];
+    const value = Math.round(edge * 255);
     data[i * 4] = value; data[i * 4 + 1] = value; data[i * 4 + 2] = value; data[i * 4 + 3] = 255;
   }
   const texture = new DataTexture(data, width, 1, RGBAFormat, UnsignedByteType);
@@ -101,7 +111,7 @@ export function applyRevealMaterial(material: any, surface: RevealSurface) {
     );
     shader.fragmentShader = `${revealChunk}\n${shader.fragmentShader}`.replace(
       'void main() {',
-      'void main() {\n  float gjReveal = gjRevealValue(vRevealWorld);\n  if (gjReveal > uRevealProgress) discard;\n  float gjEdge = 1.0 - smoothstep(0.0, uRevealEdgeWidth, uRevealProgress - gjReveal);',
+      'void main() {\n  float gjReveal = gjRevealValue(vRevealWorld);\n  if (uRevealProgress <= 0.0 || gjReveal > uRevealProgress) discard;\n  float gjDistance = uRevealProgress - gjReveal;\n  float gjEdge = 1.0 - smoothstep(0.0, uRevealEdgeWidth, gjDistance);\n  if (uRevealMode > 0.5 && uRevealMode < 1.5) {\n    float lip = 1.0 - smoothstep(0.0, uRevealEdgeWidth * 0.42, gjDistance);\n    float paint = 1.0 - smoothstep(0.0, uRevealEdgeWidth * 1.7, gjDistance);\n    gjEdge = (lip * 0.56 + paint * 0.28) * (1.0 - smoothstep(0.95, 1.04, uRevealProgress));\n  }',
     ).replace(
       '#include <dithering_fragment>',
       'gl_FragColor.rgb = mix(gl_FragColor.rgb, uRevealEdgeColor, gjEdge * 0.82);\n#include <dithering_fragment>',

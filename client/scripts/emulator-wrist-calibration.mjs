@@ -143,16 +143,19 @@ try {
   assert.equal(await page.evaluate(() => window.garageBuildDebug.root.visible), false);
   await menu('wm-passthrough');
   assert.equal(await page.evaluate(() => window.garageBuildDebug.root.visible), true);
+  await menu('wm-tab-settings');
+  await menu('wm-settings-room');
   await menu('wm-table-view');
   assert.equal((await preferences()).tableView, 'real');
-  await menu('wm-tab-settings');
+  await menu('wm-settings-preferences');
   for (const id of ['wm-units', 'wm-hand', 'wm-motion', 'wm-reveal', 'wm-sound', 'wm-outlines', 'wm-sky', 'wm-focus-length', 'wm-standup']) await menu(id);
   const prefs = await preferences();
   assert.deepEqual([prefs.units, prefs.dominantHand, prefs.reducedMotion, prefs.revealOff, prefs.revealSound, prefs.outlines, prefs.skyMode, prefs.focusMinutes, prefs.standUpFade],
     ['in', 'left', true, true, false, false, 'time', 45, true]);
   await menu('wm-tab-music');
   assert.equal(await page.evaluate(() => window.garageWristDebug.panel.requireElementById('page-music').properties.value.display), 'flex');
-  await menu('wm-tab-room');
+  await menu('wm-tab-settings');
+  await menu('wm-settings-room');
   await menu('wm-debug');
   assert.equal(await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud').visible), true);
   await menu('wm-tab-settings');
@@ -161,7 +164,7 @@ try {
   assert.deepEqual([reset.units, reset.tableView, reset.revealSound, reset.outlines, reset.debugOverlay, reset.skyMode, reset.focusMinutes, reset.standUpFade], ['cm', 'workbench', true, true, false, 'golden', 25, false]);
   assert.equal(await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud').visible), false);
 
-  await menu('wm-tab-home');
+  await menu('wm-tab-room');
   await menu('wm-cutouts');
   assert.equal((await preferences()).cutouts, false);
   assert.equal(await page.evaluate(() => window.garageDeviceDebug.state.cutouts), false);
@@ -174,7 +177,8 @@ try {
   await page.waitForFunction(() => window.garageDeviceDebug.state.visible === false);
   await reopen();
 
-  await menu('wm-tab-room');
+  await menu('wm-tab-settings');
+  await menu('wm-settings-room');
   await menu('wm-edit-table');
   await page.waitForFunction(() => window.garageTableDebug.panel.visible);
   await table('height-plus');

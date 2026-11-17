@@ -10,7 +10,8 @@ import { makeManualRoom, manualRoomStorageKey, polygonArea, validateCalibrationC
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { showComicWord } from '../comic-word.js';
 import { GarageBuildSystem } from './garage-build-system.js';
-import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { bindPress, clearUiInput, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { pulseGamepads } from '../feedback.js';
 
 type Phase = 'idle' | 'floor' | 'table' | 'done';
 type Mode = 'room' | 'table';
@@ -100,7 +101,11 @@ export class ManualCalibrationSystem extends createSystem({}) {
     entity.addComponent(PokeInteractable, {});
     this.panel = panel;
     this.panelInput = new PanelInput(panel, () => { this.acceptAfter = performance.now() + 180; });
-    const on = (id: string, action: () => void) => bindPress(panel, id, action);
+    const on = (id: string, action: () => void) => bindPress(panel, id, () => {
+      pulseGamepads(this.input.xr.gamepads, 0.3, 26);
+      revealAudio.playPress(panel);
+      action();
+    });
     on('cal-use', () => this.useOutline());
     on('cal-undo', () => this.undo());
     on('cal-skip', () => this.skipTable());
@@ -133,6 +138,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
     this.clearMarkers();
     this.root.visible = false;
     if (this.panel) this.panel.visible = false;
+    clearUiInput();
     emit('room-manual-active', false);
     emit('room-manual-ended', { mode: this.mode, saved });
   }
@@ -207,6 +213,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
     this.issue = '';
     points.push({ x: point.x, y: point.y, z: point.z });
     if (fromInput) this.nextPointAt = now + 420;
+    if (fromInput) pulseGamepads(this.input.xr.gamepads, 0.3, 22);
     revealAudio.playTick(point);
     showComicWord('TUP.', point);
     this.rebuildMarkers();
@@ -281,16 +288,20 @@ export class ManualCalibrationSystem extends createSystem({}) {
     const target = floor ? 'floor' : 'table';
     const count = points.length;
     const set = (id: string, props: object) => this.panel?.requireElementById(id).setProperties(props);
-    set('cal-step', { text: this.mode === 'table' ? 'TABLE ONLY' : floor ? '1 OF 2 / FLOOR' : '2 OF 2 / TABLE' });
-    set('cal-count', { text: `${count} / 4` });
-    set('cal-title', { text: count === 4 ? `Check the ${target} outline` : `Mark the ${target}` });
-    set('cal-instruction', { text: count === 4 ? 'Check the numbered corners, then use the outline or undo the last point.' :
-      `Touch corner ${count + 1} and pinch or pull the trigger. Follow the edges in order.` });
+    set('cal-step', { text: this.mode === 'table' ? 'Table setup' : floor ? 'Step 1 of 2' : 'Step 2 of 2' });
+    set('cal-count', { text: `${count} of 4 corners` });
+    set('cal-title', { text: count === 4 ? `Check the ${target} outline` : `Mark the ${floor ? 'floor' : 'tabletop'}` });
+    set('cal-instruction', { text: count === 4
+      ? 'If the outline fits, continue. Undo the last corner to place it again.'
+      : count === 0
+        ? `Touch the first ${target} corner, then pull the trigger or pinch. Work around the edges in order.`
+        : `Touch corner ${count + 1} along the next edge, then pull the trigger or pinch.` });
     set('cal-error', { display: this.issue ? 'flex' : 'none', text: this.issue });
     set('cal-use', { display: count === 4 ? 'flex' : 'none', text: floor ? 'Use floor outline' : 'Save table outline' });
-    set('cal-undo', { display: count || (!floor && this.mode === 'room') ? 'flex' : 'none', text: count ? 'Undo corner' : 'Back to floor' });
+    set('cal-undo', { display: count || (!floor && this.mode === 'room') ? 'flex' : 'none', text: count ? 'Undo last corner' : 'Back to floor' });
     set('cal-skip', { display: !floor && this.mode === 'room' ? 'flex' : 'none' });
-    for (let i = 1; i <= 4; i++) set(`cal-progress-${i}`, { backgroundColor: i <= count ? '#8ef5ef' : '#485364' });
+    set('cal-cancel', { text: this.mode === 'room' ? 'Back to scan' : 'Cancel' });
+    for (let i = 1; i <= 4; i++) set(`cal-progress-${i}`, { backgroundColor: i <= count ? '#b6e6d8' : '#524759' });
     emit('room-manual-progress', { phase: this.phase, floor: this.floorPoints.length, table: this.tablePoints.length });
     emit('room-measurements', `Floor ${this.floorPoints.length}/4  |  Table ${this.tablePoints.length}/4`);
   }
@@ -301,12 +312,12 @@ export class ManualCalibrationSystem extends createSystem({}) {
     const ctx = canvas.getContext('2d')!;
     ctx.beginPath();
     ctx.arc(64, 64, 50, 0, Math.PI * 2);
-    ctx.fillStyle = '#161a22';
+    ctx.fillStyle = '#25222d';
     ctx.fill();
     ctx.lineWidth = 7;
-    ctx.strokeStyle = '#8ef5ef';
+    ctx.strokeStyle = '#b6e6d8';
     ctx.stroke();
-    ctx.font = 'bold 56px sans-serif';
+    ctx.font = '400 60px GarageComic, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff9ee';

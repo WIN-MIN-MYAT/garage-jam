@@ -1,10 +1,11 @@
 import { createSystem, loadUIKitMLAsset, PokeInteractable, RayInteractable, Vector3, VisibilityState } from '@iwsdk/core';
 import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { garageState, setPreference } from '../garage-state.js';
+import { garageState, setWorkMode } from '../garage-state.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
-import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { bindPress, clearUiInput, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { pulseGamepads } from '../feedback.js';
 import { StreamSystem } from './stream-system.js';
 
 type Page = 'layout' | 'connect';
@@ -58,17 +59,18 @@ export class MonitorManagerSystem extends createSystem({}) {
     entity.addComponent(PokeInteractable, {});
     this.panel = panel;
     new PanelInput(panel, () => {});
-    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(panel); action(); });
+    const on = (id: string, action: () => void) => bindPress(panel, id, () => {
+      pulseGamepads(this.input.xr.gamepads, 0.3, 26);
+      revealAudio.playPress(panel);
+      action();
+    });
     on('mm-close', () => this.hide());
     on('mm-sharing', () => this.show('connect'));
     on('mm-back', () => this.show('layout'));
     on('mm-layout-desk', () => this.stream?.setPreset('desk'));
     on('mm-layout-arc', () => this.stream?.setPreset('arc'));
-    on('mm-use-streaming', () => {
-      setPreference('mode', 'streaming');
-      emit('mode-changed', 'streaming');
-    });
-    for (let index = 0; index < 3; index++) on('mm-monitor-' + (index + 1), () => this.stream?.toggleMonitor(index));
+    on('mm-use-streaming', () => setWorkMode('streaming'));
+    for (let index = 0; index < 2; index++) on('mm-monitor-' + (index + 1), () => this.stream?.toggleMonitor(index));
     if (this.open) this.show(this.page);
     if (location.hostname === 'localhost') {
       (window as any).garageMonitorDebug = {
@@ -79,6 +81,7 @@ export class MonitorManagerSystem extends createSystem({}) {
   }
 
   private show(page: Page) {
+    if (!this.open) emit('monitor-manager-visibility', true);
     this.open = true;
     this.page = page;
     if (!this.panel) return;
@@ -98,9 +101,11 @@ export class MonitorManagerSystem extends createSystem({}) {
   }
 
   private hide() {
+    if (this.open) emit('monitor-manager-visibility', false);
     this.open = false;
     this.stream?.setLayoutEditing(false);
     if (this.panel) this.panel.visible = false;
+    clearUiInput();
   }
 
   private refresh() {
@@ -118,7 +123,7 @@ export class MonitorManagerSystem extends createSystem({}) {
       set('mm-code', { text: getStreamRoom() });
       return;
     }
-    for (let index = 0; index < 3; index++) {
+    for (let index = 0; index < 2; index++) {
       const monitor = state?.monitors[index];
       set('mm-monitor-' + (index + 1), {
         text: monitor?.enabled ? 'On' : 'Off',

@@ -4,6 +4,7 @@ import { chromium } from 'playwright';
 const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe', args: ['--ignore-certificate-errors'] });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
+  page.setDefaultTimeout(20000);
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
@@ -53,7 +54,7 @@ try {
   assert.equal(new URL(pairing.url).search, '');
   assert.equal(pairing.code, await page.evaluate(() => window.garageStreamDebug.room));
   assert.match(pairing.code, /^[A-Za-z0-9_-]{4,32}$/);
-  assert.equal(pairing.states.length, 3);
+  assert.equal(pairing.states.length, 2);
   await click('garageFlowDebug', 'flow-continue-2');
   await waitStage('S10');
   await click('garageFlowDebug', 'flow-start');
@@ -64,15 +65,15 @@ try {
   const before = await page.evaluate(() => ({
     papers: window.garageDebug.papers(),
     boards: { tasks: window.garageBoardDebug?.tasks ?? 0, splats: window.garageBoardDebug?.splats ?? 0 },
-    monitors: [1, 2, 3].map(index => window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index}`)?.visible ?? null),
+    monitors: [1, 2].map(index => window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index}`)?.visible ?? null),
     streams: window.garageStreamDebug?.states,
     plugins: window.garagePluginDebug?.statuses,
     placements: window.garageBuildDebug.placements.map(item => item.slotId),
   }));
   assert.equal(before.papers.length, 2);
   assert.equal(before.boards.tasks, 2);
-  assert.deepEqual(before.monitors, [true, false, false], JSON.stringify(before));
-  assert.equal(before.streams.length, 3);
+  assert.deepEqual(before.monitors, [true, false], JSON.stringify(before));
+  assert.equal(before.streams.length, 2);
   assert.ok(!before.placements.includes('paint-cans'), 'spray cans are removed from the room');
   const boombox = await page.evaluate(() => window.garageBuildDebug.placements.find(item => item.slotId === 'boombox') ?? null);
   assert.ok(boombox, 'boombox should be placed in a corner');
@@ -97,7 +98,7 @@ try {
     const scene = window.garageEmulatorWorld.scene;
     return {
       visible: manager?.visible ?? false, hasPreset: !!manager?.requireElementById?.('mm-layout-desk'),
-      monitors: [1, 2, 3].map(index => scene.getObjectByName(`Monitor ${index}`)?.visible),
+      monitors: [1, 2].map(index => scene.getObjectByName(`Monitor ${index}`)?.visible),
       model: !!scene.getObjectByName('Monitor 1')?.getObjectByName('Low-poly monitor'),
       texture: window.garageBuildDebug.root.getObjectByName('Garage walls').children
         .find(child => child.name.startsWith('Wall '))?.material.map?.image?.width,
@@ -105,22 +106,38 @@ try {
   });
   assert.equal(panel.visible, true);
   assert.equal(panel.hasPreset, true);
-  assert.deepEqual(panel.monitors, [true, false, false]);
+  assert.deepEqual(panel.monitors, [true, false]);
   assert.equal(panel.model, true);
   assert.equal(panel.texture, 2048);
   await page.screenshot({ path: 'scripts/monitor-manager.png' });
   const monitor = async id => page.evaluate(id => window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel').requireElementById(id).dispatchEvent({ type: 'click' }), id);
   await monitor('mm-monitor-2');
-  await monitor('mm-monitor-3');
+  const two = await page.evaluate(() => window.garageStreamDebug.layout);
+  const twoEnabled = two.filter(monitor => monitor.enabled);
+  assert.equal(twoEnabled.length, 2);
+  const left = twoEnabled.find(monitor => monitor.x < 0);
+  const right = twoEnabled.find(monitor => monitor.x > 0);
+  assert.ok(left && right, JSON.stringify(two));
+  assert.ok(Math.abs(left.x + right.x) < 0.02, 'two monitors stay symmetrical');
+  assert.ok(Math.abs(left.x - right.x) > 0.6, 'two monitors are spread apart');
+  assert.ok(Math.abs(left.z - right.z) < 0.02, 'two monitors share one arc depth');
+  assert.ok(left.yaw > 0.1 && left.yaw < Math.PI / 2, 'left monitor tilts inward');
+  assert.ok(right.yaw < -0.1 && right.yaw > -Math.PI / 2, 'right monitor tilts inward');
   await monitor('mm-monitor-1');
   await monitor('mm-layout-desk');
   const monitorState = await page.evaluate(() => window.garageMonitorDebug.state());
   assert.equal(monitorState.preset, 'desk');
-  assert.deepEqual(monitorState.monitors.map(item => item.enabled), [false, true, true]);
-  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('garage-jam-monitor-layout-v2')).monitors.map(item => item.enabled)), [false, true, true]);
+  assert.deepEqual(monitorState.monitors.map(item => item.enabled), [false, true]);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('garage-jam-monitor-layout-v2')).monitors.map(item => item.enabled)), [false, true]);
+  const one = await page.evaluate(() => window.garageStreamDebug.layout.find(monitor => monitor.enabled));
+  assert.ok(one && Math.abs(one.x) < 0.02, JSON.stringify(one));
+  assert.ok(Math.abs(one.yaw) < 0.05, 'single monitor faces the viewer square-on');
   await monitor('mm-layout-arc');
   assert.equal(await page.evaluate(() => window.garageMonitorDebug.state().preset), 'arc');
   await page.evaluate(() => window.garageMonitorDebug.hide());
+  const turnable = await page.evaluate(() => window.garageStreamDebug.layout.find(monitor => monitor.enabled));
+  assert.equal(turnable.grabbable, true);
+  assert.equal(turnable.grabTranslate, false);
   await page.evaluate(() => window.garageWristDebug.show('plugins'));
   await click('garageWristDebug', 'wm-connect-screen');
   const guide = await page.evaluate(() => {
@@ -130,16 +147,30 @@ try {
   });
   assert.deepEqual(guide, { visible: true, code: pairing.code, address: pairing.url });
   await page.evaluate(() => window.garageMonitorDebug.hide());
-  await page.evaluate(() => window.garagePresenceDebug?.hide());
-  await page.waitForTimeout(1400);
-  const hidden = await page.evaluate(() => ({ root: window.garageBuildDebug.root.visible, debug: window.garagePresenceDebug?.hidden }));
-  assert.equal(hidden.root, false);
-  assert.equal(hidden.debug, true);
-  await page.evaluate(() => window.garagePresenceDebug?.show());
-  await page.waitForTimeout(1400);
-  assert.equal(await page.evaluate(() => window.garageBuildDebug.root.visible), true);
-  assert.deepEqual(await page.evaluate(() => [1, 2, 3].map(index =>
-    window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index}`).visible)), [false, true, true]);
+  const moveHead = position => remote('set_transform', { device: 'headset', position });
+  const seatedPosition = await page.evaluate(() => {
+    const room = window.garageBuildDebug.room;
+    return { x: room.seat.x, y: room.floor.y + 1.2, z: room.seat.z };
+  });
+  await moveHead(seatedPosition);
+  await page.evaluate(() => window.garageWristDebug.show('settings'));
+  await click('garageWristDebug', 'wm-settings-preferences');
+  await click('garageWristDebug', 'wm-standup');
+  await click('garageWristDebug', 'wm-save-seat');
+  await page.waitForTimeout(1000);
+  await page.waitForFunction(() => window.garagePresenceDebug?.pose);
+  const seat = await page.evaluate(() => window.garagePresenceDebug.pose);
+  await moveHead({ ...seat, y: seat.y + 0.48 });
+  await page.waitForFunction(() => window.garagePresenceDebug.hidden && !window.garageBuildDebug.root.visible);
+  assert.equal(await page.evaluate(() => window.garageWristDebug.panel.visible), false);
+  await moveHead(seat);
+  await page.waitForFunction(() => !window.garagePresenceDebug.hidden
+    && window.garageBuildDebug.root.visible && window.garageWristDebug.panel.visible);
+  assert.equal(await page.evaluate(() => window.garageFlowDebug.stage), 'S10');
+  assert.equal(await page.evaluate(() => window.garageWristDebug.info.pinned), true);
+  assert.deepEqual(await page.evaluate(() => [1, 2].map(index =>
+    window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index}`).visible)), [false, true]);
+  await page.evaluate(() => window.garageWristDebug.hide());
 
   await page.evaluate(() => window.garageFocusDebug.start(1));
   await page.waitForFunction(() => window.garageFocusDebug.state.running, null, { timeout: 5000 });

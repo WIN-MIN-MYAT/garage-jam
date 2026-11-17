@@ -1,79 +1,79 @@
 <style>
-  .root { width: 620px; flex-direction: column; padding: 20px; gap: 12px; background-color: #15171d; border-radius: 20px; }
-  .top { flex-direction: row; align-items: center; justify-content: space-between; }
-  .kicker { color: #ff3d9f; font-size: 12px; font-weight: 800; letter-spacing: 2px; }
-  .stage { color: #677083; font-size: 12px; font-weight: 800; letter-spacing: 1px; }
-  .title { color: #f1eadc; font-size: 36px; font-weight: 800; }
-  .title-accent { color: #e8ff2a; }
-  .body { color: #b9b3a7; font-size: 18px; line-height: 1.45; }
-  .muted { color: #7d879a; font-size: 14px; line-height: 1.4; }
-  .progress { color: #19e3ff; font-size: 30px; font-weight: 800; }
-  .detail { color: #7d879a; font-size: 14px; }
-  .row { flex-direction: row; gap: 10px; }
-  .page { flex-direction: column; gap: 10px; }
-  .button { background-color: #e8ff2a; color: #11131a; padding: 15px; border-radius: 10px; font-size: 19px; font-weight: 800; }
-  .button-pink { background-color: #ff3d9f; color: #11131a; padding: 15px; border-radius: 10px; font-size: 19px; font-weight: 800; }
-  .button-cyan { background-color: #19e3ff; color: #11131a; padding: 15px; border-radius: 10px; font-size: 19px; font-weight: 800; }
-  .button-ghost { background-color: #272b35; color: #f1eadc; padding: 12px; border-radius: 9px; font-size: 15px; font-weight: 700; }
-  .big { width: 270px; height: 142px; flex-direction: column; justify-content: center; align-items: center; border-radius: 12px; padding: 16px; font-size: 20px; font-weight: 800; color: #11131a; background-color: #e8ff2a; }
-  .big-alt { background-color: #ff3d9f; }
-  .tag { color: #7d879a; font-size: 13px; font-weight: 700; letter-spacing: 1px; }
+  @font-face { font-family: "Setup Comic"; src: url("/assets/fonts/Bangers-Regular.ttf"); font-weight: 400; }
+  .flow-shell { width: 540px; flex-direction: column; gap: 14px; padding: 24px; background-color: #25222d; border-width: 1px; border-color: #695465; border-radius: 18px; font-family: inter; }
+  .flow-top { flex-direction: row; align-items: center; justify-content: space-between; }
+  .flow-brand { font-family: "Setup Comic"; font-size: 21px; font-weight: 400; color: #f0b793; letter-spacing: 0.7px; }
+  .flow-phase { color: #cabbc9; font-size: 14px; font-weight: 700; }
+  .flow-page { flex-direction: column; gap: 12px; }
+  .flow-title { color: #fff0e2; font-family: "Setup Comic"; font-size: 48px; font-weight: 400; line-height: 1.02; letter-spacing: 0.7px; }
+  .flow-body { color: #e0d4df; font-size: 20px; line-height: 1.35; }
+  .flow-hint { color: #cabbc9; font-size: 15px; line-height: 1.32; }
+  .flow-row { flex-direction: row; gap: 8px; }
+  .flow-chip { flex-grow: 1; flex-direction: row; align-items: center; justify-content: center; height: 36px; padding: 6px; border-radius: 8px; background-color: #37313e; color: #d6c8d4; font-size: 15px; font-weight: 700; }
+  .flow-primary { flex-grow: 1; height: 48px; border-radius: 9px; padding: 8px; background-color: #efbb96; color: #2c212d; font-size: 18px; font-weight: 800; }
+  .flow-secondary { flex-grow: 1; height: 44px; border-radius: 9px; padding: 8px; background-color: #403644; color: #f9e9e3; font-size: 16px; font-weight: 700; }
+  .flow-option { flex-grow: 1; height: 62px; border-radius: 9px; background-color: #403644; color: #fff0e2; font-size: 19px; font-weight: 800; }
+  .flow-code-row { flex-direction: row; align-items: center; justify-content: space-between; padding: 12px; border-radius: 9px; background-color: #37313e; }
+  .flow-code { color: #f2c4a6; font-size: 23px; font-weight: 800; }
 </style>
-<Panel class="root">
-  <div class="top">
-    <div class="kicker">GARAGE JAM</div>
-    <div id="flow-stage" class="stage">SETUP</div>
+<Panel class="flow-shell">
+  <div class="flow-top">
+    <div class="flow-brand">Garage Jam</div>
+    <div id="flow-stage" class="flow-phase">Room setup</div>
   </div>
-
-  <Panel id="page-scan" class="page">
-    <div id="scan-title" class="title">GETTING THE ROOM</div>
-    <div id="scan-status" class="body">Look around slowly. Keep your table in view.</div>
-    <div id="scan-progress" class="progress">0 / 3</div>
-    <div id="scan-detail" class="detail">Waiting for floor, walls and table</div>
-    <div id="flow-table-choices" class="page" style="display: none">
-      <button id="flow-use-table" class="button">USE OUTLINED TABLE</button>
-      <div class="row">
-        <button id="flow-mark-table" class="button-cyan">MARK TABLE CORNERS</button>
-        <button id="flow-skip-table" class="button-ghost">CONTINUE WITHOUT TABLE</button>
+  <Panel id="page-scan" class="flow-page">
+    <div id="scan-title" class="flow-title">Scan your room</div>
+    <div id="scan-status" class="flow-body">Look around slowly, then look down at the table you want to use.</div>
+    <div id="scan-progress" class="flow-row">
+      <div id="scan-found-floor" class="flow-chip">Floor</div>
+      <div id="scan-found-walls" class="flow-chip">Walls</div>
+      <div id="scan-found-table" class="flow-chip">Table</div>
+    </div>
+    <div id="flow-table-choices" class="flow-page" style="display: none">
+      <button id="flow-use-table" class="flow-primary">Use highlighted table</button>
+      <div class="flow-row">
+        <button id="flow-mark-table" class="flow-secondary">Mark table corners</button>
+        <button id="flow-skip-table" class="flow-secondary">Continue without a table</button>
       </div>
     </div>
-    <div class="row">
-      <button id="flow-run-scan" class="button-ghost">RUN SPACE SETUP</button>
-      <button id="flow-manual" class="button-pink">SET UP BY TOUCHING</button>
+    <div id="flow-scan-paths" class="flow-row">
+      <button id="flow-manual" class="flow-secondary">Mark room corners</button>
+      <button id="flow-run-scan" class="flow-secondary">Open Space Setup</button>
     </div>
   </Panel>
 
-  <Panel id="page-mode" class="page" style="display: none">
-    <div class="title">HOW DO YOU WANT TO WORK?</div>
-    <div class="row">
-      <button id="flow-mode-passthrough" class="big">SEE MY REAL SETUP</button>
-      <button id="flow-mode-streaming" class="big big-alt">STREAM MY LAPTOP</button>
+  <Panel id="page-mode" class="flow-page" style="display: none">
+    <div class="flow-title">Choose your displays</div>
+    <div class="flow-body">Use your real screens or share windows from your laptop.</div>
+    <div class="flow-row">
+      <button id="flow-mode-passthrough" class="flow-option">Physical displays</button>
+      <button id="flow-mode-streaming" class="flow-option">Streamed displays</button>
     </div>
-    <div class="tag">SWITCH ANY TIME FROM THE WRIST MENU</div>
+    <div class="flow-hint">You can switch later in the wrist menu under Displays.</div>
   </Panel>
 
-  <Panel id="page-devices" class="page" style="display: none">
-    <div class="title">MARK YOUR SETUP</div>
-    <div class="body">Mark your real laptop and keyboard so passthrough cuts them into the garage. You can re-mark any time.</div>
-    <div class="row">
-      <button id="flow-mark-devices" class="button">MARK DEVICES</button>
-      <button id="flow-skip-devices" class="button-ghost">SKIP FOR NOW</button>
+  <Panel id="page-devices" class="flow-page" style="display: none">
+    <div class="flow-title">Mark your displays</div>
+    <div class="flow-body">Mark your monitor, laptop, or keyboard to see your real setup in the garage.</div>
+    <div class="flow-row">
+      <button id="flow-mark-devices" class="flow-primary">Mark devices</button>
+      <button id="flow-skip-devices" class="flow-secondary">Skip for now</button>
     </div>
   </Panel>
 
-  <Panel id="page-pairing" class="page" style="display: none">
-    <div class="title">Share from your laptop</div>
-    <div class="body">Open this address in Chrome.</div>
-    <div id="flow-pair-url" class="body">/sender</div>
-    <div class="body">Room code <span id="flow-pair-code" class="title-accent">...</span></div>
-    <div class="body">Enter the code and start sharing on an enabled monitor. Find this guide again in Connect.</div>
-    <div id="flow-monitor-status" class="body">Ready to share</div>
-    <button id="flow-continue-2" class="button">CONTINUE TO GARAGE</button>
+  <Panel id="page-pairing" class="flow-page" style="display: none">
+    <div class="flow-title">Share from your laptop</div>
+    <div class="flow-body">Open this address in Chrome.</div>
+    <div id="flow-pair-url" class="flow-body">/sender</div>
+    <div class="flow-code-row"><div class="flow-body">Room code</div><div id="flow-pair-code" class="flow-code">...</div></div>
+    <div class="flow-hint">Enter the code and start sharing on an enabled monitor. Find this guide again in Connect.</div>
+    <div id="flow-monitor-status" class="flow-hint">Ready to share</div>
+    <button id="flow-continue-2" class="flow-primary">Continue to garage</button>
   </Panel>
 
-  <Panel id="page-ready" class="page" style="display: none">
-    <div class="title">GARAGE <span class="title-accent">READY</span></div>
-    <div class="body">Look at your left wrist, or pinch thumb and index with your palm up.</div>
-    <button id="flow-start" class="button">START</button>
+  <Panel id="page-ready" class="flow-page" style="display: none">
+    <div class="flow-title">Garage ready</div>
+    <div class="flow-body">Look at your non-dominant wrist or turn your palm up and pinch to open the menu.</div>
+    <button id="flow-start" class="flow-primary">Enter garage</button>
   </Panel>
 </Panel>

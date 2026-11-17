@@ -14,7 +14,8 @@ import {
 } from '../device-model.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { showComicWord } from '../comic-word.js';
-import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { bindPress, clearUiInput, PanelInput, sendPanelToFront } from '../ui-press.js';
+import { pulseGamepads } from '../feedback.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 
 type Stage = 'screen' | 'deck' | 'keyboard' | 'extra';
@@ -93,7 +94,11 @@ export class DeviceSystem extends createSystem({}) {
       'device-marking-cancel': () => this.cancel(),
       'device-marking-done': () => this.done(),
       'garage-cutouts-changed': () => { this.applyVisibility(); this.refresh(); },
-      'mode-changed': () => this.applyVisibility(),
+      'mode-changed': () => {
+        if (garageState.preferences.mode === 'streaming') this.closePanel();
+        this.applyVisibility();
+      },
+      'room-hidden': () => this.closePanel(),
       'room-manual-active': event => { if ((event as CustomEvent<boolean>).detail) this.closePanel(); },
       'table-confirm-visibility': event => { if ((event as CustomEvent<boolean>).detail) this.closePanel(); },
       'garage-reset': () => this.resetRoom(),
@@ -155,7 +160,11 @@ export class DeviceSystem extends createSystem({}) {
     entity.addComponent(RayInteractable, {});
     entity.addComponent(PokeInteractable, {});
     this.panelEntity = entity;
-    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(panel); action(); });
+    const on = (id: string, action: () => void) => bindPress(panel, id, () => {
+      pulseGamepads(this.input.xr.gamepads, 0.3, 26);
+      revealAudio.playPress(panel);
+      action();
+    });
     for (const [name, template] of templates) on(`dev-template-${name}`, () => this.start(template));
     on('dev-use', () => this.commit());
     on('dev-skip-keyboard', () => this.skipSurface());
@@ -181,7 +190,7 @@ export class DeviceSystem extends createSystem({}) {
   }
 
   private openPanel() {
-    if (!this.panel || this.panelOpen) return;
+    if (!this.panel || this.panelOpen || garageState.preferences.mode !== 'passthrough') return;
     this.panelOpen = true;
     this.panel.visible = true;
     const head = this.world.camera.getWorldPosition(new Vector3());
@@ -203,6 +212,7 @@ export class DeviceSystem extends createSystem({}) {
     this.marking = undefined;
     this.hoverCorner = undefined;
     if (this.panel) this.panel.visible = false;
+    clearUiInput();
     this.cursor.visible = false;
     this.firstMarker.visible = false;
     this.resetPreview();
@@ -211,7 +221,7 @@ export class DeviceSystem extends createSystem({}) {
 
   private start(template: DeviceTemplate, editId?: string) {
     const room = garageState.room;
-    if (!room) return;
+    if (!room || garageState.preferences.mode !== 'passthrough') return;
     this.openPanel();
     if (template === 'extra' && !editId && this.devices.filter(device => device.template === 'extra').length >= 4) {
       this.issue = 'Remove an extra zone to draw another.';
@@ -286,6 +296,7 @@ export class DeviceSystem extends createSystem({}) {
       return;
     }
     this.issue = '';
+    pulseGamepads(this.input.xr.gamepads, 0.32, 24);
     revealAudio.playTick(corner);
     showComicWord('TUP.', corner);
     this.rebuildPreview();
@@ -595,14 +606,15 @@ export class DeviceSystem extends createSystem({}) {
   private applyVisibility() {
     const garage = garageRootsVisible();
     const cutouts = garageState.preferences.cutouts;
+    const physicalMode = garageState.preferences.mode === 'passthrough';
     this.root.visible = this.loaded;
     for (const { device, occluder, display, outline } of this.visuals) {
-      occluder.visible = device.enabled && garage && cutouts;
+      occluder.visible = physicalMode && device.enabled && garage && cutouts;
       const virtualBody = display.getObjectByName('Low-poly monitor');
       const face = display.getObjectByName('Virtual display');
-      display.visible = device.enabled && garage && garageState.preferences.mode === 'passthrough' && (!!virtualBody || !cutouts);
+      display.visible = physicalMode && device.enabled && garage && (!!virtualBody || !cutouts);
       if (face) face.visible = !cutouts;
-      outline.visible = device.enabled && !garage;
+      outline.visible = physicalMode && device.enabled && !garage;
     }
   }
 

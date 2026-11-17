@@ -29,7 +29,7 @@ try {
     contentType: 'application/json',
     body: JSON.stringify({
       active: true, connected: true, playing: false, title: 'Mock Song', artists: 'Mock Artist',
-      device: { id: 'mock-device', name: 'Garage Jam Headset', type: 'Computer', volume: 80 },
+      device: { id: 'external-mock', name: 'Other speaker', type: 'Computer', volume: 80 },
     }),
   }));
   await page.route('**/api/plugins/spotify/devices', route => route.fulfill({
@@ -56,6 +56,7 @@ try {
         connect() { return Promise.resolve(true); }
         disconnect() { return Promise.resolve(); }
         activateElement() { return Promise.resolve(); }
+        setVolume(value) { this.volume = value; return Promise.resolve(); }
       }
       window.Spotify = { Player };
       window.onSpotifyWebPlaybackSDKReady?.();
@@ -75,9 +76,27 @@ try {
   assert.equal(state.headset.deviceId, 'mock-device');
   assert.equal(state.token, 'mock-token');
   assert.equal(state.device, 'Garage Jam Headset');
-  assert.ok(playerActions.some(action => action.action === 'transfer' && action.deviceId === 'mock-device' && action.play === false), JSON.stringify(playerActions));
+  assert.deepEqual(playerActions, [], 'Registering headset audio should leave existing playback alone');
+  await page.evaluate(async () => {
+    const { emit } = await import('/src/events.ts');
+    emit('music-toggle');
+  });
+  await expectTransfer();
+  assert.deepEqual(playerActions, [{ action: 'transfer', deviceId: 'mock-device', play: true }]);
+  await page.locator('#gj-enter').click();
+  await page.waitForFunction(() => window.__garageMockPlayer.volume > 0);
+  const roomVolume = await page.evaluate(() => window.__garageMockPlayer.volume);
+  await page.evaluate(async () => {
+    const { emit } = await import('/src/events.ts');
+    emit('room-hidden');
+  });
+  await page.waitForFunction(volume => window.__garageMockPlayer.volume < volume * 0.75, roomVolume);
+  async function expectTransfer() {
+    const limit = Date.now() + 3000;
+    while (!playerActions.length && Date.now() < limit) await page.waitForTimeout(50);
+  }
   assert.deepEqual(errors, []);
-  console.log('Spotify headset SDK player, token endpoint and transfer passed.');
+  console.log('Spotify headset setup, explicit transfer and room-aware volume passed.');
 } finally {
   await browser.close();
 }

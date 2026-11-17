@@ -13,7 +13,7 @@ function labelTexture(text: string) {
   const c = canvas.getContext('2d')!; c.fillStyle = '#19212a'; c.fillRect(0, 0, 512, 256);
   c.lineWidth = 16; c.strokeStyle = '#f94eaa'; c.strokeRect(12, 12, 488, 232);
   c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = 'bold 54px sans-serif'; c.fillStyle = '#ffdc6c'; c.fillText(text, 256, 128);
-  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; return texture;
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; texture.userData = { garageOwned: true }; return texture;
 }
 export function createPlaceholder(id: string, size: [number, number, number], pivot: Slot['pivot']) {
   const [w, h, d] = size; const group = new Group(); group.name = `PH_${id}`;
@@ -39,6 +39,7 @@ export function createPlaceholder(id: string, size: [number, number, number], pi
     c.beginPath(); c.arc(760, 160, 60, 0, Math.PI * 2); c.stroke();
     c.beginPath(); c.moveTo(720, 160); c.lineTo(800, 160); c.moveTo(760, 120); c.lineTo(760, 200); c.stroke();
     const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+    texture.userData = { garageOwned: true };
     const decal = new Mesh(new PlaneGeometry(Math.max(w, 0.5), Math.max(h, 0.5)), new MeshBasicMaterial({ map: texture, transparent: true, side: DoubleSide, depthWrite: false }));
     decal.name = 'PH_SLOT_GraffitiDecals_decal'; group.add(decal);
     return group;

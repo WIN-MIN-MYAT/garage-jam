@@ -1,4 +1,4 @@
-import { BoxGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, Quaternion, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
+import { BoxGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, GrabSystem, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, Quaternion, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
 import type { Entity } from '@iwsdk/core';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
@@ -11,10 +11,14 @@ import { addCompletion, loadProgress, setPinned } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { showComicWord } from '../comic-word.js';
 import { outlineBounds } from '../room-model.js';
+import { apiUrl } from '../backend.js';
 
 type Task = { id: string; title: string; priority?: string | null; due?: string | null; source?: string; starter?: boolean };
 const ink = '#161922';
 const paperLimit = 25;
+const paperWidth = 0.22;
+const paperDepth = 0.28;
+const crumpleReach = 0.08;
 const starterTasks: Task[] = [
   { id: 'starter-welcome', title: 'Welcome to Garage Jam', priority: 'High', due: null, source: 'starter', starter: true },
   { id: 'starter-try', title: 'Try crumpling me', priority: 'Low', due: null, source: 'starter', starter: true },
@@ -57,6 +61,8 @@ function paperTexture(task: Task) {
   c.fillStyle = ink; c.strokeStyle = '#f7f0da'; c.lineWidth = 5; c.lineJoin = 'round';
   lines.forEach((line, i) => { c.strokeText(line, 0, i * 66); c.fillText(line, 0, i * 66); });
   c.restore();
+  c.fillStyle = ink; c.font = 'bold 18px sans-serif';
+  c.fillText('CRUMPLE: PINCH WITH FREE HAND OR PRESS TRIGGER', 42, 486, 426);
   if (task.due) { c.fillStyle = '#24252c'; c.fillRect(35, 545, 250, 52); c.fillStyle = '#fff5df'; c.font = 'bold 24px sans-serif'; c.fillText(`DUE ${task.due.slice(0, 10)}`, 48, 579); }
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; texture.generateMipmaps = true; return texture;
 }
@@ -74,6 +80,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private motion = new Map<number, { samples: Float32Array; next: number; count: number }>();
   private trash = new Vector3(roomConfig.trash[0], 0.55, roomConfig.trash[2]);
   private position = new Vector3();
+  private crumpleTip = new Vector3();
   private loaded = false;
   private loading = false;
   private crumpledTemplate?: Group;
@@ -236,7 +243,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.loading = true;
     try {
       const [response] = await Promise.all([
-        fetch('/api/tasks'),
+        fetch(apiUrl('/api/tasks')),
         document.fonts.load('bold 42px GarageDisplay'),
         document.fonts.load('bold 42px GarageCJK'),
       ]);
@@ -271,7 +278,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     const yaw = room?.table ? outlineBounds(room.table.polygon).yaw : 0;
     const edge = new MeshBasicMaterial({ color: 0xf0dfbd });
     const face = new MeshBasicMaterial({ map: texture });
-    const mesh = new Mesh(new BoxGeometry(0.22, 0.008, 0.28), [edge, edge, face, edge, edge, edge]);
+    const mesh = new Mesh(new BoxGeometry(paperWidth, 0.008, paperDepth), [edge, edge, face, edge, edge, edge]);
     mesh.name = `Paper ${task.title}`;
     mesh.position.set(
       zone.x + ((index % 5) - 2) * 0.018,
@@ -286,7 +293,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     entity.addComponent(RayInteractable, {});
     entity.addComponent(OneHandGrabbable, {});
     entity.addComponent(DistanceGrabbable, { movementMode: 'MoveFromTarget' });
-    entity.addComponent(PhysicsShape, { shape: PhysicsShapeType.Box, dimensions: [0.22, 0.008, 0.28], density: 0.25, friction: 0.8 });
+    entity.addComponent(PhysicsShape, { shape: PhysicsShapeType.Box, dimensions: [paperWidth, 0.008, paperDepth], density: 0.25, friction: 0.8 });
     entity.addComponent(PhysicsBody, { state: PhysicsState.Dynamic, linearDamping: 0.12, angularDamping: 0.2 });
     this.previous.set(entity.index, mesh.position.clone());
     this.motion.set(entity.index, { samples: new Float32Array(20), next: 0, count: 0 });
@@ -386,7 +393,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
         this.finishTask(entity, id, task, true);
         return;
       }
-      const response = await fetch(`/api/tasks/${encodeURIComponent(String(id))}/done`, { method: 'POST' });
+      const response = await fetch(apiUrl(`/api/tasks/${encodeURIComponent(String(id))}/done`), { method: 'POST' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const result = await response.json();
       emit('status', result.synced ? 'DONE! Saved to Notion' : 'DONE! Sync queued for retry');
@@ -416,8 +423,30 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   }
 
   update() {
-    if (this.queries.held.entities.size && (this.input.xr.gamepads.left?.getButtonDown(InputComponent.Trigger) || this.input.xr.gamepads.right?.getButtonDown(InputComponent.Trigger))) {
-      this.crumple(this.queries.held.entities.values().next().value!);
+    const held = this.queries.held.entities;
+    if (!this.roomHidden && held.size) {
+      const xr = this.input.xr;
+      const controllerTrigger = (xr.isPrimary('controller', 'left') && xr.gamepads.left?.getButtonDown(InputComponent.Trigger))
+        || (xr.isPrimary('controller', 'right') && xr.gamepads.right?.getButtonDown(InputComponent.Trigger));
+      if (controllerTrigger) {
+        this.crumple(held.values().next().value!);
+      } else if (xr.isPrimary('hand', 'left') && xr.isPrimary('hand', 'right')) {
+        const grab = this.world.getSystem(GrabSystem);
+        for (const entity of held) {
+          if (entity.getValue(PaperTask, 'state') !== 'flat' || !entity.object3D) continue;
+          const holder = grab?.getHolderHand(entity);
+          if (!holder || !xr.getSelectState(holder).active) continue;
+          const freeHand = holder === 'left' ? 'right' : 'left';
+          if (!xr.getSelectState(freeHand).start) continue;
+          xr.xrOrigin.indexTipSpaces[freeHand].getWorldPosition(this.crumpleTip);
+          const tip = entity.object3D.worldToLocal(this.crumpleTip);
+          if (Math.abs(tip.x) <= paperWidth / 2 + crumpleReach
+            && Math.abs(tip.y) <= crumpleReach
+            && Math.abs(tip.z) <= paperDepth / 2 + crumpleReach) {
+            this.crumple(entity);
+          }
+        }
+      }
     }
     const zone = this.queries.held.entities.size && !this.roomHidden
       ? garageState.placements.find(item => item.slotId === 'paper-zone') : undefined;

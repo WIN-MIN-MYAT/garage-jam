@@ -1,7 +1,8 @@
 export class SignalingClient {
-  constructor(channel, role, log, config, onMessage, onStatus) {
+  constructor(channel, role, log, config, onMessage, onStatus, signalUrl) {
     this.channel = channel; this.role = role; this.log = log; this.config = config;
     this.onMessage = onMessage; this.onStatus = onStatus;
+    this.signalUrl = signalUrl;
     this.sessionId = crypto.randomUUID(); this.attempts = 0; this.stopped = false; this.replaced = false;
     this.clockBestRtt = Infinity; this.offset = 0;
   }
@@ -13,7 +14,7 @@ export class SignalingClient {
   connect(trigger) {
     if (this.stopped || this.replaced || this.ws?.readyState === WebSocket.CONNECTING || this.ws?.readyState === WebSocket.OPEN) return;
     this.log.add('ws-attempt', { trigger, attempt: this.attempts + 1 });
-    const ws = new WebSocket(`${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/signal`);
+    const ws = new WebSocket(this.signalUrl ?? `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}/signal`);
     this.ws = ws;
     ws.onopen = () => {
       if (this.ws !== ws) return;

@@ -30,15 +30,11 @@
       <div class="screenText"><div class="label">Monitor 2</div><div id="mm-state-2" class="note">Disabled</div></div>
       <button id="mm-monitor-2" class="toggle">Off</button>
     </div>
-    <div class="screen">
-      <div class="screenText"><div class="label">Monitor 3</div><div id="mm-state-3" class="note">Disabled</div></div>
-      <button id="mm-monitor-3" class="toggle">Off</button>
-    </div>
     <div class="row">
       <button id="mm-layout-desk" class="button">Desk row</button>
       <button id="mm-layout-arc" class="button">Centered arc</button>
     </div>
-    <div id="mm-placement-note" class="note">Grab a monitor to move it. Positions save automatically.</div>
+    <div id="mm-placement-note" class="note">Grab a monitor to turn it. Open this page to move it.</div>
     <button id="mm-use-streaming" class="action" style="display:none">Show streamed monitors</button>
     <button id="mm-sharing" class="button">Screen sharing setup</button>
   </div>

@@ -80,7 +80,7 @@ export class RevealAudio {
   private streetPosition = new Vector3();
   private lastGameplay = new Map<GameplayId, number>();
   private crumpleVariant = false;
-  private shutterClosed = false;
+  private shutterAmount = 0;
   private lastPress = -Infinity;
   private lastProp = -Infinity;
   private lastPanel = -Infinity;
@@ -97,9 +97,9 @@ export class RevealAudio {
       this.exteriorFilter = this.context.createBiquadFilter();
       this.exteriorFilter.type = 'lowpass';
       this.exteriorFilter.Q.value = 0.5;
-      this.exteriorFilter.frequency.value = this.shutterClosed ? 630 : 4900;
+      this.exteriorFilter.frequency.value = 4900 * Math.pow(630 / 4900, this.shutterAmount);
       this.exteriorGain = this.context.createGain();
-      this.exteriorGain.gain.value = this.shutterClosed ? 0.22 : 1;
+      this.exteriorGain.gain.value = 1 - this.shutterAmount * 0.78;
       this.exteriorFilter.connect(this.exteriorGain).connect(this.master);
       this.noiseBuffer = this.makeNoiseBuffer(this.context);
     }
@@ -261,13 +261,13 @@ export class RevealAudio {
     this.nextStreetAt = undefined;
   }
 
-  setShutterClosed(closed: boolean) {
-    if (this.shutterClosed === closed) return;
-    this.shutterClosed = closed;
+  setShutterAmount(amount: number) {
+    if (amount === this.shutterAmount || (amount > 0 && amount < 1 && Math.abs(amount - this.shutterAmount) < 0.025)) return;
+    this.shutterAmount = amount;
     if (!this.exteriorGain || !this.exteriorFilter || !this.context) return;
     const now = this.context.currentTime;
-    this.exteriorGain.gain.setTargetAtTime(closed ? 0.22 : 1, now, 0.3);
-    this.exteriorFilter.frequency.setTargetAtTime(closed ? 630 : 4900, now, 0.3);
+    this.exteriorGain.gain.setTargetAtTime(1 - amount * 0.78, now, 0.12);
+    this.exteriorFilter.frequency.setTargetAtTime(4900 * Math.pow(630 / 4900, amount), now, 0.12);
   }
 
   playGameplay(id: GameplayId, position?: Point, { rate = 1, delay = 0 } = {}) {
@@ -621,21 +621,41 @@ export class RevealAudio {
   private musicPanner: PannerNode | null = null;
   private musicNodes: AudioNode[] = [];
   private musicVolume = 0.4;
+  private musicPresence = 1;
 
   setMusicVolume(percent: number) {
     this.musicVolume = Math.max(0, Math.min(1, percent / 100));
-    if (this.musicGain && this.context) this.musicGain.gain.setTargetAtTime(this.musicVolume * 0.16, this.context.currentTime, 0.08);
+    this.updateMusicGain();
   }
 
-  startLoFi(position?: Point) {
+  setMusicPresence(visible: boolean) {
+    this.musicPresence = visible ? 1 : 0.2;
+    this.updateMusicGain();
+  }
+
+  private updateMusicGain() {
+    if (!this.musicGain || !this.context) return;
+    const now = this.context.currentTime;
+    this.musicGain.gain.cancelAndHoldAtTime(now);
+    this.musicGain.gain.setTargetAtTime(this.musicVolume * this.musicPresence * 0.16, now, 0.18);
+  }
+
+  startLoFi(position: Point) {
     if (!this.unlocked || !this.context || this.musicGain) return false;
     const context = this.context;
     const now = context.currentTime;
     const master = context.createGain();
     master.gain.setValueAtTime(0.0001, now);
-    master.gain.linearRampToValueAtTime(this.musicVolume * 0.16, now + 1.2);
+    master.gain.linearRampToValueAtTime(this.musicVolume * this.musicPresence * 0.16, now + 0.65);
     this.musicPanner = this.panner(position);
-    master.connect(this.connect(this.musicPanner)!);
+    if (this.musicPanner) {
+      this.musicPanner.refDistance = 0.75;
+      this.musicPanner.rolloffFactor = 0.8;
+      this.musicPanner.coneInnerAngle = 105;
+      this.musicPanner.coneOuterAngle = 250;
+      this.musicPanner.coneOuterGain = 0.55;
+      master.connect(this.musicPanner).connect(context.destination);
+    } else master.connect(context.destination);
     this.musicGain = master;
     // A soft three-note bed with a slow tremolo. This is a fallback for users
     // without Spotify, not a replacement for the real music connector.
@@ -657,12 +677,16 @@ export class RevealAudio {
       osc.start(now); lfo.start(now);
       this.musicNodes.push(osc, gain, tremolo, lfo, depth);
     });
-    this.noiseBurst(now, 1.2, 0.012, 'lowpass', 700, position);
     return true;
   }
 
-  moveLoFi(position: Point) {
-    if (this.musicPanner) this.setPannerPosition(this.musicPanner, position);
+  moveLoFi(position: Point, facing: Point) {
+    const speaker = this.musicPanner;
+    if (!speaker) return;
+    this.setPannerPosition(speaker, position);
+    speaker.orientationX.value = facing.x;
+    speaker.orientationY.value = facing.y;
+    speaker.orientationZ.value = facing.z;
   }
 
   stopLoFi() {
@@ -730,7 +754,7 @@ export class RevealAudio {
     this.unlocked = false;
     this.sampleLoad = undefined;
     this.samples.clear();
-    this.shutterClosed = false;
+    this.shutterAmount = 0;
     this.lastPress = this.lastProp = this.lastPanel = -Infinity;
   }
 }

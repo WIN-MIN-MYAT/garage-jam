@@ -8,6 +8,7 @@ import { streamConfig } from '../stream-shared/config.js';
 import { createMonitorModel, monitorScreenHeight, monitorScreenWidth, monitorStandDrop } from '../monitor-model.js';
 import { seatToWorld, worldToSeat } from '../device-model.js';
 import { getStreamRoom, streamChannel } from '../stream-room.js';
+import { backendOrigin, signalUrl } from '../backend.js';
 import { ConnectionLog, watchPeer } from '../stream-shared/ConnectionLog.js';
 import { ConnectionStateMachine } from '../stream-shared/ConnectionStateMachine.js';
 import { SignalingClient } from '../stream-shared/SignalingClient.js';
@@ -28,6 +29,7 @@ type Channel = {
   pairingStart?: number;
   peerCreatedOnce?: boolean;
   entity?: Entity;
+  grabTranslate?: boolean;
 };
 type MonitorPreset = 'desk' | 'arc';
 type SavedMonitor = { enabled: boolean; pose?: ReturnType<typeof worldToSeat> };
@@ -35,9 +37,11 @@ type MonitorLayout = { preset: MonitorPreset | 'custom'; monitors: SavedMonitor[
 
 export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
   private channels: Channel[] = [];
+  private monitorRoot = new Group();
   private editingLayout = false;
   private showMonitors = false;
   private active = true;
+  private suspended = false;
   private announcedPicture = false;
   private diagnosticsVisible = true;
   private preset: MonitorLayout['preset'] = 'arc';
@@ -48,10 +52,14 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   init() {
     const config = roomConfig.monitors;
     const query = new URLSearchParams(location.search);
-    const count = Math.max(1, Math.min(3, Number(query.get('monitors')) || config.count));
-    this.showMonitors = query.get('demo') === '1';
+    const count = Math.max(1, Math.min(2, Number(query.get('monitors')) || config.count));
+    this.showMonitors = garageState.preferences.mode === 'streaming' || query.get('demo') === '1';
+    this.monitorRoot.name = 'Streamed monitors';
+    this.monitorRoot.visible = garageRootsVisible();
+    const parent = this.world.createTransformEntity(this.monitorRoot, { persistent: true });
+    registerGarageRoot(this.monitorRoot);
     this.preset = this.saved?.preset ?? 'arc';
-    const defaultEnabled = this.saved ? 1 : this.legacyMonitorCount();
+    const defaultEnabled = this.saved ? 1 : Math.min(2, this.legacyMonitorCount());
     for (let i = 0; i < count; i++) {
       const angle = (i - (count - 1) / 2) * config.stepDegrees * Math.PI / 180;
       const root = new Group(); root.name = `Monitor ${i + 1}`;
@@ -63,9 +71,8 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       screen.visible = false;
       root.add(screen);
       root.visible = false;
-      const entity = this.world.createTransformEntity(root, { persistent: true });
+      const entity = this.world.createTransformEntity(root, { parent, persistent: true });
       entity.addComponent(RayInteractable, {});
-      registerGarageRoot(root);
       const backing = new Mesh(new PlaneGeometry(monitorScreenWidth, monitorScreenHeight), new MeshBasicMaterial({ color: 0x191721 }));
       backing.name = 'Monitor loading face';
       root.add(backing);
@@ -80,13 +87,13 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       video.disableRemotePlayback = true; video.controls = false; video.style.cssText = 'position:absolute;width:1px;height:1px;left:-10000px;top:-10000px'; document.body.append(video);
       const probeCanvas = document.createElement('canvas');
       const channel: Channel = { name: streamChannel(this.room, i + 1), root, screen, video, enabled: this.saved?.monitors[i]?.enabled ?? i < defaultEnabled, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity };
-      channel.log = new ConnectionLog('viewer', channel.name);
+      channel.log = new ConnectionLog('viewer', channel.name, backendOrigin);
       channel.machine = new ConnectionStateMachine(channel.log, streamConfig, () => this.updateStatus());
       for (const name of ['stalled', 'waiting', 'playing', 'pause', 'emptied', 'resize']) video.addEventListener(name, () => channel.log.add(`video-${name}`));
       video.addEventListener('resize', () => this.fitVideo(channel));
       this.channels.push(channel);
-      if (channel.enabled) this.connect(channel);
     }
+    this.syncConnections();
     this.updateStatus();
     const onLayout = () => this.layout();
     const onRefresh = () => this.updateStatus();
@@ -114,12 +121,30 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       garageEvents.removeEventListener('room-shown', onRefresh);
       garageEvents.removeEventListener('device-marking-active', onOverlay);
       garageEvents.removeEventListener('table-confirm-visibility', onOverlay);
-      for (const channel of this.channels) unregisterGarageRoot(channel.root);
+      unregisterGarageRoot(this.monitorRoot);
     });
     if (location.hostname === 'localhost') {
       (window as any).garageStreamDebug = {
         room: this.room,
         recenter: () => this.layout(),
+        toggle: (index: number) => system.toggleMonitor(index),
+        setPreset: (preset: MonitorPreset) => system.setPreset(preset),
+        get layout() {
+          const room = garageState.room;
+          return system.channels.map(channel => {
+            const pose = room
+              ? worldToSeat(room, channel.root.position, channel.root.rotation.y)
+              : { point: channel.root.position, yaw: channel.root.rotation.y };
+            return {
+              enabled: channel.enabled,
+              visible: channel.root.visible,
+              x: pose.point.x, y: pose.point.y, z: pose.point.z,
+              yaw: Math.atan2(Math.sin(pose.yaw), Math.cos(pose.yaw)),
+              grabbable: channel.entity?.hasComponent(OneHandGrabbable) ?? false,
+              grabTranslate: channel.grabTranslate ?? null,
+            };
+          });
+        },
         get states() {
           return system.channels.map(channel => {
             const state = system.displayState(channel);
@@ -131,9 +156,22 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     }
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
       this.channels.forEach(channel => channel.log.add('xr-visibility', { state }));
-      if (state === VisibilityState.Visible) this.channels.forEach(channel => this.checkHealth(channel, 'xr-visible'));
+      if (state === VisibilityState.NonImmersive) {
+        this.suspendChannels();
+      } else {
+        this.resumeChannels();
+        if (state === VisibilityState.Visible) this.channels.forEach(channel => this.checkHealth(channel, 'xr-visible'));
+      }
     }));
-    const visibility = () => this.channels.forEach(channel => { channel.log.add('visibilitychange', { visibility: document.visibilityState }); if (document.visibilityState === 'visible') this.checkHealth(channel, 'page-visible'); });
+    const visibility = () => {
+      const hidden = document.visibilityState !== 'visible';
+      this.channels.forEach(channel => channel.log.add('visibilitychange', { visibility: document.visibilityState }));
+      if (hidden && !this.world.session) this.suspendChannels();
+      else if (!hidden) {
+        this.resumeChannels();
+        this.channels.forEach(channel => this.checkHealth(channel, 'page-visible'));
+      }
+    };
     const freeze = () => this.channels.forEach(channel => channel.log.add('page-freeze'));
     const resume = () => this.channels.forEach(channel => { channel.log.add('page-resume'); this.checkHealth(channel, 'page-resume'); });
     const toggle = () => { this.diagnosticsVisible = !this.diagnosticsVisible; this.updateStatus(); };
@@ -152,12 +190,14 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         if (backing instanceof Mesh) { backing.geometry.dispose(); backing.material.dispose(); }
         channel.entity?.destroy();
       }
+      parent.destroy();
     });
   }
   private layout() {
     this.showMonitors = garageState.preferences.mode === 'streaming';
+    this.syncConnections();
     this.placeMonitors();
-    this.refreshPresentation();
+    this.updateStatus();
     for (const channel of this.channels) {
       if (channel.texture && channel.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !channel.video.paused) {
         this.announcePicture(channel);
@@ -169,6 +209,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const room = garageState.room;
     if (!room) return;
     const active = this.channels.filter(channel => channel.enabled);
+    if (!active.length) return;
     const table = room.table;
     const tableCenter = table?.polygon.reduce((center, point) => ({
       x: center.x + point.x / table.polygon.length,
@@ -177,13 +218,17 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const forwardLength = Math.hypot(room.forward.x, room.forward.z) || 1;
     const fx = room.forward.x / forwardLength, fz = room.forward.z / forwardLength;
     const desk = this.preset === 'desk';
-    let center = { x: room.seat.x + fx * 1.36, z: room.seat.z + fz * 1.36 };
+    let depth = 1.36;
     if (table && tableCenter) {
       const backEdge = Math.max(...table.polygon.map(point => (point.x - tableCenter.x) * fx + (point.z - tableCenter.z) * fz));
       const setback = Math.max(0, Math.min(0.22, backEdge - 0.14));
-      center = { x: tableCenter.x + fx * setback, z: tableCenter.z + fz * setback };
+      depth = (tableCenter.x - room.seat.x) * fx + (tableCenter.z - room.seat.z) * fz + setback;
     }
+    // Keep the pair symmetrical around the viewer, even when the scanned table is slightly off-axis.
+    const center = { x: room.seat.x + fx * depth, z: room.seat.z + fz * depth };
     const height = (table?.topY ?? room.floor.y + 0.76) + monitorStandDrop;
+    const squareYaw = Math.atan2(-fx, -fz);
+    const faceSeatYaw = (x: number, z: number) => Math.atan2(room.seat.x - x, room.seat.z - z);
     active.forEach((channel, order) => {
       const pose = this.preset === 'custom' ? this.saved?.monitors[this.channels.indexOf(channel)]?.pose : undefined;
       if (pose && [pose.point?.x, pose.point?.y, pose.point?.z, pose.yaw].every(Number.isFinite)) {
@@ -192,12 +237,18 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         channel.root.rotation.set(0, yaw, 0);
         return;
       }
-      const position = order - (active.length - 1) / 2;
-      const offset = position * (desk ? 0.70 : 0.66);
-      const depth = desk ? 0 : -Math.abs(position) * 0.17;
-      channel.root.position.set(center.x - fz * offset + fx * depth, height, center.z + fx * offset + fz * depth);
-      if (desk) channel.root.rotation.set(0, Math.atan2(-fx, -fz), 0);
-      else channel.root.lookAt(room.seat.x, height, room.seat.z);
+      if (active.length === 1) {
+        channel.root.position.set(center.x, height, center.z);
+        channel.root.rotation.set(0, squareYaw, 0);
+        return;
+      }
+      const side = order === 0 ? -1 : 1;
+      const offset = side * (desk ? 0.78 : 0.72) / 2;
+      const curve = desk ? 0 : -0.09;
+      const x = center.x - fz * offset + fx * curve;
+      const z = center.z + fx * offset + fz * curve;
+      channel.root.position.set(x, height, z);
+      channel.root.rotation.set(0, faceSeatYaw(x, z), 0);
     });
   }
 
@@ -213,23 +264,40 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       channel.root.visible = show && channel.enabled;
       channel.screen.visible = !!channel.texture && channel.machine.state !== 'source-stopped';
       if (!channel.entity) return;
-      const movable = channel.root.visible && this.editingLayout;
-      if (movable && !channel.entity.hasComponent(OneHandGrabbable)) channel.entity.addComponent(OneHandGrabbable, {});
-      if (!movable && channel.entity.hasComponent(OneHandGrabbable)) channel.entity.removeComponent(OneHandGrabbable);
+      const turnable = channel.root.visible;
+      const translate = this.editingLayout;
+      const has = channel.entity.hasComponent(OneHandGrabbable);
+      if (!turnable) {
+        if (has) channel.entity.removeComponent(OneHandGrabbable);
+        channel.grabTranslate = undefined;
+        return;
+      }
+      if (!has || channel.grabTranslate !== translate) {
+        if (has) channel.entity.removeComponent(OneHandGrabbable);
+        channel.entity.addComponent(OneHandGrabbable, {
+          rotate: true,
+          translate,
+          rotateMin: [0, -Math.PI, 0],
+          rotateMax: [0, Math.PI, 0],
+        });
+        channel.grabTranslate = translate;
+      }
     });
   }
 
   private loadLayout(): MonitorLayout | null {
     try {
       const saved = JSON.parse(localStorage.getItem(this.layoutKey) || 'null');
-      return saved && ['desk', 'arc', 'custom'].includes(saved.preset) && Array.isArray(saved.monitors) ? saved : null;
+      return saved && ['desk', 'arc', 'custom'].includes(saved.preset) && Array.isArray(saved.monitors)
+        ? { preset: saved.preset, monitors: saved.monitors.slice(0, 2) }
+        : null;
     } catch { return null; }
   }
 
   private legacyMonitorCount() {
     try {
       const legacy = JSON.parse(localStorage.getItem('garage-jam-monitor-layout-v1') || 'null');
-      return Array.isArray(legacy?.monitors) ? Math.max(1, legacy.monitors.length) : 1;
+      return Array.isArray(legacy?.monitors) ? Math.max(1, Math.min(2, legacy.monitors.length)) : 1;
     } catch { return 1; }
   }
 
@@ -260,16 +328,8 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const channel = this.channels[index];
     if (!channel) return;
     channel.enabled = !channel.enabled;
-    if (channel.enabled) this.connect(channel);
-    else {
-      const signal = channel.signal;
-      channel.signal = undefined;
-      signal?.stop();
-      this.resetPeer(channel, 'monitor-disabled');
-      channel.remoteSession = undefined;
-      channel.generation = -1;
-      channel.machine.set('idle', 'monitor-disabled');
-    }
+    if (this.preset === 'custom') this.preset = 'arc';
+    this.syncConnections();
     this.placeMonitors();
     this.saveLayout();
     this.updateStatus();
@@ -287,6 +347,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
 
   private displayState(channel: Channel): string {
     if (!channel.enabled) return 'off';
+    if (!this.showMonitors) return 'idle';
     if (channel.machine.state === 'live' && !channel.texture) return 'connecting';
     return channel.machine.state;
   }
@@ -307,13 +368,28 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
 
   private forget() {
     this.announcedPicture = false;
-    for (const channel of this.channels) {
-      if (!channel.enabled) continue;
-      this.resetPeer(channel, 'forget');
-      channel.machine.set('pairing', 'forget');
-    }
+    for (const channel of this.channels) if (channel.signal) this.disconnect(channel, 'forget');
+    this.syncConnections();
     emit('status', 'Forgot paired laptop. Open /sender on Chrome to pair again.');
     this.updateStatus();
+  }
+
+  private syncConnections() {
+    for (const channel of this.channels) {
+      if (this.showMonitors && channel.enabled) this.connect(channel);
+      else if (channel.signal) this.disconnect(channel, channel.enabled ? 'display-mode-changed' : 'monitor-disabled');
+    }
+    if (!this.showMonitors) this.announcedPicture = false;
+  }
+
+  private disconnect(channel: Channel, reason: string) {
+    const signal = channel.signal;
+    channel.signal = undefined;
+    signal?.stop();
+    this.resetPeer(channel, reason);
+    channel.remoteSession = undefined;
+    channel.generation = -1;
+    channel.machine.set('idle', reason);
   }
 
   private updateStatus() {
@@ -334,6 +410,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
   private resetPeer(channel: Channel, reason: string) {
     clearInterval(channel.statsTimer); clearInterval(channel.probeTimer);
+    channel.statsTimer = undefined; channel.probeTimer = undefined;
     if (channel.frameCallback != null && 'cancelVideoFrameCallback' in channel.video) channel.video.cancelVideoFrameCallback(channel.frameCallback);
     if (channel.peer) { channel.log.add('peer-close', { reason }); channel.peer.close(); channel.peer = undefined; }
     channel.pendingCandidates.clear(); channel.previousStats = undefined; channel.video.srcObject = null;
@@ -355,7 +432,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       if (state === 'replaced') { this.resetPeer(channel, 'taken-over'); channel.machine.set('failed', 'taken over by another device'); }
       else if (state === 'failed' && !channel.peer) channel.machine.set('failed', 'signaling-retries-exhausted');
       else if (state === 'closed') channel.log.add('signaling-lost-media-kept');
-    });
+    }, signalUrl());
     channel.signal = signal;
     channel.machine.set('pairing', 'viewer-start'); signal.start();
   }
@@ -440,9 +517,44 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         this.checkHealth(channel, 'video-playing');
       }).catch(error => { if (channel.peer !== peer) return; channel.log.add('video-play-error', { message: String(error) }); channel.machine.set('failed', 'video-play-error'); });
     };
+    if (!this.suspended) this.startChannelTimers(channel);
+    channel.machine.set('connecting', reason);
+  }
+
+  private startChannelTimers(channel: Channel) {
+    clearInterval(channel.statsTimer);
+    clearInterval(channel.probeTimer);
     channel.statsTimer = streamConfig.diagnostics ? window.setInterval(() => void this.updateStats(channel), streamConfig.statsMs) : undefined;
     channel.probeTimer = streamConfig.probe ? window.setInterval(() => this.updateProbe(channel), 250) : undefined;
-    channel.machine.set('connecting', reason);
+  }
+
+  /**
+   * Stop diagnostics and video compositing when XR is not immersive.
+   *
+   * The peer is deliberately kept alive so re-entering XR does not force a
+   * reconnect (see docs/stability-report.md). Only the per-frame/per-second
+   * work is suspended.
+   */
+  private suspendChannels() {
+    if (this.suspended) return;
+    this.suspended = true;
+    for (const channel of this.channels) {
+      clearInterval(channel.statsTimer); channel.statsTimer = undefined;
+      clearInterval(channel.probeTimer); channel.probeTimer = undefined;
+      try { channel.video.pause(); } catch { /* optional */ }
+      channel.log.add('backgrounded', { suspended: true });
+    }
+  }
+
+  private resumeChannels() {
+    if (!this.suspended) return;
+    this.suspended = false;
+    for (const channel of this.channels) {
+      if (!channel.peer) continue;
+      this.startChannelTimers(channel);
+      if (channel.video.srcObject) void channel.video.play().catch(() => { /* optional */ });
+      channel.log.add('backgrounded', { suspended: false });
+    }
   }
 
   private fitVideo(channel: Channel) {

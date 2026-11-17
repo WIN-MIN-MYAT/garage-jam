@@ -25,12 +25,11 @@ export class RevealSystem extends createSystem({}) {
   private active = false;
   private finished = false;
   private elapsed = 0;
-  private leaving = false;
-  private leaveElapsed = 0;
-  private leaveDuration = 0.85;
-  private leaveFrom: number[] = [];
+  private presenceProgress = 1;
+  private presenceFade?: { from: number; to: 0 | 1; elapsed: number; duration: number };
   private readySpawned = false;
   private doorSoundStarted = false;
+  private focusShutter = 0;
   private wallSoundStarted = false;
   private blueprintSoundStarted = false;
   private sunbeamSoundStarted = false;
@@ -79,9 +78,8 @@ export class RevealSystem extends createSystem({}) {
     const onReset = () => {
       this.active = false;
       this.finished = false;
-      this.leaving = false;
-      this.leaveElapsed = 0;
-      this.leaveFrom = [];
+      this.presenceFade = undefined;
+      this.presenceProgress = 1;
       this.runtime = null;
       this.timeline = null;
       this.particles?.clear();
@@ -94,12 +92,17 @@ export class RevealSystem extends createSystem({}) {
       const stage = (event as CustomEvent<{ stage?: string }>).detail?.stage;
       if (stage === 'S11') this.requestedMode = 'quick';
     };
+    const onFocusShutter = (event: Event) => {
+      this.focusShutter = (event as CustomEvent<number>).detail;
+      const door = this.runtime?.door;
+      if (door) this.setDoorLighting(door.opacity);
+    };
     const lastComicWord = new Map<ComicWordCue['word'], number>();
     const wordPoint = new Vector3();
     const head = new Vector3();
     const forward = new Vector3();
     const onComicWord = (event: Event) => {
-      if (!this.audioVisible || this.leaving || !garageRootsVisible() || garageState.preferences.reducedMotion) return;
+      if (!this.audioVisible || this.presenceFade?.to === 0 || !garageRootsVisible() || garageState.preferences.reducedMotion) return;
       const { word, position } = (event as CustomEvent<ComicWordCue>).detail;
       const now = performance.now();
       if (now - (lastComicWord.get(word) ?? -Infinity) < (word === 'PIP.' ? 1800 : 400)) return;
@@ -124,6 +127,7 @@ export class RevealSystem extends createSystem({}) {
     garageEvents.addEventListener('room-enter', onRoomEnter);
     garageEvents.addEventListener('room-leave', onRoomLeave);
     garageEvents.addEventListener('app-flow-stage', onStage);
+    garageEvents.addEventListener('focus-shutter', onFocusShutter);
     garageEvents.addEventListener('comic-word', onComicWord);
     const stopVisibility = this.world.visibilityState.subscribe(state => {
       this.audioVisible = state === VisibilityState.Visible;
@@ -153,6 +157,7 @@ export class RevealSystem extends createSystem({}) {
       garageEvents.removeEventListener('room-enter', onRoomEnter);
       garageEvents.removeEventListener('room-leave', onRoomLeave);
       garageEvents.removeEventListener('app-flow-stage', onStage);
+      garageEvents.removeEventListener('focus-shutter', onFocusShutter);
       garageEvents.removeEventListener('comic-word', onComicWord);
       stopVisibility();
       stopAudioFrame();
@@ -174,7 +179,7 @@ export class RevealSystem extends createSystem({}) {
         start: (mode: RevealMode) => { this.requestedMode = mode; this.startFromBuilder(); },
         leave: () => this.leave(),
         enter: () => this.enter(),
-        get leaving() { return thisSystem.leaving; },
+        get leaving() { return thisSystem.presenceFade?.to === 0; },
         forceFallback: () => this.applyFallback(),
         state: () => ({
           active: thisSystem.active, elapsed: thisSystem.elapsed, mode: thisSystem.mode,
@@ -222,8 +227,8 @@ export class RevealSystem extends createSystem({}) {
     });
     this.active = true;
     this.finished = false;
-    this.leaving = false;
-    this.leaveElapsed = 0;
+    this.presenceFade = undefined;
+    this.presenceProgress = 1;
     this.elapsed = 0;
     this.readySpawned = false;
     this.doorSoundStarted = false;
@@ -292,8 +297,8 @@ export class RevealSystem extends createSystem({}) {
   }
 
   update(delta: number) {
-    if (this.leaving) {
-      this.stepLeave(Math.min(delta, 0.1));
+    if (this.presenceFade) {
+      this.stepPresenceFade(Math.min(delta, 0.1));
       this.particles?.update(Math.min(delta, 0.1));
       return;
     }
@@ -308,7 +313,7 @@ export class RevealSystem extends createSystem({}) {
       if (this.active) this.trackFrame(dt);
       if (this.active && this.timeline && this.elapsed >= this.timeline.duration) this.finishReveal(false);
     }
-    if (this.audioVisible && garageRootsVisible() && (this.finished || this.sunbeamSoundStarted) && this.runtime) {
+    if (this.audioVisible && garageRootsVisible() && this.presenceProgress > 0 && (this.finished || this.sunbeamSoundStarted) && this.runtime) {
       revealAudio.updateAmbience(true, this.hasDoorwayAudio ? this.doorwayAudio : null, this.roomAudio, this.doorwayOut);
     } else revealAudio.updateAmbience(false, null);
     this.particles?.update(Math.min(delta, 0.1));
@@ -361,6 +366,7 @@ export class RevealSystem extends createSystem({}) {
     const propsBeat = beatOf(timeline, 'props');
     const stickersBeat = beatOf(timeline, 'stickers');
     const blueprintBeat = beatOf(timeline, 'blueprint');
+    const wallOrderRange = Math.max(1, (garageState.room?.walls.length ?? 1) - 1);
     let maxWallProgress = 0;
     let tableWipeVisible = false;
 
@@ -373,9 +379,10 @@ export class RevealSystem extends createSystem({}) {
       } else if (surface.beat === 'walls') {
         const base = wallsBeat;
         if (base) {
-          const stagger = Math.min(0.16, base.duration * 0.12);
-          beatStart = base.start + surface.order * stagger;
-          beatDuration = Math.max(0.25, base.duration - stagger * 2.4);
+          const wall = surface.id.startsWith('wall-');
+          const stagger = wall ? Math.min(0.55, base.duration * 0.26) : 0;
+          beatStart = base.start + stagger * surface.order / wallOrderRange;
+          beatDuration = base.duration - stagger;
           progress = clamp((time - beatStart) / beatDuration, 0, 1);
           progress = progress * progress * (3 - 2 * progress);
         } else progress = timeline.mode === 'quick' ? 1 : 0;
@@ -398,13 +405,14 @@ export class RevealSystem extends createSystem({}) {
 
     if (runtime.blueprint) {
       const progress = beatProgress(blueprintBeat, time);
-      const visible = !!blueprintBeat && this.elapsed < (blueprintBeat.start + blueprintBeat.duration + 0.1);
+      const visible = !!blueprintBeat && time < blueprintBeat.start + blueprintBeat.duration;
+      const fade = visible ? 1 - clamp((progress - 0.72) / 0.28, 0, 1) : 0;
       runtime.blueprint.group.visible = visible;
       runtime.blueprint.group.scale.setScalar(1 + 0.06 * (1 - progress));
-      if (runtime.blueprint.lineMaterial) (runtime.blueprint.lineMaterial as any).opacity = visible ? 0.17 + 0.24 * Math.sin(progress * Math.PI) : 0;
-      const pulse = 1 + Math.sin(time * Math.PI * 4) * 0.04;
+      if (runtime.blueprint.lineMaterial) (runtime.blueprint.lineMaterial as any).opacity = fade * (0.17 + 0.24 * Math.sin(progress * Math.PI));
+      const pulse = 1 + Math.sin(progress * Math.PI * 2) * 0.04;
       runtime.blueprint.ring.scale.setScalar(pulse);
-      if (runtime.blueprint.ringMaterial) (runtime.blueprint.ringMaterial as any).opacity = visible ? 0.28 + 0.12 * Math.sin(time * Math.PI * 4) : 0;
+      if (runtime.blueprint.ringMaterial) (runtime.blueprint.ringMaterial as any).opacity = fade * (0.28 + 0.12 * Math.sin(progress * Math.PI * 2));
     }
     if (runtime.door) {
       const target = timeline.mode === 'quick'
@@ -498,7 +506,7 @@ export class RevealSystem extends createSystem({}) {
     const stickers = runtime.stickers;
     const count = stickers.length;
     const base = beat.start;
-    const spread = Math.min(beat.duration * 0.72, 0.045 * count);
+    const spread = Math.min(beat.duration * 0.64, 0.058 * count);
     const interval = count > 1 ? spread / (count - 1) : 0;
     for (let index = 0; index < count; index++) {
       const sticker = stickers[index];
@@ -509,7 +517,7 @@ export class RevealSystem extends createSystem({}) {
         continue;
       }
       sticker.object.visible = true;
-      const duration = Math.min(sticker.duration, beat.duration - index * interval);
+      const duration = Math.min(sticker.duration * 1.2, beat.duration - index * interval);
       const t = clamp((stepped - start) / duration, 0, 1);
       const eased = easeOutCubic(t);
       const lift = (1 - eased) * 0.045;
@@ -535,7 +543,7 @@ export class RevealSystem extends createSystem({}) {
     if (!runtime) return;
     const count = Math.max(1, runtime.props.length);
     const base = propsBeat?.start ?? 0;
-    const spread = propsBeat?.duration ? Math.min(propsBeat.duration * 0.60, 0.12 * count) : 0.8;
+    const spread = propsBeat?.duration ? Math.min(propsBeat.duration * 0.5, 0.12 * count) : 0;
     const interval = count > 1 ? spread / (count - 1) : 0;
     for (let i = 0; i < runtime.props.length; i++) {
       const prop = runtime.props[i];
@@ -553,9 +561,9 @@ export class RevealSystem extends createSystem({}) {
       }
       prop.object.visible = prop.finalVisible;
       // Reserve part of the prop beat for the lamp flicker before READY.
-      const dropDuration = Math.min(prop.dropDuration, propsBeat.duration * 0.32);
+      const dropDuration = Math.min(prop.dropDuration * 1.25, propsBeat.duration * 0.34);
       const t = clamp((time - start) / dropDuration, 0, 1);
-      const eased = easeOutCubic(t);
+      const eased = t * (0.3 + 0.7 * t);
       prop.object.position.set(
         prop.basePosition.x,
         prop.basePosition.y + 0.4 * (1 - eased),
@@ -577,7 +585,8 @@ export class RevealSystem extends createSystem({}) {
         }
       }
       const sinceLanding = time - (start + dropDuration);
-      const landing = clamp(sinceLanding / 0.16, 0, 1);
+      const settleWindow = propsBeat.start + propsBeat.duration - start - dropDuration;
+      const landing = clamp(sinceLanding / Math.min(0.20, settleWindow), 0, 1);
       const squash = t >= 1 ? Math.sin(landing * Math.PI) : 0;
       prop.object.scale.set(
         prop.baseScale.x * (1 + squash * 0.04),
@@ -585,7 +594,7 @@ export class RevealSystem extends createSystem({}) {
         prop.baseScale.z * (1 + squash * 0.04),
       );
       if (prop.id === 'lamp' && this.lampGlow?.material) {
-        const settle = clamp(sinceLanding / Math.min(0.42, propsBeat.duration * 0.25), 0, 1);
+        const settle = clamp(sinceLanding / Math.min(0.42, settleWindow), 0, 1);
         const on = prop.finalVisible && settle >= 0.28 && (Math.sin((settle - 0.28) * Math.PI * 2) > -0.25 || settle > 0.92);
         this.lampGlow.material.opacity = on ? 0.86 : 0;
         if (on && !this.lampActivated) {
@@ -594,7 +603,7 @@ export class RevealSystem extends createSystem({}) {
         }
       }
       if (prop.id === 'neon' && t >= 1) {
-        const flicker = clamp(sinceLanding / 0.45, 0, 1);
+        const flicker = clamp(sinceLanding / Math.min(0.45, settleWindow), 0, 1);
         prop.object.visible = flicker >= 1 ? prop.finalVisible : Math.sin(flicker * Math.PI * 2) > -0.20;
       }
     }
@@ -631,15 +640,22 @@ export class RevealSystem extends createSystem({}) {
       mat.opacity = opacity;
       mat.depthWrite = opacity > 0.5;
     }
+    this.setDoorLighting(opacity);
+  }
+
+  private setDoorLighting(opacity: number) {
+    const door = this.runtime?.door;
+    if (!door) return;
+    const outsideLight = opacity * Math.pow(1 - this.focusShutter, 2);
     for (const beam of door.beams) {
       const material = beam.material as any;
-      material.opacity = Math.max(0, opacity) * 0.55;
-      beam.visible = opacity > 0.001;
+      material.opacity = outsideLight * 0.55;
+      beam.visible = outsideLight > 0.001;
     }
     if (door.dust) {
       const dust = door.dust as any;
-      if (dust.material) dust.material.opacity = Math.max(0, opacity) * 0.62;
-      dust.visible = opacity > 0.001;
+      if (dust.material) dust.material.opacity = outsideLight * 0.62;
+      dust.visible = outsideLight > 0.001;
     }
   }
 
@@ -717,11 +733,9 @@ export class RevealSystem extends createSystem({}) {
 
   leave() {
     const runtime = this.runtime;
-    if (!runtime || this.leaving) return;
+    if (!runtime || this.presenceFade?.to === 0 || this.presenceProgress === 0) return;
     if (this.active) this.finishReveal(true);
-    this.leaving = true;
-    this.leaveElapsed = 0;
-    this.leaveFrom = runtime.surfaces.map(surface => surface.uniforms.uRevealProgress.value);
+    this.presenceFade = { from: this.presenceProgress, to: 0, elapsed: 0, duration: Math.max(0.05, 0.85 * this.presenceProgress) };
     if (runtime.blueprint) runtime.blueprint.group.visible = false;
     this.particles?.clear();
     revealAudio.stopRevealSamples();
@@ -731,43 +745,37 @@ export class RevealSystem extends createSystem({}) {
   }
 
   enter() {
-    if (!this.runtime) {
-      this.startFromBuilder();
-      return;
-    }
-    if (this.leaving) {
-      this.leaving = false;
-      this.leaveElapsed = 0;
-    }
-    this.start('quick');
+    if (!this.runtime || this.presenceFade?.to === 1) return;
+    this.presenceFade = {
+      from: this.presenceProgress, to: 1, elapsed: 0,
+      duration: Math.max(0.05, 0.55 * (1 - this.presenceProgress)),
+    };
   }
 
-  private stepLeave(delta: number) {
+  private stepPresenceFade(delta: number) {
     const runtime = this.runtime;
-    if (!runtime) return;
-    this.leaveElapsed = Math.min(this.leaveDuration, this.leaveElapsed + delta);
-    const t = 1 - this.leaveElapsed / this.leaveDuration;
+    const fade = this.presenceFade;
+    if (!runtime || !fade) return;
+    fade.elapsed = Math.min(fade.duration, fade.elapsed + delta);
+    const t = fade.elapsed / fade.duration;
     const eased = t * t * (3 - 2 * t);
-    runtime.surfaces.forEach((surface, index) => {
-      surface.uniforms.uRevealProgress.value = (this.leaveFrom[index] ?? 1.05) * eased;
-    });
-    this.setDoorOpacity(eased);
+    const visible = fade.from + (fade.to - fade.from) * eased;
+    this.presenceProgress = visible;
+    for (const surface of runtime.surfaces) surface.uniforms.uRevealProgress.value = 1.05 * visible;
+    this.setDoorOpacity(visible);
     for (const prop of runtime.props) {
-      prop.object.visible = prop.finalVisible && eased > 0.01;
-      prop.object.scale.copy(prop.baseScale).multiplyScalar(Math.max(0.001, eased));
+      prop.object.visible = prop.finalVisible && visible > 0.01;
+      prop.object.scale.copy(prop.baseScale).multiplyScalar(Math.max(0.001, visible));
     }
     for (const sticker of runtime.stickers ?? []) {
-      sticker.object.visible = eased > 0.02;
-      sticker.object.scale.copy(sticker.baseScale).multiplyScalar(Math.max(0.001, eased));
+      sticker.object.visible = visible > 0.02;
+      sticker.object.scale.copy(sticker.baseScale).multiplyScalar(Math.max(0.001, visible));
     }
-    if (this.leaveElapsed >= this.leaveDuration) {
-      this.leaving = false;
+    if (t >= 1) {
+      this.presenceFade = undefined;
       this.active = false;
-      this.finished = false;
-      runtime.surfaces.forEach(surface => { surface.uniforms.uRevealProgress.value = 0; });
-      for (const prop of runtime.props) prop.object.visible = false;
-      for (const sticker of runtime.stickers ?? []) sticker.object.visible = false;
-      emit('reveal-left');
+      this.finished = fade.to === 1;
+      if (!this.finished) emit('reveal-left');
     }
   }
 

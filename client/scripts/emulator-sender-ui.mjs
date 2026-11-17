@@ -13,7 +13,7 @@ try {
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   const open = async query => {
     await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/sender${query}`, { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => document.querySelectorAll('.channel').length === 3);
+    await page.waitForFunction(() => document.querySelectorAll('.channel').length === 2);
   };
   const card = () => page.evaluate(() => {
     const element = document.querySelector('.channel');
@@ -51,13 +51,15 @@ try {
   await page.locator('#room-code').fill('testroom1');
   await page.locator('#room-note button').click();
   await page.waitForURL(/room=testroom1/);
-  await page.waitForFunction(() => document.querySelectorAll('.channel').length === 3);
+  await page.waitForFunction(() => document.querySelectorAll('.channel').length === 2);
   const room = await page.evaluate(() => ({
     channel: document.querySelector('.channel').dataset.channel,
     chip: document.getElementById('room-chip').textContent,
+    cards: document.querySelectorAll('.channel').length,
     noteHidden: document.getElementById('room-note').hidden,
   }));
   assert.equal(room.channel, 'testroom1:monitor1');
+  assert.equal(room.cards, 2);
   assert.match(room.chip, /testroom1/);
   assert.equal(room.noteHidden, true);
   await open('');

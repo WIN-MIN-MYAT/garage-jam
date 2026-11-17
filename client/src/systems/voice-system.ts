@@ -1,5 +1,6 @@
 import { createSystem } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
+import { apiUrl } from '../backend.js';
 
 export class VoiceSystem extends createSystem({}) {
   private recognition: any = null;
@@ -46,7 +47,7 @@ export class VoiceSystem extends createSystem({}) {
 
   private async create(title: string) {
     try {
-      const response = await fetch('/api/tasks', {
+      const response = await fetch(apiUrl('/api/tasks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ title: title.slice(0, 200), target: 'local' }),

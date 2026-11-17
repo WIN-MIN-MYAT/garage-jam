@@ -14,9 +14,9 @@ dotenv.config({ path: join(import.meta.dirname, '.env') });
 
 const app = express();
 app.set('trust proxy', 1);
+app.use(cors({ origin: true }));
 app.use(express.json({ limit: '100kb' }));
 app.use('/api/plugins', createPluginRouter());
-app.use(cors({ origin: true }));
 app.get('/health', (_req, res) => res.json({ ok: true }));
 app.get('/api/signal-log', (req, res) => res.json(getSignalLog(validChannel(req.query.channel) ? req.query.channel : undefined)));
 app.get('/api/tasks', async (_req, res) => {
@@ -46,7 +46,13 @@ app.post('/api/tasks', async (req, res) => {
   }
   catch (error) { res.status(400).json({ error: error.message }); }
 });
-app.get('/api/state', async (_req, res) => res.json(await readJson('state.json', { completedByDay: {}, focusMinutesByDay: {}, mural: [], pinned: [] })));
+app.get('/api/state', async (_req, res) => {
+  try {
+    res.json(await readJson('state.json', { completedByDay: {}, focusMinutesByDay: {}, mural: [], pinned: [] }));
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
 app.put('/api/state', async (req, res) => {
   try { await writeJson('state.json', req.body); res.json({ ok: true }); }
   catch (error) { res.status(500).json({ error: error.message }); }

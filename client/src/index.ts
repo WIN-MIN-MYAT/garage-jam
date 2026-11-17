@@ -14,6 +14,7 @@ import { PresenceSystem } from './systems/presence-system.js';
 import { MonitorManagerSystem } from './systems/monitor-manager-system.js';
 import { PointerOverlaySystem } from './systems/pointer-overlay-system.js';
 import { HudSystem } from './systems/hud-system.js';
+import { ToastSystem } from './systems/toast-system.js';
 import { SunsetSystem } from './systems/sunset-system.js';
 import { CutoutSpikeSystem } from './systems/cutout-spike-system.js';
 import { RoomSpikeSystem } from './systems/room-spike-system.js';
@@ -65,7 +66,7 @@ function renderTestHub() {
           <button class="hub-card" data-href="?roomBuild=1&v=1"><strong>ROOM BUILD</strong><span>Direct room-driven garage: live scan or saved room, hidden-at-build skins, full reveal, table confirm and wrist menu.</span><em>GATE 5–6</em></button>
           <button class="hub-card" data-href="?roomSpike=1&v=1"><strong>ROOM SCAN + CALIBRATION</strong><span>WebXR plane/mesh probe, semantic labels, RUN SCAN and the manual floor/table corner calibration.</span><em>GATE 3</em></button>
           <button class="hub-card" data-href="?cutoutSpike=1"><strong>CUTOUT SPIKE</strong><span>Depth-only occluder volumes against an opaque test panel. Eight-angle silhouette check.</span><em>GATE 2</em></button>
-          <button class="hub-card" data-href="?demo=1"><strong>OLD PROTOTYPE</strong><span>Fixed 5 × 5 garage, demo papers, Notion tasks, three WebRTC monitors and the sunset timeline.</span><em>REFERENCE</em></button>
+          <button class="hub-card" data-href="?demo=1"><strong>OLD PROTOTYPE</strong><span>Fixed 5 × 5 garage, demo papers, Notion tasks, two WebRTC monitors and the sunset timeline.</span><em>REFERENCE</em></button>
         </div>
         <div class="hub-note">Enter XR after choosing a mode. On Quest Browser, this page is a normal 2D page; the mode page owns the immersive session.</div>
       </div>
@@ -119,6 +120,7 @@ function startApp() {
       world.registerSystem(StreamSystem);
       world.registerSystem(SunsetSystem);
       world.registerSystem(HudSystem);
+      world.registerSystem(ToastSystem);
       world.registerSystem(PluginSystem);
       world.registerSystem(VoiceSystem);
     } else if (cutoutSpike) {
@@ -130,6 +132,7 @@ function startApp() {
       world.registerSystem(ManualCalibrationSystem);
     } else if (roomBuild || product) {
       world.registerSystem(HudSystem);
+      world.registerSystem(ToastSystem);
       world.registerSystem(GarageBuildSystem);
       world.registerSystem(RevealSystem);
       if (product) world.registerSystem(AppFlowSystem);

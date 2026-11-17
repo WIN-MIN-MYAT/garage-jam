@@ -1,4 +1,5 @@
 import type { RoomModel } from './room-model.js';
+import { emit } from './events.js';
 import type { SlotPlacement } from './placement-solver.js';
 
 export type TableView = 'workbench' | 'real';
@@ -59,8 +60,16 @@ export function loadPreferences(): GaragePreferences {
 }
 
 export function resetPreferences() {
+  const previousMode = garageState.preferences.mode;
   garageState.preferences = { ...defaults };
   savePreferences();
+  if (previousMode !== defaults.mode) emit('mode-changed', defaults.mode);
+}
+
+export function setWorkMode(mode: WorkMode) {
+  if (garageState.preferences.mode === mode) return;
+  setPreference('mode', mode);
+  emit('mode-changed', mode);
 }
 
 export const lastRoomStorageKey = 'garage-jam-last-room-v1';

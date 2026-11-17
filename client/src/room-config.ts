@@ -4,5 +4,5 @@ export const roomConfig = {
   seat: [0, 0, 0] as const,
   workbench: [0, 0, -0.72] as const,
   trash: [0.88, 0, -0.68] as const,
-  monitors: { count: 3, radius: 1.8, height: 1.55, stepDegrees: 38 },
+  monitors: { count: 2, radius: 1.8, height: 1.55, stepDegrees: 38 },
 };

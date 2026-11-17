@@ -1,3 +1,5 @@
+import { apiUrl } from './backend.js';
+
 export type MuralSplat = {
   id: string;
   wallId: string | null;
@@ -46,7 +48,7 @@ export function loadProgress(): GarageProgress {
 
 export function saveProgress(progress: GarageProgress) {
   try { localStorage.setItem(storageKey, JSON.stringify(progress)); } catch { /* private mode */ }
-  void fetch('/api/state', {
+  void fetch(apiUrl('/api/state'), {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(progress),

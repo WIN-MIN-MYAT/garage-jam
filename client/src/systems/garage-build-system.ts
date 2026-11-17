@@ -243,14 +243,21 @@ export class GarageBuildSystem extends createSystem({}) {
     const canvas = document.createElement('canvas');
     canvas.width = 512; canvas.height = 128;
     const ctx = canvas.getContext('2d')!;
-    ctx.clearRect(0, 0, 512, 128);
-    ctx.fillStyle = 'rgba(10,12,17,0.86)';
-    ctx.fillRect(4, 4, 504, 120);
-    ctx.strokeStyle = color; ctx.lineWidth = 7; ctx.strokeRect(4, 4, 504, 120);
-    ctx.fillStyle = '#ffffff';
-    ctx.font = '800 48px ui-sans-serif, system-ui, sans-serif';
-    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-    ctx.fillText(text, 256, 66, 460);
+    ctx.beginPath();
+    ctx.roundRect(5, 5, 502, 118, 23);
+    ctx.fillStyle = '#25222d';
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(49, 64, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff0e2';
+    ctx.font = '700 43px system-ui, sans-serif';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, 77, 66, 399);
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
     this.scanLabels.set(key, texture);
@@ -263,35 +270,29 @@ export class GarageBuildSystem extends createSystem({}) {
     for (const plane of snapshots) {
       const label = plane.label;
       const chosen = selected && Math.hypot(plane.center.x - selected.x, plane.center.y - selected.y, plane.center.z - selected.z) < 0.01;
-      const color = chosen ? '#e8ff2a' : label.includes('floor') ? '#19e3ff'
-        : /table|desk/.test(label) ? '#dba6f7'
-        : label.includes('door') || label.includes('window') ? '#ffffff'
-        : label.includes('wall') ? '#ff3d9f'
-        : label ? '#ff8a1f' : '#8fa3b8';
+      const table = /table|desk/.test(label);
+      const floor = label.includes('floor');
+      const color = chosen ? '#efbb96' : table ? '#c9aacd' : floor ? '#a9d6c9' : '#b0a5bb';
       if (plane.polygon.length >= 3) {
         const geometry = new BufferGeometry().setFromPoints(plane.polygon.map(point => new Vector3(point.x, point.y, point.z)));
         const isOpening = label.includes('door') || label.includes('window');
         const lineMaterial = isOpening
-          ? new LineDashedMaterial({ color, dashSize: 0.06, gapSize: 0.04, transparent: true, opacity: 0.95, depthTest: false, depthWrite: false })
-          : new LineBasicMaterial({ color, transparent: true, opacity: 0.9, depthTest: false, depthWrite: false });
+          ? new LineDashedMaterial({ color, dashSize: 0.06, gapSize: 0.04, transparent: true, opacity: 0.48, depthTest: false, depthWrite: false })
+          : new LineBasicMaterial({ color, transparent: true, opacity: chosen ? 1 : table || floor ? 0.78 : 0.42, depthTest: false, depthWrite: false });
         const line = new LineLoop(geometry, lineMaterial);
         if (isOpening) line.computeLineDistances();
         line.name = `Scan plane ${label || 'unlabeled'}`;
         line.renderOrder = 995;
         this.scanOverlay.add(line);
       }
-      const text = chosen ? 'SELECTED TABLE' : label.includes('floor') ? 'FLOOR'
-        : /table|desk/.test(label) ? 'TABLE'
-        : label.includes('door') ? 'DOOR'
-        : label.includes('window') ? 'WINDOW'
-        : label.includes('wall') ? 'WALL'
-        : label ? 'FURNITURE' : 'SURFACE';
+      if (!chosen && !table) continue;
+      const text = chosen ? 'Selected table' : 'Table';
       const texture = this.scanLabel(text, color);
       const material = new SpriteMaterial({ map: texture, transparent: true, depthTest: false, depthWrite: false });
       const sprite = new Sprite(material);
       const center = plane.center;
-      sprite.position.set(center.x, center.y + (label.includes('floor') ? 0.12 : 0), center.z);
-      sprite.scale.set(0.48, 0.12, 1);
+      sprite.position.set(center.x, center.y + 0.06, center.z);
+      sprite.scale.set(0.36, 0.09, 1);
       sprite.renderOrder = 996;
       this.scanOverlay.add(sprite);
     }
@@ -1132,6 +1133,8 @@ export class GarageBuildSystem extends createSystem({}) {
       const material = baseMaterial.clone ? baseMaterial.clone() : baseMaterial;
       const surface = createRevealSurface(`wall-${wall.id}`, 'walls', 'vertical', order);
       surface.uniforms.uRevealRange.value.set(floorY, ceilingY);
+      surface.uniforms.uRevealOrigin.value.set(wall.p0.x, floorY, wall.p0.z);
+      surface.uniforms.uRevealDir.value.set(dx / length, 0, dz / length);
       applyRevealMaterial(material, surface);
       this.surfaces.push(surface);
       const addSegment = (start: number, end: number, y0: number, y1: number) => {
@@ -1669,12 +1672,18 @@ export class GarageBuildSystem extends createSystem({}) {
     const load = new Promise<void>(resolve => {
       this.loader.load(slot.model!, gltf => {
         const model = gltf.scene;
+        model.traverse(object => {
+          if (!(object instanceof Mesh)) return;
+          const list = Array.isArray(object.material) ? object.material : [object.material];
+          list.forEach(material => this.markOwnedMaps(material));
+        });
         if (!root.parent?.parent) { this.disposeGroup(model); resolve(); return; }
         model.name = `${id} model`;
         const meshes: Mesh[] = [];
         model.traverse(object => { if (object instanceof Mesh) meshes.push(object); });
         meshes.forEach(mesh => {
           const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
+          this.markOwnedMaps(material);
           mesh.material = comicMaterial((material as any)?.color ?? 0xffffff, (material as any)?.map ?? null);
           addOutline(mesh, id);
         });
@@ -1943,15 +1952,31 @@ export class GarageBuildSystem extends createSystem({}) {
     emit('status', deviceDriven ? 'Props adjusted around your devices' : `Props rearranged | seed ${seed}`);
   }
 
+  private markOwnedMaps(material: any) {
+    for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap']) {
+      const texture = material?.[key];
+      if (!texture) continue;
+      texture.userData = texture.userData ?? {};
+      texture.userData.garageOwned = true;
+    }
+  }
+
   private disposeGroup(group: Group) {
     group.traverse(object => {
       if (object instanceof Mesh) {
         object.geometry.dispose();
         const list = Array.isArray(object.material) ? object.material : [object.material];
+        const owned = new Set<any>();
         list.forEach(material => {
+          if (!material) return;
+          for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'aoMap', 'alphaMap', 'bumpMap', 'displacementMap']) {
+            const texture = (material as any)[key];
+            if (texture?.userData?.garageOwned) owned.add(texture);
+          }
           material.userData.ownedTexture?.dispose();
           material.dispose();
         });
+        owned.forEach(texture => texture.dispose());
       }
     });
   }

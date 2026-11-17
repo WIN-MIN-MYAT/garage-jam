@@ -1,35 +1,36 @@
 <style>
-  .card { width: 468px; background-color: #161a22; border-radius: 20px; padding: 24px; gap: 14px; flex-direction: column; }
-  .steps { flex-direction: row; align-items: center; justify-content: space-between; }
-  .eyebrow { color: #88e9ec; font-size: 17px; font-weight: 800; }
-  .count { color: #e8ff70; font-size: 19px; font-weight: 800; }
-  .title { color: #fff9ee; font-size: 35px; font-weight: 800; }
-  .body { color: #d4deeb; font-size: 21px; }
-  .error { color: #ffc191; font-size: 19px; }
-  .track { flex-direction: row; gap: 7px; }
-  .segment { width: 99px; height: 5px; background-color: #485364; border-radius: 2px; }
-  .actions { flex-direction: row; gap: 8px; }
-  .secondary { height: 50px; background-color: #323b4b; color: #fff9ee; border-radius: 9px; padding: 12px; font-size: 18px; font-weight: 700; }
-  .primary { height: 50px; background-color: #e8ff70; color: #161a22; border-radius: 9px; padding: 12px; font-size: 20px; font-weight: 800; }
+  @font-face { font-family: "Setup Comic"; src: url("/assets/fonts/Bangers-Regular.ttf"); font-weight: 400; }
+  .cal-shell { width: 460px; flex-direction: column; gap: 12px; padding: 23px; background-color: #25222d; border-width: 1px; border-color: #695465; border-radius: 18px; font-family: inter; }
+  .cal-top { flex-direction: row; align-items: center; justify-content: space-between; }
+  .cal-phase { color: #f0b793; font-size: 16px; font-weight: 800; }
+  .cal-count { color: #b6e6d8; font-size: 16px; font-weight: 800; }
+  .cal-title { color: #fff0e2; font-family: "Setup Comic"; font-size: 44px; font-weight: 400; line-height: 1.04; letter-spacing: 0.6px; }
+  .cal-body { color: #e0d4df; font-size: 20px; line-height: 1.36; }
+  .cal-error { color: #ffd0b3; background-color: #4b333c; border-radius: 8px; padding: 9px; font-size: 17px; }
+  .cal-track { flex-direction: row; gap: 6px; }
+  .cal-segment { flex-grow: 1; height: 5px; background-color: #524759; border-radius: 2px; }
+  .cal-actions { flex-direction: row; gap: 7px; }
+  .cal-secondary { flex-grow: 1; height: 42px; padding: 7px; background-color: #403644; color: #f9e9e3; border-radius: 9px; font-size: 15px; font-weight: 700; }
+  .cal-primary { height: 47px; padding: 8px; background-color: #efbb96; color: #2c212d; border-radius: 9px; font-size: 18px; font-weight: 800; }
 </style>
-<Panel class="card">
-  <div class="steps">
-    <div id="cal-step" class="eyebrow">1 OF 2 / FLOOR</div>
-    <div id="cal-count" class="count">0 / 4</div>
+<Panel class="cal-shell">
+  <div class="cal-top">
+    <div id="cal-step" class="cal-phase">Step 1 of 2</div>
+    <div id="cal-count" class="cal-count">0 of 4 corners</div>
   </div>
-  <div id="cal-title" class="title">Mark the floor</div>
-  <div id="cal-instruction" class="body">Touch corner 1 with your controller tip and pull the trigger. Follow the edges in order.</div>
-  <div class="track">
-    <div id="cal-progress-1" class="segment"></div>
-    <div id="cal-progress-2" class="segment"></div>
-    <div id="cal-progress-3" class="segment"></div>
-    <div id="cal-progress-4" class="segment"></div>
+  <div id="cal-title" class="cal-title">Mark the floor</div>
+  <div id="cal-instruction" class="cal-body">Touch a floor corner, then pull the trigger or pinch. Work around the room in order.</div>
+  <div class="cal-track">
+    <div id="cal-progress-1" class="cal-segment"></div>
+    <div id="cal-progress-2" class="cal-segment"></div>
+    <div id="cal-progress-3" class="cal-segment"></div>
+    <div id="cal-progress-4" class="cal-segment"></div>
   </div>
-  <div id="cal-error" class="error" style="display: none"></div>
-  <button id="cal-use" class="primary" style="display: none">Use outline</button>
-  <div class="actions">
-    <button id="cal-undo" class="secondary" style="display: none">Undo corner</button>
-    <button id="cal-skip" class="secondary" style="display: none">No table</button>
-    <button id="cal-cancel" class="secondary">Cancel</button>
+  <div id="cal-error" class="cal-error" style="display: none"></div>
+  <button id="cal-use" class="cal-primary" style="display: none">Use floor outline</button>
+  <div class="cal-actions">
+    <button id="cal-undo" class="cal-secondary" style="display: none">Undo last corner</button>
+    <button id="cal-skip" class="cal-secondary" style="display: none">Skip table</button>
+    <button id="cal-cancel" class="cal-secondary">Back to scan</button>
   </div>
 </Panel>

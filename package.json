@@ -10,5 +10,6 @@
     "test": "npm --prefix server test && npm --prefix client run test:placement && npm --prefix client run test:devices",
     "model:optimize": "gltf-transform optimize"
   },
+  "engines": { "node": ">=22.12.0" },
   "devDependencies": { "@gltf-transform/cli": "^4.5.1", "concurrently": "^9.2.1", "qrcode-terminal": "^0.12.0" }
 }

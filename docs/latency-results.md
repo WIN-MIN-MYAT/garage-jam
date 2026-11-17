@@ -19,11 +19,11 @@ Clock sync uses several server ping samples and retains the lowest RTT offset. T
 | Three-monitor baseline | 3 | Tab/window | 720p30 multi | H.264 preferred | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Not run |
 | Tuned final | 1–3 | To determine | To determine | To determine | Pending | Pending | Pending | Pending | Pending | Pending | Pending | Not selected |
 
-Target comparison is pending: one monitor median ≤120 ms, three monitors median ≤150 ms, p95 ≤200 ms, first frame <3 seconds, no >1-second freeze in 10 minutes, and XR ≥72 Hz with three monitors. The bottleneck stage cannot be named before measurements.
+Target comparison is pending: one monitor median ≤120 ms, two monitors median ≤150 ms, p95 ≤200 ms, first frame <3 seconds, no >1-second freeze in 10 minutes, and XR ≥72 Hz with two monitors. The bottleneck stage cannot be named before measurements.
 
 ## Controlled A/B matrix
 
-Only start after the 30-minute three-monitor soak and fault tests pass. Hold all other settings constant. For each row run **three 60-second trials**, save sender and viewer JSON, and record median, p95, FPS, freezes, encode/decode/jitter ms, candidate pair, and state transitions. The current code exposes capture presets, content hint, codec preference, max bitrate, degradation preference, automatic quality, jitter target, stats, probe, and recovery thresholds as controls or query parameters. Bitrate-start SDP hints remain unimplemented pending a stable baseline.
+Only start after the 30-minute two-monitor soak and fault tests pass. Hold all other settings constant. For each row run **three 60-second trials**, save sender and viewer JSON, and record median, p95, FPS, freezes, encode/decode/jitter ms, candidate pair, and state transitions. The current code exposes capture presets, content hint, codec preference, max bitrate, degradation preference, automatic quality, jitter target, stats, probe, and recovery thresholds as controls or query parameters. Bitrate-start SDP hints remain unimplemented pending a stable baseline.
 
 | Variable | Conditions | Results |
 | --- | --- | --- |

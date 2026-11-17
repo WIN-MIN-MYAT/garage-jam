@@ -47,11 +47,11 @@ function scaledFullBeats(scale: number): RevealBeat[] {
 function quickBeats(scale: number): RevealBeat[] {
   const beats: RevealBeat[] = [
     { id: 'welcome', start: 0, duration: 0.18, targets: ['welcome'], effect: 'welcome-pop' },
-    { id: 'floor', start: 0.08, duration: 0.62, targets: ['floor'], effect: 'floor', sfx: 'spray' },
-    { id: 'walls', start: 0.42, duration: 0.86, targets: ['walls'], effect: 'walls', sfx: 'whoosh' },
-    { id: 'stickers', start: 1.12, duration: 0.58, targets: ['stickers'], effect: 'stickers', sfx: fullSfx.stickers },
-    { id: 'props', start: 0.92, duration: 1.05, targets: ['props'], effect: 'props', sfx: 'thud' },
-    { id: 'finish', start: 2.16, duration: 0.22, targets: ['finish'], effect: 'ready-pop', sfx: 'chime' },
+    { id: 'floor', start: 0.1, duration: 0.75, targets: ['floor'], effect: 'floor', sfx: 'spray' },
+    { id: 'walls', start: 0.53, duration: 1.12, targets: ['walls'], effect: 'walls', sfx: 'whoosh' },
+    { id: 'stickers', start: 1.55, duration: 0.72, targets: ['stickers'], effect: 'stickers', sfx: fullSfx.stickers },
+    { id: 'props', start: 1.25, duration: 1.26, targets: ['props'], effect: 'props', sfx: 'thud' },
+    { id: 'finish', start: 2.55, duration: 0.55, targets: ['finish'], effect: 'ready-pop', sfx: 'chime' },
   ];
   return beats.map(beat => ({ ...beat, start: beat.start * scale, duration: Math.max(0.1, beat.duration * scale) }));
 }
@@ -86,11 +86,10 @@ export function buildRevealTimeline(options: {
     };
   }
   if (options.mode === 'quick') {
-    const beats = quickBeats(scale);
-    const tempo = Math.max(speed, ...beats.map(beat => (beat.start + beat.duration) / 3));
-    const base = beats.map(beat => ({ ...beat, start: beat.start / tempo, duration: beat.duration / tempo }));
-    const duration = Math.max(2, ...base.map(beat => beat.start + beat.duration));
-    return { mode: 'quick', duration, scale, fps, roomDiagonal, reducedMotion: false, revealOff: false, beats: base };
+    const quickScale = Math.min(scale, 3.45 / config.quickDuration) / speed;
+    const beats = quickBeats(quickScale);
+    const duration = Math.max(2, config.quickDuration * quickScale);
+    return { mode: 'quick', duration, scale, fps, roomDiagonal, reducedMotion: false, revealOff: false, beats };
   }
   const baseFull = config.fullDuration * scale;
   const targetFull = clamp(baseFull, config.minDuration, config.maxDuration);

@@ -1,38 +1,47 @@
 <style>
-  .root { width: 620px; flex-direction: column; padding: 18px; gap: 9px; background-color: #171a21; border-radius: 16px; }
-  .kicker { color: #ff2d95; font-size: 15px; font-weight: 700; letter-spacing: 2px; }
-  .title { color: #e8ff2a; font-size: 36px; font-weight: 700; }
-  .height { color: #ffffff; font-size: 48px; font-weight: 700; }
-  .body { color: #d8d1c4; font-size: 18px; }
-  .warning { color: #ff8a1f; font-size: 18px; font-weight: 700; }
-  .tip { color: #9de6ef; font-size: 15px; }
-  .row { flex-direction: row; gap: 8px; }
-  .button { background-color: #ff2d95; color: #11131a; padding: 10px; border-radius: 8px; font-size: 19px; font-weight: 700; }
-  .button-alt { background-color: #19e3ff; color: #11131a; padding: 10px; border-radius: 8px; font-size: 19px; font-weight: 700; }
-  .button-yep { background-color: #e8ff2a; color: #11131a; padding: 12px; border-radius: 8px; font-size: 22px; font-weight: 700; }
-  .button-fix { background-color: #ff8a1f; color: #11131a; padding: 12px; border-radius: 8px; font-size: 20px; font-weight: 700; }
-  .small { background-color: #2a303b; color: #ffffff; padding: 8px; border-radius: 7px; font-size: 15px; }
+  @font-face { font-family: "Setup Comic"; src: url("/assets/fonts/Bangers-Regular.ttf"); font-weight: 400; }
+  .table-shell { width: 535px; flex-direction: column; gap: 10px; padding: 22px; background-color: #25222d; border-width: 1px; border-color: #695465; border-radius: 18px; font-family: inter; }
+  .table-phase { color: #f0b793; font-size: 15px; font-weight: 800; }
+  .table-title { color: #fff0e2; font-family: "Setup Comic"; font-size: 46px; line-height: 1.04; font-weight: 400; letter-spacing: 0.6px; }
+  .table-body { color: #e0d4df; font-size: 18px; line-height: 1.32; }
+  .table-caption { color: #cabbc9; font-size: 15px; }
+  .table-label { color: #eadddf; font-size: 16px; font-weight: 800; }
+  .table-value { color: #fff0e2; font-size: 28px; font-weight: 800; }
+  .table-row { flex-direction: row; align-items: center; gap: 8px; }
+  .table-metric { flex-grow: 1; flex-direction: column; gap: 3px; }
+  .table-measure { flex-direction: row; align-items: center; gap: 8px; padding: 10px; border-radius: 9px; background-color: #37313e; }
+  .table-secondary { flex-grow: 1; height: 42px; padding: 8px; border-radius: 9px; background-color: #403644; color: #f9e9e3; font-size: 16px; font-weight: 700; }
+  .table-step { width: 76px; height: 42px; padding: 5px; border-radius: 9px; background-color: #4a3c4c; color: #fff0e2; font-size: 15px; font-weight: 800; }
+  .table-primary { height: 47px; border-radius: 9px; background-color: #efbb96; color: #2c212d; font-size: 18px; font-weight: 800; }
+  .table-notice { color: #ffd0b3; font-size: 16px; line-height: 1.3; }
 </style>
-<Panel class="root">
-  <div class="kicker">ROOM CHECK / TABLE</div>
-  <div class="title">THIS YOUR TABLE?</div>
-  <div id="table-height" class="height">74.0 cm</div>
-  <div id="table-size" class="body">Table top 0.9 x 0.9 m</div>
-  <div id="table-room" class="body">Room 5.0 x 5.8 m</div>
-  <div id="table-warning" class="warning" style="display: none">CHECK TABLE HEIGHT</div>
-  <div class="row">
-    <button id="height-minus" class="button">-0.5 cm</button>
-    <button id="height-plus" class="button">+0.5 cm</button>
-    <button id="touch-table" class="button-fix">TOUCH TABLE</button>
+<Panel class="table-shell">
+  <div class="table-phase">Table setup</div>
+  <div class="table-title">Check your table</div>
+  <div class="table-body">Check that the surface lines up with your tabletop.</div>
+  <div class="table-measure">
+    <div class="table-metric">
+      <div class="table-caption">Table height</div>
+      <div id="table-height" class="table-value">74.0 cm</div>
+    </div>
+    <button id="height-minus" class="table-step">-0.5 cm</button>
+    <button id="height-plus" class="table-step">+0.5 cm</button>
   </div>
-  <div class="row">
-    <button id="shape-check" class="small">MARK 4 CORNERS</button>
-    <button id="view-workbench" class="small">WORKBENCH SKIN</button>
-    <button id="view-real" class="small">REAL TABLE</button>
+  <div class="table-row">
+    <div id="table-size" class="table-caption">Surface</div>
+    <div id="table-room" class="table-caption">Room</div>
   </div>
-  <div id="table-tip" class="tip">Clear loose items off your table; the workbench skin hides them.</div>
-  <div class="row">
-    <button id="yep-button" class="button-yep">YEP!</button>
-    <button id="fix-button" class="button-fix">FIX IT</button>
+  <div id="table-warning" class="table-notice" style="display: none"></div>
+  <div class="table-row">
+    <button id="touch-table" class="table-secondary">Touch tabletop</button>
+    <button id="shape-check" class="table-secondary">Mark table corners</button>
   </div>
+  <div id="table-touch-guide" class="table-notice" style="display: none">Touch the tabletop with the controller tip and pull the trigger.</div>
+  <div class="table-label">Table appearance</div>
+  <div class="table-row">
+    <button id="view-workbench" class="table-secondary">Virtual workbench</button>
+    <button id="view-real" class="table-secondary">Real table</button>
+  </div>
+  <div id="table-tip" class="table-caption">Clear loose items if you use the virtual workbench.</div>
+  <button id="yep-button" class="table-primary">Confirm table</button>
 </Panel>

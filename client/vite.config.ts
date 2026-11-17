@@ -24,7 +24,12 @@ const assetsPlugin = {
     });
   },
   closeBundle() {
-    fs.cpSync(assetRoot, path.resolve(import.meta.dirname, 'dist/assets'), { recursive: true });
+    // Raw models are source assets for the optimization step, not runtime files.
+    const rawModels = path.join(assetRoot, 'models', 'raw');
+    fs.cpSync(assetRoot, path.resolve(import.meta.dirname, 'dist/assets'), {
+      recursive: true,
+      filter: source => !source.startsWith(rawModels),
+    });
   },
 };
 

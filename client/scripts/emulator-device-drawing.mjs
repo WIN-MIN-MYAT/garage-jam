@@ -163,6 +163,15 @@ try {
     return display.visible && !display.getObjectByName('Virtual display').visible
       && scene.getObjectByName('Device occluders Monitor').visible;
   }), true);
+  const displayMode = async mode => page.evaluate(async mode => {
+    const { setWorkMode } = await import('/src/garage-state.ts');
+    setWorkMode(mode);
+    const scene = window.garageEmulatorWorld.scene;
+    return ['Device display Monitor', 'Device occluders Monitor', 'Device passthrough outline Monitor', 'Monitor 1']
+      .map(name => scene.getObjectByName(name).visible);
+  }, mode);
+  assert.deepEqual(await displayMode('streaming'), [false, false, false, true]);
+  assert.deepEqual(await displayMode('passthrough'), [true, true, false, false]);
   await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud')
     .requireElementById('passthrough-button').dispatchEvent({ type: 'click' }));
   await page.waitForFunction(() => window.garageEmulatorWorld.scene.getObjectByName('Device passthrough outline Monitor')?.visible);

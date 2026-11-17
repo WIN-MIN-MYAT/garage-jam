@@ -29,15 +29,15 @@ These are confirmed implementation causes. A Quest timeline is still needed to d
 | Replaced old session and legacy duplicate rejection | Passed automated test |
 | State hysteresis and timecode decoding | Passed automated tests |
 | Client TypeScript and production build | Passed |
-| 30-minute, three-monitor Quest soak | Pending headset and Chrome sharing |
+| 30-minute, two-monitor Quest soak | Pending headset and Chrome sharing |
 | 10-second signaling outage with live media | Pending headset and Chrome sharing |
 | 3-second Wi-Fi outage, window minimize, tab close, sleep/wake, XR exit/re-entry, static desktop, hot reload | Pending live capture and headset |
 
 ## Live test procedure
 
-1. Close old Garage Jam tabs on both devices. Restart `npm run dev` after changing code, then open `/sender` in Chrome and `/?demo=1&probe=1` in Quest Browser on the same Wi-Fi. The headset must accept the local HTTPS certificate. Share the `/sender/timecode` tab as Monitor 1; start two more monitors if testing the three-monitor soak.
+1. Close old Garage Jam tabs on both devices. Restart `npm run dev` after changing code, then open `/sender` in Chrome and `/?demo=1&probe=1` in Quest Browser on the same Wi-Fi. The headset must accept the local HTTPS certificate. Share the `/sender/timecode` tab as Monitor 1; start Monitor 2 if testing the two-monitor soak.
 2. Record the Chrome and Quest user agent strings and the headset OS version. Use **Download run JSON** on the sender and **SAVE RUN** on the Quest after each test. Keep the JSON files with the test notes.
-3. Run a 30-minute three-monitor soak with static and changing content. Pass only if the UI shows zero spurious degraded/recovering flips, the peer-recreation counter stays at zero per monitor after its initial creation, and the logs show no unexplained peer replacement.
+3. Run a 30-minute two-monitor soak with static and changing content. Pass only if the UI shows zero spurious degraded/recovering flips, the peer-recreation counter stays at zero per monitor after its initial creation, and the logs show no unexplained peer replacement.
 4. Inject the listed faults one at a time. Note outage start, recovery time, UI state, `restart-ice` events, peer-create count, selected candidate pair, and any packet loss or RTT spike. A 10-second signaling-only outage should keep video and heartbeat flowing. A three-second Wi-Fi outage should self-recover without peer recreation if ICE reconnects.
 5. Check the source states: minimizing a captured window should show `source-paused` if Chrome mutes its track; closing/stopping the shared tab should show `source-stopped`. Chrome may not mute every minimized capture surface, so record actual track events rather than assuming them.
 

@@ -1,7 +1,7 @@
 import { createSystem, loadUIKitMLAsset, PokeInteractable, RayInteractable, Vector3, VisibilityState } from '@iwsdk/core';
 import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { garageState, loadLastRoom, saveLastRoom, setPreference } from '../garage-state.js';
+import { garageState, loadLastRoom, saveLastRoom, setWorkMode } from '../garage-state.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 import {
   describeLastRoom, flowDebug, isProductEntry, loadFlow, needsTableConfirm, resetFlow, resumeAvailable, revealModeFor, saveFlow,
@@ -12,8 +12,8 @@ import {
   showLanding, showLandingError,
 } from '../app-flow/landing-page.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
-import { showComicWord } from '../comic-word.js';
-import { bindPress, sendPanelToFront } from '../ui-press.js';
+import { bindPress, clearUiInput, sendPanelToFront } from '../ui-press.js';
+import { pulseGamepads } from '../feedback.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
 import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
@@ -34,9 +34,9 @@ export class AppFlowSystem extends createSystem({}) {
   private enterTimeout?: number;
   private live = false;
   private panelReady = false;
-  private lastScanProgress = 0;
   private showedScanLock = false;
-  private scanMissing = false;
+  private openingSpaceSetup = false;
+  private showingTableChoices = false;
   private revealHandled = false;
   private markTableAfterBuild = false;
 
@@ -55,11 +55,11 @@ export class AppFlowSystem extends createSystem({}) {
     const onScanProgress = (event: Event) => this.onScanProgress((event as CustomEvent).detail);
     const onScanMissing = () => this.onScanMissing();
     const onTrackingPending = () => {
-      if (this.stage !== 'S2') return;
+      if (this.stage !== 'S2' || this.openingSpaceSetup) return;
       this.showScanChoices(false);
-      this.scanTitle('WAITING FOR POSITION TRACKING');
-      this.scanBody('The headset is not giving the browser a tracked position. Hold still and look at the room.');
-      this.panel?.getElementById('scan-detail')?.setProperties({ text: 'Waiting for a tracked headset pose' });
+      this.scanTitle('Finding your position');
+      this.scanBody('Hold still and look around the room. You can mark the corners when tracking returns.');
+      this.panel?.getElementById('scan-progress')?.setProperties({ display: 'none' });
     };
     const onManualSaved = (event: Event) => {
       if (this.stage === 'S3') this.startManualBuild((event as CustomEvent<RoomModel>).detail);
@@ -90,7 +90,7 @@ export class AppFlowSystem extends createSystem({}) {
       const { monitors } = (event as CustomEvent<{ monitors: { enabled: boolean; state: string }[] }>).detail;
       const enabled = monitors.filter(monitor => monitor.enabled);
       const sharing = enabled.filter(monitor => monitor.state === 'live').length;
-      const text = enabled.length ? `${sharing} sharing · ${enabled.length} enabled` : 'Enable a monitor from the Room menu.';
+      const text = enabled.length ? `${sharing} sharing · ${enabled.length} enabled` : 'Enable a monitor in Displays.';
       this.panel?.getElementById('flow-monitor-status')?.setProperties({ text });
     };
     garageEvents.addEventListener('garage-built', onBuilt);
@@ -201,9 +201,7 @@ export class AppFlowSystem extends createSystem({}) {
     hideLanding();
     setLandingBusy(false);
     void revealAudio.unlock().catch(() => { /* audio is optional */ });
-    this.lastScanProgress = 0;
     this.showedScanLock = false;
-    this.scanMissing = false;
     this.revealHandled = false;
     this.markTableAfterBuild = false;
     this.setStage('S2');
@@ -238,7 +236,6 @@ export class AppFlowSystem extends createSystem({}) {
       return;
     }
     if (this.stage === 'S2' || this.stage === 'S3' || this.stage === 'S5' || this.stage === 'S11') this.setStage('S6');
-    this.scanMissing = false;
   }
 
   private onGarageRevealed() {
@@ -271,8 +268,7 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private chooseMode(mode: 'passthrough' | 'streaming') {
-    setPreference('mode', mode);
-    emit('mode-changed', mode);
+    setWorkMode(mode);
     this.setStage(mode === 'passthrough' ? 'S9a' : 'S9b');
   }
 
@@ -284,47 +280,45 @@ export class AppFlowSystem extends createSystem({}) {
     emit('status', 'Garage live');
   }
 
-  private onScanProgress(detail: { info?: ScanInfo; progress?: number; needsChoice?: boolean }) {
-    if (!detail?.info) return;
-    this.lastScanProgress = detail.progress ?? 0;
-    const progress = this.panel?.getElementById('scan-progress');
-    progress?.setProperties({ text: `${detail.progress ?? 0} / 3` });
-    const width = detail.info.floorSize?.[0]?.toFixed(1) ?? '?';
-    const depth = detail.info.floorSize?.[1]?.toFixed(1) ?? '?';
-    const table = detail.info.tableTopY != null ? `${((detail.info.tableTopY - detail.info.floorY) * 100).toFixed(0)} cm table` : 'table pending';
-    const detailText = this.panel?.getElementById('scan-detail');
-    detailText?.setProperties({ text: `FLOOR ${width} x ${depth} M / ${detail.info.planeCount} PLANES / ${table}` });
-    this.showScanChoices(!!detail.needsChoice, detail.info.tableTopY != null);
+  private onScanProgress(detail: { info?: ScanInfo; hasFloor?: boolean; hasWalls?: boolean; hasTable?: boolean; needsChoice?: boolean }) {
+    if (this.stage !== 'S2' || this.openingSpaceSetup || !detail?.info) return;
+    const selected = detail.info.tableTopY != null;
+    this.setScanProgress(!!detail.hasFloor, !!detail.hasWalls, !!detail.hasTable);
+    this.showScanChoices(!!detail.needsChoice, selected);
     if (detail.needsChoice) {
-      this.scanTitle(detail.info.tableTopY != null ? 'CHECK THE TABLE OUTLINE' : 'CHOOSE YOUR TABLE');
-      this.scanBody(detail.info.tableCandidateCount
-        ? 'Look down at the tabletop you want. Use it when the outline turns yellow, or mark its corners.'
-        : 'Quest Browser has a floor for this room. You can mark just the tabletop.');
-    } else if ((detail.progress ?? 0) >= 2) {
-      this.scanTitle('ROOM LOCKED');
-      this.scanBody('Hold still for a moment while the garage is measured.');
+      const hasCandidates = detail.info.tableCandidateCount > 0;
+      this.scanTitle(selected ? 'Use this table?' : hasCandidates ? 'Choose your table' : 'Add a table');
+      this.scanBody(selected
+        ? 'Check the highlighted outline. If it fits your tabletop, use it to continue.'
+        : hasCandidates
+          ? 'Look directly at the tabletop you want. Its outline will light up when selected.'
+          : 'The room is ready. Mark four tabletop corners or continue without a table.');
+    } else if (detail.hasFloor && detail.hasWalls) {
+      this.scanTitle(detail.hasTable ? 'Room found' : 'Looking for your table');
+      this.scanBody(detail.hasTable ? 'Hold still for a moment while we fit the garage to your room.'
+        : 'Look down at the tabletop you want to use.');
       if (!this.showedScanLock) {
         revealAudio.playGameplay('setup_lock', this.panel?.getWorldPosition(new Vector3()));
-        showComicWord('KLIK.');
       }
       this.showedScanLock = true;
+    } else {
+      this.scanTitle('Scan your room');
+      this.scanBody('Look around slowly, then look down at the table you want to use.');
     }
   }
 
   private onScanMissing() {
-    this.scanMissing = true;
-    this.showScanChoices(false);
-    this.scanTitle('NO ROOM SCAN FOUND');
-    this.scanBody('Space Setup gives us the real floor, walls and table. Or mark the room by touching four corners.');
-    this.panel?.getElementById('scan-progress')?.setProperties({ text: '—' });
-    this.panel?.getElementById('scan-detail')?.setProperties({ text: 'Space Setup is optional; the touch path works without it.' });
+    if (this.stage !== 'S2' || this.openingSpaceSetup) return;
+    this.showScanChoices(false, false, true);
+    this.scanTitle('Set up your room');
+    this.scanBody('Mark four floor corners to get started, or open Space Setup to scan your room.');
+    this.panel?.getElementById('scan-progress')?.setProperties({ display: 'none' });
     this.showPage('scan');
     this.placePanel('scan');
   }
 
   private beginManual() {
     this.builder?.cancelRoomScan();
-    this.scanMissing = false;
     this.setStage('S3');
     emit('room-manual-start');
     emit('status', 'Manual room: touch the floor corners with the controller tip');
@@ -334,9 +328,10 @@ export class AppFlowSystem extends createSystem({}) {
     this.revealHandled = false;
     this.setStage('S5');
     this.showPage('scan');
-    this.scanTitle('ROOM SAVED');
-    this.scanBody('Building the garage at your measured table height…');
-    this.panel?.getElementById('scan-progress')?.setProperties({ text: '3 / 3' });
+    this.scanTitle('Room saved');
+    this.scanBody('Fitting the garage to the space you marked.');
+    this.panel?.getElementById('scan-progress')?.setProperties({ display: 'none' });
+    this.panel?.getElementById('flow-scan-paths')?.setProperties({ display: 'none' });
     this.builder?.startFromManualRoom(room);
   }
 
@@ -357,11 +352,11 @@ export class AppFlowSystem extends createSystem({}) {
     emit('room-manual-cancel');
     this.showPage('scan');
     this.placePanel('scan');
-    this.scanTitle(realign ? 'REALIGNING THE ROOM' : 'GETTING THE ROOM');
-    this.scanBody(realign ? 'The headset changed its tracking origin. Checking the live room again.' : 'Look around slowly. Keep your table in view.');
-    this.showScanChoices(false);
-    this.panel?.getElementById('scan-progress')?.setProperties({ text: '0 / 3' });
-    this.panel?.getElementById('scan-detail')?.setProperties({ text: 'Waiting for floor, walls and table' });
+    this.refreshScanPage();
+    if (realign) {
+      this.scanTitle('Finding your room again');
+      this.scanBody('Look around slowly while we line up your saved garage.');
+    }
   }
 
   private setStage(stage: AppStage, persist = true) {
@@ -386,13 +381,10 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private stageLabel(stage: AppStage) {
-    if (stage === 'S10') return 'LIVE';
-    if (stage === 'S11') return 'RETURNING';
-    if (stage === 'S7') return 'TABLE';
-    if (stage === 'S8' || stage.startsWith('S9')) return 'MODE';
-    if (stage === 'S6') return 'BUILD';
-    if (stage === 'S3') return 'CALIBRATE';
-    return 'SETUP';
+    if (stage === 'S10') return 'Ready';
+    if (stage === 'S9b') return 'Screen sharing';
+    if (stage === 'S8' || stage === 'S9a') return 'Displays';
+    return 'Room setup';
   }
 
   private pageForStage(stage: AppStage): PanelPage | null {
@@ -415,16 +407,36 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private refreshScanPage() {
-    this.scanTitle(this.resume ? 'WELCOME BACK' : 'GETTING THE ROOM');
-    this.scanBody(this.resume ? 'Aligning the garage with your current room scan…' : 'Look around slowly. Keep your table in view.');
+    this.scanTitle(this.resume ? 'Welcome back' : 'Scan your room');
+    this.scanBody(this.resume ? 'Look around slowly while we line up your saved garage.' : 'Look around slowly, then look down at the table you want to use.');
     this.showScanChoices(false);
-    this.panel?.getElementById('scan-progress')?.setProperties({ text: this.lastScanProgress ? `${this.lastScanProgress} / 3` : '0 / 3' });
-    this.panel?.getElementById('scan-detail')?.setProperties({ text: 'Waiting for floor, walls and table' });
+    this.setScanProgress(false, false, false);
   }
 
-  private showScanChoices(visible: boolean, selected = false) {
+  private setScanProgress(floor: boolean, walls: boolean, table: boolean) {
+    this.panel?.getElementById('scan-progress')?.setProperties({ display: 'flex' });
+    for (const [label, found] of [['Floor', floor], ['Walls', walls], ['Table', table]] as const) {
+      this.panel?.getElementById(`scan-found-${label.toLowerCase()}`)?.setProperties({
+        text: found ? `${label} found` : label,
+        backgroundColor: found ? '#30483f' : '#37313e',
+        color: found ? '#c3efdf' : '#d6c8d4',
+      });
+    }
+  }
+
+  private showScanChoices(visible: boolean, selected = false, manualFirst = false) {
+    const changed = this.showingTableChoices !== visible;
+    this.showingTableChoices = visible;
     this.panel?.getElementById('flow-table-choices')?.setProperties({ display: visible ? 'flex' : 'none' });
     this.panel?.getElementById('flow-use-table')?.setProperties({ display: selected ? 'flex' : 'none' });
+    this.panel?.getElementById('flow-scan-paths')?.setProperties({ display: visible ? 'none' : 'flex' });
+    this.panel?.getElementById('flow-manual')?.setProperties({
+      backgroundColor: manualFirst ? '#efbb96' : '#403644', color: manualFirst ? '#2c212d' : '#f9e9e3',
+    });
+    this.panel?.getElementById('flow-mark-table')?.setProperties({
+      backgroundColor: selected ? '#403644' : '#efbb96', color: selected ? '#f9e9e3' : '#2c212d',
+    });
+    if (changed && this.stage === 'S2' && this.panel?.visible) this.placePanel('scan');
   }
 
   private showPage(page: PanelPage) {
@@ -445,22 +457,26 @@ export class AppFlowSystem extends createSystem({}) {
 
   private hidePanel() {
     if (this.panel) this.panel.visible = false;
+    clearUiInput();
   }
 
-  private placePanel(_page: PanelPage) {
+  private placePanel(page: PanelPage) {
     if (!this.panel || !this.sessionWasVisible) return;
     const camera = this.world.camera;
     const head = camera.getWorldPosition(new Vector3());
     const forward = camera.getWorldDirection(new Vector3());
     const up = new Vector3(0, 1, 0);
     const right = new Vector3().crossVectors(forward, up).normalize();
-    const distance = 0.98;
-    const lift = -0.02;
+    if (page === 'scan') forward.y = Math.max(-0.25, Math.min(0.12, forward.y * 0.45));
+    forward.normalize();
+    const side = page === 'scan' && this.showingTableChoices
+      ? (garageState.preferences.dominantHand === 'left' ? 0.3 : -0.3)
+      : 0;
     this.panel.position.copy(head)
-      .addScaledVector(forward, distance)
-      .addScaledVector(right, 0)
-      .addScaledVector(up, lift);
-    this.panel.lookAt(head.x, head.y + lift, head.z);
+      .addScaledVector(forward, 0.98)
+      .addScaledVector(right, side)
+      .addScaledVector(up, -0.05);
+    this.panel.lookAt(head);
     this.panel.visible = true;
   }
 
@@ -476,13 +492,25 @@ export class AppFlowSystem extends createSystem({}) {
       entity.addComponent(PokeInteractable, {});
       this.panel = panel;
       const on = (id: string, handler: () => void) => bindPress(panel, id, () => {
+        pulseGamepads(this.input.xr.gamepads, 0.3, 26);
         revealAudio.playPress(panel);
         handler();
       });
-      on('flow-run-scan', () => {
-        this.scanTitle('REQUESTING SPACE SETUP');
-        this.scanBody('Confirm the room capture in your headset.');
-        void this.builder?.requestRoomCapture();
+      on('flow-run-scan', async () => {
+        if (this.openingSpaceSetup) return;
+        this.openingSpaceSetup = true;
+        this.scanTitle('Opening Space Setup');
+        this.scanBody('Follow the room setup instructions in your headset.');
+        this.panel?.getElementById('scan-progress')?.setProperties({ display: 'none' });
+        this.panel?.getElementById('flow-scan-paths')?.setProperties({ display: 'none' });
+        const started = await this.builder?.requestRoomCapture();
+        this.openingSpaceSetup = false;
+        if (this.stage !== 'S2') return;
+        if (started) this.refreshScanPage();
+        else {
+          this.onScanMissing();
+          this.scanBody('Space Setup is unavailable here. Mark four floor corners to continue.');
+        }
       });
       on('flow-manual', () => this.beginManual());
       on('flow-use-table', () => { this.builder?.useLiveScan(true); });
@@ -490,7 +518,6 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-mark-table', () => { this.markTableAfterBuild = this.builder?.useLiveScan(false) ?? false; });
       on('flow-mode-passthrough', () => this.chooseMode('passthrough'));
       on('flow-mode-streaming', () => this.chooseMode('streaming'));
-      on('flow-continue', () => this.goLive());
       on('flow-continue-2', () => this.goLive());
       on('flow-mark-devices', () => {
         this.hidePanel();
@@ -500,7 +527,7 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-start', () => {
         this.hidePanel();
         this.live = true;
-        emit('status', 'Garage live - look at your left wrist or palm-up pinch for the menu');
+        emit('status', 'Garage live - look at your non-dominant wrist or palm-up pinch for the menu');
       });
       this.panelReady = true;
       if (this.sessionWasVisible) this.setStage(this.stage, false);

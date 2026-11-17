@@ -144,7 +144,7 @@ The sender passes the room into the signaling channel names:
 ```text
 8f3a1c2d:monitor1
 8f3a1c2d:monitor2
-8f3a1c2d:monitor3
+8f3a1c2d:monitor2
 ```
 
 Open the **exact** link from the headset. A bare `/sender` shows a warning and uses legacy `monitor1–3` channels, which will not pair with a room-scoped viewer.

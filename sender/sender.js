@@ -313,7 +313,7 @@ async function start(state) {
     showNotice(state, `Capture failed: ${error.message}`);
   }
 }
-for (let i = 1; i <= 3; i++) {
+for (let i = 1; i <= 2; i++) {
   const section = document.createElement('section');
   section.className = 'channel';
   section.dataset.channel = `${channelPrefix}monitor${i}`;

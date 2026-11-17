@@ -6,6 +6,7 @@ import { completedToday, focusMinutesToday, loadProgress, saveProgress, streakDa
 import { slotRules } from '../slot-rules.js';
 import type { SlotPlacement } from '../placement-solver.js';
 import type { Vec2 } from '../room-model.js';
+import { apiUrl } from '../backend.js';
 
 type Task = { id: string; title: string; priority?: string | null; due?: string | null };
 type CalendarEvent = { id: string; title: string; start: string | null; end: string | null; allDay: boolean };
@@ -93,7 +94,7 @@ export class TaskBoardSystem extends createSystem({}) {
         get tasks() { return system.tasks.length; },
       };
     }
-    void fetch('/api/state').then(response => response.ok ? response.json() : null).then((remote: GarageProgress | null) => {
+    void fetch(apiUrl('/api/state')).then(response => response.ok ? response.json() : null).then((remote: GarageProgress | null) => {
       if (!remote || typeof remote !== 'object') return;
       const local = this.progress;
       const completed = { ...remote.completedByDay };
@@ -140,9 +141,23 @@ export class TaskBoardSystem extends createSystem({}) {
       mesh.removeFromParent();
     }
     this.content.clear();
-    for (const group of this.splatMeshes.values()) group.removeFromParent();
+    for (const group of this.splatMeshes.values()) this.disposeSplatGroup(group);
     this.splatMeshes.clear();
     this.mural.clear();
+  }
+
+  private disposeSplatGroup(group: Group) {
+    group.traverse(object => {
+      if (!(object instanceof Mesh)) return;
+      object.geometry.dispose();
+      const list = Array.isArray(object.material) ? object.material : [object.material];
+      list.forEach(material => {
+        if (!material) return;
+        (material as MeshBasicMaterial).map?.dispose();
+        material.dispose();
+      });
+    });
+    group.removeFromParent();
   }
 
   private wallFor(placement: SlotPlacement) {
@@ -371,7 +386,7 @@ export class TaskBoardSystem extends createSystem({}) {
   }
 
   private rebuildSplats() {
-    for (const group of this.splatMeshes.values()) group.removeFromParent();
+    for (const group of this.splatMeshes.values()) this.disposeSplatGroup(group);
     this.splatMeshes.clear();
     this.mural.clear();
     for (const splat of this.progress.mural) this.buildSplat(splat);

@@ -3,6 +3,7 @@ import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot, garageRootsVisible } from '../garage-visibility.js';
 import { slotRules } from '../slot-rules.js';
+import { uiInputActive } from '../ui-press.js';
 
 type Stroke = { color: string; points: { x: number; y: number }[] };
 const key = 'garage-jam-whiteboard-v1';
@@ -13,6 +14,9 @@ const legacyInk: Record<string, string> = {
   '#e8ff2a': colors[2],
   '#f5ecd7': colors[3],
 };
+const textureWidth = 768;
+const inkWidth = 5;
+const uploadInterval = 32;
 
 function load(): Stroke[] {
   try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; }
@@ -30,6 +34,7 @@ export class WhiteboardSystem extends createSystem({}) {
   private drawing = false;
   private last = { x: 0, y: 0 };
   private colorIndex = 0;
+  private lastUpload = 0;
 
   init() {
     this.root.name = 'Whiteboard ink';
@@ -70,6 +75,7 @@ export class WhiteboardSystem extends createSystem({}) {
     this.mesh = undefined;
     this.texture = undefined;
     this.canvas = undefined;
+    this.lastUpload = 0;
   }
 
   private build() {
@@ -84,7 +90,8 @@ export class WhiteboardSystem extends createSystem({}) {
     this.width = rule?.footprint.width ?? 1.2;
     this.height = rule?.height ?? 0.8;
     const canvas = document.createElement('canvas');
-    canvas.width = 1024; canvas.height = Math.round(1024 * this.height / this.width);
+    canvas.width = textureWidth;
+    canvas.height = Math.max(1, Math.round(textureWidth * this.height / this.width));
     this.canvas = canvas;
     const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
     this.texture = texture;
@@ -105,22 +112,23 @@ export class WhiteboardSystem extends createSystem({}) {
     const mesh = this.mesh;
     const session = this.world.session;
     const space = this.world.renderer.xr.getReferenceSpace();
-    if (!mesh || !session || !space || !garageRootsVisible()) return;
+    if (!mesh || !session || !space || !garageRootsVisible()) { if (this.drawing) this.finish(); return; }
+    if (uiInputActive()) { if (this.drawing) this.finish(); return; }
     const side = garageState.preferences.dominantHand;
     const source = this.input.xr.getPrimaryInputSource?.(side) ?? Array.from(session.inputSources).find(input => input.handedness === side);
-    if (!source?.targetRaySpace) { this.drawing = false; return; }
+    if (!source?.targetRaySpace) { if (this.drawing) this.finish(); return; }
     const pose = frame.getPose(source.targetRaySpace, space);
-    if (!pose) { this.drawing = false; return; }
+    if (!pose) { if (this.drawing) this.finish(); return; }
     const { position, orientation } = pose.transform;
     const direction = new Vector3(0, 0, -1).applyQuaternion(new Quaternion(orientation.x, orientation.y, orientation.z, orientation.w));
     const origin = new Vector3(position.x, position.y, position.z);
     mesh.updateMatrixWorld(true);
     const normal = new Vector3(0, 0, 1).applyQuaternion(mesh.getWorldQuaternion(new Quaternion()));
     const denom = direction.dot(normal);
-    if (Math.abs(denom) < 1e-4) { this.drawing = false; return; }
+    if (Math.abs(denom) < 1e-4) { if (this.drawing) this.finish(); return; }
     const toPlane = mesh.getWorldPosition(new Vector3()).sub(origin);
     const t = toPlane.dot(normal) / denom;
-    if (t <= 0 || t > 3) { this.drawing = false; return; }
+    if (t <= 0 || t > 3) { if (this.drawing) this.finish(); return; }
     const hit = origin.addScaledVector(direction, t);
     const local = mesh.worldToLocal(hit.clone());
     const inside = Math.abs(local.x) <= this.width / 2 && Math.abs(local.y) <= this.height / 2;
@@ -137,21 +145,67 @@ export class WhiteboardSystem extends createSystem({}) {
     };
     if (!this.drawing) {
       this.drawing = true;
-      this.strokes.push({ color: colors[this.colorIndex++ % colors.length], points: [point] });
+      const stroke: Stroke = { color: colors[this.colorIndex++ % colors.length], points: [point] };
+      this.strokes.push(stroke);
       this.last = point;
-      this.redraw();
+      this.drawDot(stroke, point);
+      this.markTexture(true);
     } else if (Math.hypot(point.x - this.last.x, point.y - this.last.y) > 0.006) {
-      this.strokes[this.strokes.length - 1].points.push(point);
+      const stroke = this.strokes[this.strokes.length - 1];
+      stroke.points.push(point);
+      this.drawSegment(stroke, this.last, point);
       this.last = point;
-      this.redraw();
+      this.markTexture();
     }
   }
 
   private finish() {
     this.drawing = false;
+    const before = this.strokes.length;
     this.strokes = this.strokes.slice(-40);
     try { localStorage.setItem(key, JSON.stringify(this.strokes)); } catch { /* private mode */ }
-    this.redraw();
+    if (before > 40) this.redraw();
+    else this.markTexture(true);
+  }
+
+  private inkFor(stroke: Stroke) {
+    return legacyInk[stroke.color] ?? stroke.color;
+  }
+
+  private drawDot(stroke: Stroke, point: { x: number; y: number }) {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    const x = point.x * canvas.width;
+    const y = point.y * canvas.height;
+    ctx.fillStyle = this.inkFor(stroke);
+    ctx.beginPath();
+    ctx.arc(x, y, inkWidth / 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  private drawSegment(stroke: Stroke, from: { x: number; y: number }, to: { x: number; y: number }) {
+    const canvas = this.canvas;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+    ctx.strokeStyle = this.inkFor(stroke);
+    ctx.lineWidth = inkWidth;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(from.x * canvas.width, from.y * canvas.height);
+    ctx.lineTo(to.x * canvas.width, to.y * canvas.height);
+    ctx.stroke();
+  }
+
+  private markTexture(force = false) {
+    if (!this.texture) return;
+    const now = performance.now();
+    if (!force && now - this.lastUpload < uploadInterval) return;
+    this.lastUpload = now;
+    this.texture.needsUpdate = true;
   }
 
   private redraw() {
@@ -161,8 +215,12 @@ export class WhiteboardSystem extends createSystem({}) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const stroke of this.strokes) {
       if (!stroke.points.length) continue;
-      ctx.strokeStyle = legacyInk[stroke.color] ?? stroke.color;
-      ctx.lineWidth = 7;
+      if (stroke.points.length === 1) {
+        this.drawDot(stroke, stroke.points[0]);
+        continue;
+      }
+      ctx.strokeStyle = this.inkFor(stroke);
+      ctx.lineWidth = inkWidth;
       ctx.beginPath();
       stroke.points.forEach((point, index) => {
         const x = point.x * this.canvas!.width;
@@ -171,7 +229,7 @@ export class WhiteboardSystem extends createSystem({}) {
       });
       ctx.stroke();
     }
-    this.texture.needsUpdate = true;
+    this.markTexture(true);
   }
 
   private clear() {

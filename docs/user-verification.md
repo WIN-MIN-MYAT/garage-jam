@@ -58,9 +58,9 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 ## Gate 10: streaming
 
-- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows the room-scoped `/sender?room=...` link and the three monitor states.
+- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows the sender address, the room code, and the monitor states.
 - [ ] Open that exact sender link on the laptop, choose **Best quality** or **Lowest latency**, and start Monitors 1-3. Confirm AV1 is selected and Auto quality is off by default.
-- [ ] Confirm all three monitor placeholders turn into live video and remain readable at the chosen distance.
+- [ ] Confirm both monitor placeholders turn into live video and remain readable at the chosen distance.
 - [ ] Open **Monitor controls** from the wrist Room page. Test grab/move, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, save and recenter.
 - [ ] Toggle passthrough and back. Confirm monitors hide/return with the garage.
 - [ ] Run for 30 minutes. Confirm no spurious **reconnecting** flips, no black frame after a static screen, and no stale sender reconnect after closing a tab.
@@ -89,6 +89,6 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 ## Evidence to collect
 
-- Screenshots: device cutout from 8 angles, papers on the real table, task Done in Notion, wrist Music page, S9b monitor states, live three-monitor view, focus door, mural/stats/calendar/corkboard, whiteboard drawing.
+- Screenshots: device cutout from 8 angles, papers on the real table, task Done in Notion, wrist Music page, S9b monitor states, live two-monitor view, focus door, mural/stats/calendar/corkboard, whiteboard drawing.
 - Logs: HUD FPS/frame time, stream diagnostics JSON, and any console errors.
 - For each failure, record the exact stage, provider, and whether it also fails in the desktop emulator.
