@@ -72,8 +72,8 @@ export class MonitorManagerSystem extends createSystem({}) {
     if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
     forward.normalize();
     const side = garageStateSide();
-    this.panel.position.copy(head).addScaledVector(forward, 0.92).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.26);
-    this.panel.position.y += 0.02;
+    this.panel.position.copy(head).addScaledVector(forward, 0.98).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.26);
+    this.panel.position.y -= 0.18;
     this.panel.lookAt(head);
     this.refresh();
   }

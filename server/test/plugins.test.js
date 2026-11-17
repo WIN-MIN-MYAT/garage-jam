@@ -134,6 +134,20 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.match(await callback('notion', notionState), /result=connected$/);
   assert.equal(notionVerified, true);
   assert.match(await callback('notion', notionState), /result=expired$/);
+  const pairResponse = await post('/notion/pair');
+  assert.equal(pairResponse.status, 200);
+  const pair = await pairResponse.json();
+  assert.match(pair.code, /^[0-9A-F]{6}$/);
+  assert.match(pair.url, /\/connect\?code=/);
+  const claimResponse = await fetch(origin + base + '/pair/claim', {
+    method: 'POST', headers: { origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: pair.code }),
+  });
+  assert.equal(claimResponse.status, 200);
+  assert.match((await claimResponse.json()).url, /provider=notion&profile=/);
+  const reused = await fetch(origin + base + '/pair/claim', {
+    method: 'POST', headers: { origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ code: pair.code }),
+  });
+  assert.equal(reused.status, 404);
   const spotify = await authorize('spotify');
   assert.equal(spotify.searchParams.get('code_challenge_method'), 'S256');
   assert.match(await callback('spotify', spotify.searchParams.get('state'), owner, 'error=access_denied'), /result=denied$/);

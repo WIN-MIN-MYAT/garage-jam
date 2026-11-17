@@ -1,4 +1,4 @@
-import { BoxGeometry, BufferGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
+import { BoxGeometry, BufferGeometry, CanvasTexture, createSystem, DistanceGrabbable, Grabbed, Group, IcosahedronGeometry, InputComponent, Mesh, MeshBasicMaterial, OneHandGrabbable, PhysicsBody, PhysicsManipulation, PhysicsShape, PhysicsShapeType, PhysicsState, PhysicsSystem, Quaternion, RayInteractable, SRGBColorSpace, VisibilityState, Vector3 } from '@iwsdk/core';
 import type { Entity } from '@iwsdk/core';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
@@ -159,8 +159,21 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
           const id = String(entity.getValue(PaperTask, 'taskId'));
           const progress = loadProgress();
           setPinned(progress, [id, ...progress.pinned.filter(item => item !== id)]);
+          const wall = garageState.room?.walls.find(item => item.id === board.wallId);
+          const normal = wall?.normal ?? { x: 0, z: 1 };
+          const position = { x: board.position.x + normal.x * 0.06, y: board.position.y, z: board.position.z + normal.z * 0.06 };
+          const quaternion = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(normal.x, 0, normal.z));
+          entity.setValue(PaperTask, 'state', 'pinned');
+          entity.setValue(PhysicsBody, 'state', PhysicsState.Static);
+          entity.object3D?.position.set(position.x, position.y, position.z);
+          entity.object3D?.quaternion.copy(quaternion);
+          this.world.getSystem(PhysicsSystem)?.setBodyTransform(entity, {
+            position: [position.x, position.y, position.z],
+            quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
+          });
           emit('progress-updated', progress);
           emit('status', 'Pinned to Today / Top 3');
+          return;
         }
       }
       const samples = this.motion.get(entity.index);
@@ -262,6 +275,21 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.previous.set(entity.index, mesh.position.clone());
     this.motion.set(entity.index, { samples: new Float32Array(20), next: 0, count: 0 });
     mesh.visible = !this.roomHidden;
+    const pinned = loadProgress().pinned.includes(task.id);
+    const board = pinned ? garageState.placements.find(placement => placement.slotId === 'corkboard') : null;
+    if (board) {
+      const wall = garageState.room?.walls.find(item => item.id === board.wallId);
+      const normal = wall?.normal ?? { x: 0, z: 1 };
+      const quaternion = new Quaternion().setFromUnitVectors(new Vector3(0, 1, 0), new Vector3(normal.x, 0, normal.z));
+      mesh.position.set(board.position.x + normal.x * 0.06, board.position.y, board.position.z + normal.z * 0.06);
+      mesh.quaternion.copy(quaternion);
+      entity.setValue(PaperTask, 'state', 'pinned');
+      entity.setValue(PhysicsBody, 'state', PhysicsState.Static);
+      this.world.getSystem(PhysicsSystem)?.setBodyTransform(entity, {
+        position: [mesh.position.x, mesh.position.y, mesh.position.z],
+        quaternion: [quaternion.x, quaternion.y, quaternion.z, quaternion.w],
+      });
+    }
   }
 
   private crumple(entity: Entity) {

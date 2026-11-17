@@ -1,4 +1,4 @@
-import { createSystem, VisibilityState } from '@iwsdk/core';
+import { createSystem, Mesh, VisibilityState } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
@@ -21,12 +21,20 @@ export class PluginSystem extends createSystem({}) {
   private playlists: any[] = [];
   private spotifyBackoffUntil = 0;
   private pairingUntil = 0;
+  private localMusic = false;
+  private speakers: Mesh[] = [];
   private pollTimer = 0;
   private lastPoll = 0;
   private active = false;
 
   init() {
     revealAudio.setMusicVolume(garageState.preferences.musicVolume);
+    const onRevealed = () => {
+      this.speakers = [];
+      const boombox = this.world.scene.getObjectByName('PLACED_boombox');
+      boombox?.traverse(object => { if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object); });
+    };
+    garageEvents.addEventListener('garage-revealed', onRevealed);
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
       this.active = state !== VisibilityState.NonImmersive;
       if (this.active) void this.refresh();
@@ -70,6 +78,7 @@ export class PluginSystem extends createSystem({}) {
     }
     this.cleanupFuncs.push(() => {
       window.clearInterval(this.pollTimer);
+      garageEvents.removeEventListener('garage-revealed', onRevealed);
       garageEvents.removeEventListener('plugin-refresh', refresh);
       garageEvents.removeEventListener('plugin-connect', connect);
       garageEvents.removeEventListener('spotify-action', action);
@@ -191,11 +200,24 @@ export class PluginSystem extends createSystem({}) {
       await this.playerAction({ action: 'play' });
       return;
     }
-    if (revealAudio.startLoFi()) emit('status', 'Playing local lo-fi fallback');
+    if (revealAudio.startLoFi()) {
+      this.localMusic = true;
+      emit('status', 'Playing local lo-fi fallback');
+    }
   }
 
   private async stopMusic() {
     if (this.statuses.spotify?.connected) await this.playerAction({ action: 'pause' });
+    this.localMusic = false;
     revealAudio.stopLoFi();
+  }
+
+  update() {
+    const playing = !!this.spotify.playing || this.localMusic;
+    if (!this.speakers.length) return;
+    const pulse = playing ? 1 + Math.sin(performance.now() / 110) * 0.055 : 1;
+    for (const speaker of this.speakers) {
+      speaker.scale.setScalar(pulse);
+    }
   }
 }

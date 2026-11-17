@@ -32,7 +32,8 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Open the wrist menu with a left-wrist glance and with a palm-up pinch. Confirm the panel is not clipped and all buttons are reachable.
 - [ ] Mark a laptop by drag-to-draw and by two separate pinches. Confirm the second hand cannot finish an outline started by the first.
 - [ ] Restart the app. Confirm the room, table height, devices, and device cutouts restore.
-- [ ] Confirm the black box is no longer on the workbench (the boombox placeholder was removed).
+- [ ] Confirm the black box is no longer on the workbench (the boombox placeholder was removed); the procedural boombox should be on the floor in a corner.
+- [ ] Enable **Stand fade** in Settings, sit at your working spot, stand up, and walk away. Confirm the garage reverses to passthrough and the quick reveal returns when you sit.
 
 ## Gate 8: papers and tasks
 
@@ -46,8 +47,9 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 ## Gate 9: plugins
 
-- [ ] Open the wrist **CONNECT** page and connect Notion, Spotify, Calendar, and Weather from a phone/laptop.
-- [ ] Confirm the wrist shows each provider as ON and the connection survives a page reload.
+- [ ] Open the wrist **CONNECT** page and tap a provider. Confirm a 6-character code and `/connect` appear without leaving XR.
+- [ ] On a phone/laptop open `https://<laptop-ip>:8091/connect`, enter the code, then finish the provider sign-in. Confirm the headset updates to ON and does not drop XR.
+- [ ] Connect Notion, Spotify, Calendar, and Weather. Confirm each provider status survives a page reload.
 - [ ] Spotify: open **MUSIC**, confirm now playing/title, play/pause, previous/next, volume, device cycling, and playlist cycling.
 - [ ] Spotify: test with no active device (open Spotify elsewhere first) and with Premium unavailable. Confirm a clear message appears.
 - [ ] Calendar: confirm today's next event appears on Home and the calendar board shows today's events.
@@ -56,9 +58,10 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 ## Gate 10: streaming
 
-- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows the sender URL and the three monitor states.
-- [ ] On the laptop open `https://<laptop-ip>:8091/sender` and start Monitors 1–3.
+- [ ] Choose **STREAM MY LAPTOP**. Confirm the S9b panel shows a pairing code, `/connect`, and the three monitor states.
+- [ ] On the laptop claim the code, then open the sender page and start Monitors 1–3.
 - [ ] Confirm all three monitor placeholders turn into live video and remain readable at the chosen distance.
+- [ ] Open **Monitor controls** from the wrist Room page. Test grab/move, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, save and recenter.
 - [ ] Toggle passthrough and back. Confirm monitors hide/return with the garage.
 - [ ] Run for 30 minutes. Confirm no spurious **reconnecting** flips, no black frame after a static screen, and no stale sender reconnect after closing a tab.
 - [ ] Check `?stats=1` diagnostics and record p50/p95 latency. Targets are in `docs/latency-results.md`.
@@ -70,8 +73,8 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Pause/resume/cancel. Confirm the shutter and timer behave correctly and the sky restores.
 - [ ] Finish a 1-minute demo focus (`?focusDemo=1`) or the configured 25-minute session. Confirm break mode, chime, and focus minutes on the stats board/whiteboard.
 - [ ] Confirm each completed task adds a paint splat to the mural and that splats persist after reload.
-- [ ] Drop/release a flat paper near the corkboard. Confirm it is pinned into Today / Top 3 and persists.
-- [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and `garage-jam-whiteboard-v1` is cleared by **Forget room**.
+- [ ] Drop/release a flat paper near the corkboard. Confirm it freezes on the corkboard, pins into Today / Top 3, and persists after reload.
+- [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and the bottom-right **Clear board** button clears them.
 - [ ] Trigger **Voice task** and say “add task …”. Confirm a new local task and paper appear. If Web Speech is unavailable in Quest Browser, confirm the friendly fallback message.
 - [ ] Let the break nudge appear (use `?nudgeDemo=1`), confirm the neon message, sound, and dismissal event.
 - [ ] Confirm the local lo-fi fallback plays from the Music page when Spotify is not connected, and stops on pause.

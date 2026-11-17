@@ -7,6 +7,7 @@ try {
   const errors = [];
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
+  page.on('response', response => { if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`); });
   await page.goto('https://localhost:8091/?revealSpeed=3', { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.garageWristDebug && window.garageManualDebug?.panel && window.IWER_DEVICE);
   const click = (owner, id) => page.evaluate(({ owner, id }) => window[owner].panel.requireElementById(id).dispatchEvent({ type: 'click' }), { owner, id });
@@ -60,6 +61,21 @@ try {
   assert.equal(before.boards.tasks, 2);
   assert.deepEqual(before.monitors, [true, true, true], JSON.stringify(before));
   assert.equal(before.streams.length, 3);
+  const boombox = await page.evaluate(() => window.garageBuildDebug.placements.find(item => item.slotId === 'boombox') ?? null);
+  assert.ok(boombox, 'boombox should be placed in a corner');
+  await lookAt({ x: boombox.position.x, y: boombox.position.y + 0.2, z: boombox.position.z });
+  await page.waitForTimeout(500);
+  await page.screenshot({ path: 'scripts/boombox-corner.png' });
+  await lookAt({ x: 0, y: 0.8, z: -0.9 });
+
+  await page.evaluate(() => window.garageWristDebug.show('plugins'));
+  await page.waitForTimeout(300);
+  await page.evaluate(() => window.garageWristDebug.panel.requireElementById('wm-connect-weather').dispatchEvent({ type: 'click' }));
+  await page.waitForFunction(() => window.garageWristDebug.panel.requireElementById('wm-plugin-note').properties.value.text.includes('CODE'), null, { timeout: 8000 });
+  const pairingNote = await page.evaluate(() => ({ note: window.garageWristDebug.panel.requireElementById('wm-plugin-note').properties.value.text, url: location.href }));
+  assert.match(pairingNote.note, /CODE [0-9A-F]{6}/);
+  assert.ok(pairingNote.url.includes('/?'), 'plugin pairing must not navigate away from XR');
+  await page.evaluate(() => window.garageWristDebug.hide());
 
   await page.evaluate(() => window.garageMonitorDebug?.show());
   await page.waitForTimeout(400);
@@ -69,6 +85,7 @@ try {
   });
   assert.equal(panel.visible, true);
   assert.equal(panel.hasPreset, true);
+  await page.screenshot({ path: 'scripts/monitor-manager.png' });
   const monitor = async id => page.evaluate(id => window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel').requireElementById(id).dispatchEvent({ type: 'click' }), id);
   await monitor('mm-monitor-2');
   await monitor('mm-preset');
@@ -82,6 +99,14 @@ try {
   await monitor('mm-recenter');
   assert.equal(await page.evaluate(() => window.garageMonitorDebug.state().preset), 'arc');
   await page.evaluate(() => window.garageMonitorDebug.hide());
+  await page.evaluate(() => window.garagePresenceDebug?.hide());
+  await page.waitForTimeout(1400);
+  const hidden = await page.evaluate(() => ({ root: window.garageBuildDebug.root.visible, debug: window.garagePresenceDebug?.hidden }));
+  assert.equal(hidden.root, false);
+  assert.equal(hidden.debug, true);
+  await page.evaluate(() => window.garagePresenceDebug?.show());
+  await page.waitForTimeout(1400);
+  assert.equal(await page.evaluate(() => window.garageBuildDebug.root.visible), true);
 
   await page.evaluate(() => window.garageFocusDebug.start(1));
   await page.waitForFunction(() => window.garageFocusDebug.state.running, null, { timeout: 5000 });

@@ -599,10 +599,50 @@ export class GarageBuildSystem extends createSystem({}) {
     return null;
   }
 
+  /** Put the boombox in a free wall corner rather than on the workbench. */
+  private cornerBoombox(rule: SlotRule, existing: SlotPlacement[]): SlotPlacement | null {
+    const walls = [...this.room.walls].sort((a, b) => {
+      const length = (wall: typeof a) => Math.hypot(wall.p1.x - wall.p0.x, wall.p1.z - wall.p0.z);
+      return length(b) - length(a);
+    });
+    for (const wall of walls) {
+      const normalLength = Math.hypot(wall.normal.x, wall.normal.z) || 1;
+      const nx = wall.normal.x / normalLength, nz = wall.normal.z / normalLength;
+      const dx = wall.p1.x - wall.p0.x, dz = wall.p1.z - wall.p0.z;
+      const length = Math.hypot(dx, dz) || 1;
+      const wallDir = { x: dx / length, z: dz / length };
+      const yaw = Math.atan2(nx, nz);
+      for (const [endpoint, direction] of [[wall.p0, 1], [wall.p1, -1]] as const) {
+        const center = {
+          x: endpoint.x + wallDir.x * direction * (rule.footprint.width / 2 + 0.1) + nx * (rule.footprint.depth / 2 + 0.1),
+          z: endpoint.z + wallDir.z * direction * (rule.footprint.width / 2 + 0.1) + nz * (rule.footprint.depth / 2 + 0.1),
+        };
+        if (!this.footprintInside(center, rule.footprint.width, rule.footprint.depth, yaw, 0.03)) continue;
+        if (!this.anchorFree(center, rule.footprint.width, rule.footprint.depth, yaw, rule.height, 0.08)) continue;
+        const body: Obstacle = { center: { x: center.x, y: this.room.floor.y + rule.height / 2, z: center.z }, size: { x: rule.footprint.width, y: rule.height, z: rule.footprint.depth }, yaw };
+        if (existing.some(item => {
+          const otherRule = this.rules.find(ruleItem => ruleItem.id === item.slotId);
+          return overlapsBox(body, {
+            center: { x: item.position.x, y: this.room.floor.y + (otherRule?.height ?? 0.4) / 2, z: item.position.z },
+            size: { x: item.footprint.width, y: otherRule?.height ?? 0.4, z: item.footprint.depth }, yaw: item.yaw,
+          }, 0.12);
+        })) continue;
+        return {
+          slotId: 'boombox', type: 'floor',
+          position: { x: center.x, y: this.room.floor.y, z: center.z },
+          yaw, scale: 1, footprint: rule.footprint, wallId: wall.id,
+          score: 1, breakdown: { anchored: 1 }, reason: 'anchored corner boombox', locked: true, gapScale: 1,
+        };
+      }
+    }
+    return null;
+  }
+
   private anchoredPlacements(): SlotPlacement[] {
     const anchored: SlotPlacement[] = [];
     const shelfRule = this.rules.find(rule => rule.id === 'shelf');
     const trashRule = this.rules.find(rule => rule.id === 'trash');
+    const boomboxRule = this.rules.find(rule => rule.id === 'boombox');
     if (shelfRule) {
       const shelf = this.backCornerShelf(shelfRule);
       if (shelf) anchored.push(shelf);
@@ -610,6 +650,10 @@ export class GarageBuildSystem extends createSystem({}) {
     if (trashRule) {
       const trash = this.seatSideTrash(trashRule);
       if (trash) anchored.push(trash);
+    }
+    if (boomboxRule) {
+      const boombox = this.cornerBoombox(boomboxRule, anchored);
+      if (boombox) anchored.push(boombox);
     }
     return anchored;
   }
@@ -1470,11 +1514,15 @@ export class GarageBuildSystem extends createSystem({}) {
     group.name = 'Procedural boombox';
     const width = target[0], height = target[1], depth = target[2];
     const bodyHeight = height * 0.68;
-    const body = new Mesh(new BoxGeometry(width, bodyHeight, depth), comicMaterial(0x2b3039));
+    const body = new Mesh(new BoxGeometry(width, bodyHeight, depth), comicMaterial(0x4b5260));
     body.name = 'Boombox body';
     body.position.y = bodyHeight / 2;
     addOutline(body, 'SLOT_Boombox');
     group.add(body);
+    const stripe = new Mesh(new BoxGeometry(width * 0.92, height * 0.055, depth + 0.006), comicMaterial(0x19e3ff));
+    stripe.name = 'Boombox stripe';
+    stripe.position.set(0, bodyHeight * 0.91, 0);
+    group.add(stripe);
     const face = new Mesh(new PlaneGeometry(width * 0.88, bodyHeight * 0.72), comicMaterial(0x191d24));
     face.name = 'Boombox face';
     face.position.set(0, bodyHeight * 0.5, depth / 2 + 0.002);

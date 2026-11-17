@@ -36,7 +36,7 @@ app.post('/api/tasks', async (req, res) => {
     const title = req.body?.title;
     const notionReady = !!process.env.NOTION_TOKEN && !!process.env.NOTION_DATABASE_ID;
     const target = req.body?.target === 'notion' && notionReady ? 'notion'
-      : process.env.TASKS_SEND_TO === 'notion' && notionReady ? 'notion' : 'local';
+      : (process.env.TASKS_SEND_TO ?? 'notion') !== 'local' && notionReady ? 'notion' : 'local';
     const task = target === 'notion' ? await createTask(title) : await createLocalTask(title, req.body);
     res.status(201).json({ ...task, target });
   }

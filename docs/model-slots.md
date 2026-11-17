@@ -40,6 +40,7 @@ These slots have placement rules, manifest entries and working model swaps.
 | `tires` | `SLOT_TireStack` | floor, DECOR | `tires.glb` | 3,000 |
 | `mini-fridge` | `SLOT_MiniFridge` | floor, DECOR | `mini-fridge.glb` | 3,000 |
 | `toolbox` | `SLOT_Toolbox` | floor, DECOR | `toolbox.glb` | 3,000 |
+| `boombox` | `SLOT_Boombox` | floor corner, DECOR | procedural code-built boombox | - |
 | `stats-board` | `SLOT_StatsBoard` | wall, NEAR | `stats-board-frame.glb` | 2,000 |
 | `calendar-board` | `SLOT_CalendarBoard` | wall, NEAR | `calendar-board-frame.glb` | 2,000 |
 | `corkboard` | `SLOT_Corkboard` | wall, NEAR | `corkboard-frame.glb` | 2,000 |

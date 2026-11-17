@@ -95,6 +95,7 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 ## Gate 9 connectors
 
 - `server/plugin-providers.js` now includes Notion, Spotify (PKCE, refresh), Google Calendar (OAuth + refresh), and Open-Meteo weather. `server/plugins.js` exposes Spotify state/control/devices/playlists/image, calendar today, and weather current; a 401 refreshes the token once and retries.
+- Provider tokens can be bound to the headset profile via `X-Garage-Profile`/`profile` queries and the `/connect` 6-character pairing page, so a phone or laptop can finish OAuth without leaving XR. The plugin manager and provider status are polled back into the wrist.
 - `client/src/systems/plugin-system.ts` polls status/state/calendar/weather only while XR is visible, emits `plugin-status`, `spotify-state`, `calendar-events`, and `weather-current`, and exposes a debug probe.
 - The wrist menu adds HOME next event, MUSIC, CONNECT and Settings sky/focus rows. Spotify actions cover play/pause, next/previous, volume, device transfer and playlist play. The emulator validates the panel pages and server unit tests validate the endpoints.
 - Physical OAuth consent, Spotify Premium/active-device behavior, Google app verification, and weather visuals remain.
@@ -102,16 +103,18 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 ## Gate 10 streaming integration
 
 - `StreamSystem` registers in the room build; the three monitors are placed on an arc in front of the seat at about 1.75 m and table-derived height, hidden in passthrough mode and re-centered by the wrist Room action.
-- S9b now shows the sender URL, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. `stream-status` is emitted on every state change.
+- S9b now shows a 6-character pairing code and `/connect`, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. The sender claims the code through the server, then starts the usual channels.
+- Monitor controls are implemented in `client/src/systems/monitor-manager-system.ts`: grab/move, selection, width/height, curve, lock, arc/table/stacked/ultrawide/free presets, saved layout and recenter. The `table` preset anchors the panels above the measured tabletop.
 - The 30-minute soak and measured latency targets remain physical checks; the existing diagnostics and sender fault tests are unchanged.
 
 ## Gate 11 P1 features
 
 - `FocusSystem` builds a procedural roll-down shutter over the chosen door, dims the `Golden hour sky`/sun beam/dust, shows a countdown sign and drives focus/break phases. Focus minutes persist through `progress-store`.
 - `TaskBoardSystem` draws the stats, calendar, Top 3 and whiteboard boards from live tasks/calendar/focus data, and paints persistent offset-layer mural splats on the largest non-door wall.
-- `PaperSystem` pins a task to Top 3 when a flat paper is released within 65 cm of the corkboard. `WhiteboardSystem` renders controller/hand strokes up to 40 strokes, persisted in `garage-jam-whiteboard-v1`.
-- `VoiceSystem` uses the Web Speech API and local task creation when available. `NudgeSystem` flashes break messages. `RevealAudio` adds paper, trash, task, focus, nudge, stream cues and a procedural lo-fi fallback.
-- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-focus.png`, `scripts/rest-boards.png`. Physical feel, legibility and voice availability remain.
+- `PaperSystem` pins a task when a flat paper is released within 65 cm of the corkboard, freezes the sheet on the board, and respawns pinned papers there next session. The Settings page has **Clear board**.
+- `PresenceSystem` stores the usual seated head pose. With **Stand fade** enabled, sitting triggers the quick reveal and standing/walking away reverses the reveal and hides garage roots. Focus/voice/video systems stay outside this transition.
+- `VoiceSystem` uses the Web Speech API and local task creation when available. `NudgeSystem` flashes break messages. `RevealAudio` adds paper, trash, task, focus, nudge, stream cues and a procedural lo-fi fallback. A procedural boombox is anchored in a floor corner and its speakers pulse while music plays.
+- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-focus.png`, `scripts/rest-boards.png`, `scripts/monitor-manager.png`, `scripts/boombox-corner.png`. Physical feel, legibility, stand/sit detection and voice availability remain.
 
 ## Verification handoff
 
