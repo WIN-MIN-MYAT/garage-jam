@@ -146,10 +146,10 @@ try {
   await menu('wm-table-view');
   assert.equal((await preferences()).tableView, 'real');
   await menu('wm-tab-settings');
-  for (const id of ['wm-units', 'wm-hand', 'wm-motion', 'wm-reveal', 'wm-sound', 'wm-outlines', 'wm-sky', 'wm-focus-length']) await menu(id);
+  for (const id of ['wm-units', 'wm-hand', 'wm-motion', 'wm-reveal', 'wm-sound', 'wm-outlines', 'wm-sky', 'wm-focus-length', 'wm-standup']) await menu(id);
   const prefs = await preferences();
-  assert.deepEqual([prefs.units, prefs.dominantHand, prefs.reducedMotion, prefs.revealOff, prefs.revealSound, prefs.outlines, prefs.skyMode, prefs.focusMinutes],
-    ['in', 'left', true, true, false, false, 'time', 45]);
+  assert.deepEqual([prefs.units, prefs.dominantHand, prefs.reducedMotion, prefs.revealOff, prefs.revealSound, prefs.outlines, prefs.skyMode, prefs.focusMinutes, prefs.standUpFade],
+    ['in', 'left', true, true, false, false, 'time', 45, true]);
   await menu('wm-tab-music');
   assert.equal(await page.evaluate(() => window.garageWristDebug.panel.requireElementById('page-music').properties.value.display), 'flex');
   await menu('wm-tab-room');
@@ -158,7 +158,7 @@ try {
   await menu('wm-tab-settings');
   await menu('wm-reset');
   const reset = await preferences();
-  assert.deepEqual([reset.units, reset.tableView, reset.revealSound, reset.outlines, reset.debugOverlay, reset.skyMode, reset.focusMinutes], ['cm', 'workbench', true, true, false, 'golden', 25]);
+  assert.deepEqual([reset.units, reset.tableView, reset.revealSound, reset.outlines, reset.debugOverlay, reset.skyMode, reset.focusMinutes, reset.standUpFade], ['cm', 'workbench', true, true, false, 'golden', 25, false]);
   assert.equal(await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud').visible), false);
 
   await menu('wm-tab-home');

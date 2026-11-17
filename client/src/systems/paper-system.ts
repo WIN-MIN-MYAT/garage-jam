@@ -77,6 +77,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private crumpledTemplate?: Group;
   private paperLoader = new GLTFLoader();
   private tasks = new Map<string, Task>();
+  private roomHidden = false;
 
   init() {
     this.paperLoader.setMeshoptDecoder(MeshoptDecoder);
@@ -107,9 +108,13 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
       }
       this.previous.clear(); this.motion.clear(); this.tasks.clear();
     };
+    const onRoomHidden = () => { this.roomHidden = true; for (const entity of this.queries.papers.entities) entity.object3D?.visible && (entity.object3D.visible = false); };
+    const onRoomShown = () => { this.roomHidden = false; for (const entity of this.queries.papers.entities) entity.object3D && (entity.object3D.visible = true); };
     garageEvents.addEventListener('garage-revealed', onRevealed);
     garageEvents.addEventListener('garage-reset', onReset);
     garageEvents.addEventListener('task-created', onCreated);
+    garageEvents.addEventListener('room-hidden', onRoomHidden);
+    garageEvents.addEventListener('room-shown', onRoomShown);
     if (location.hostname === 'localhost') Object.assign(((window as any).garageDebug ??= {}), {
       papers: () => [...this.queries.papers.entities].map(entity => ({ id: entity.getValue(PaperTask, 'taskId'), state: entity.getValue(PaperTask, 'state') })),
       crumpleFirst: () => { const first = this.queries.papers.entities.values().next().value; if (first) this.crumple(first); },
@@ -126,6 +131,8 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('garage-revealed', onRevealed));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('garage-reset', onReset));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('task-created', onCreated));
+    this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-hidden', onRoomHidden));
+    this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-shown', onRoomShown));
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
       if (state === VisibilityState.Visible && (this.demo || garageState.room) && !this.started) {
         this.started = true;
@@ -254,6 +261,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     entity.addComponent(PhysicsBody, { state: PhysicsState.Dynamic, linearDamping: 0.12, angularDamping: 0.2 });
     this.previous.set(entity.index, mesh.position.clone());
     this.motion.set(entity.index, { samples: new Float32Array(20), next: 0, count: 0 });
+    mesh.visible = !this.roomHidden;
   }
 
   private crumple(entity: Entity) {

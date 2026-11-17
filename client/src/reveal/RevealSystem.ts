@@ -23,6 +23,10 @@ export class RevealSystem extends createSystem({}) {
   private active = false;
   private finished = false;
   private elapsed = 0;
+  private leaving = false;
+  private leaveElapsed = 0;
+  private leaveDuration = 0.85;
+  private leaveFrom: number[] = [];
   private readySpawned = false;
   private doorSoundStarted = false;
   private ceilingSoundStarted = false;
@@ -64,9 +68,14 @@ export class RevealSystem extends createSystem({}) {
     const onBuilt = () => this.startFromBuilder();
     const onSkip = () => this.skip();
     const onPropsRebuilt = () => this.startPropsOnly();
+    const onRoomEnter = () => this.enter();
+    const onRoomLeave = () => this.leave();
     const onReset = () => {
       this.active = false;
       this.finished = false;
+      this.leaving = false;
+      this.leaveElapsed = 0;
+      this.leaveFrom = [];
       this.runtime = null;
       this.timeline = null;
       this.particles?.clear();
@@ -83,6 +92,8 @@ export class RevealSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-props-rebuilt', onPropsRebuilt);
     garageEvents.addEventListener('garage-reset', onReset);
     garageEvents.addEventListener('reveal-skip', onSkip);
+    garageEvents.addEventListener('room-enter', onRoomEnter);
+    garageEvents.addEventListener('room-leave', onRoomLeave);
     garageEvents.addEventListener('app-flow-stage', onStage);
     const stopVisibility = this.world.visibilityState.subscribe(state => {
       this.audioVisible = state === VisibilityState.Visible;
@@ -100,6 +111,8 @@ export class RevealSystem extends createSystem({}) {
       garageEvents.removeEventListener('garage-props-rebuilt', onPropsRebuilt);
       garageEvents.removeEventListener('garage-reset', onReset);
       garageEvents.removeEventListener('reveal-skip', onSkip);
+      garageEvents.removeEventListener('room-enter', onRoomEnter);
+      garageEvents.removeEventListener('room-leave', onRoomLeave);
       garageEvents.removeEventListener('app-flow-stage', onStage);
       stopVisibility();
       this.particles?.dispose();
@@ -119,6 +132,9 @@ export class RevealSystem extends createSystem({}) {
         skip: () => this.skip(),
         finish: () => this.finishReveal(true),
         start: (mode: RevealMode) => { this.requestedMode = mode; this.startFromBuilder(); },
+        leave: () => this.leave(),
+        enter: () => this.enter(),
+        get leaving() { return thisSystem.leaving; },
         forceFallback: () => this.applyFallback(),
         state: () => ({
           active: thisSystem.active, elapsed: thisSystem.elapsed, mode: thisSystem.mode,
@@ -163,6 +179,8 @@ export class RevealSystem extends createSystem({}) {
     });
     this.active = true;
     this.finished = false;
+    this.leaving = false;
+    this.leaveElapsed = 0;
     this.elapsed = 0;
     this.readySpawned = false;
     this.doorSoundStarted = false;
@@ -229,6 +247,11 @@ export class RevealSystem extends createSystem({}) {
 
   update(delta: number) {
     if (this.audioVisible) revealAudio.updateListener(this.world.camera);
+    if (this.leaving) {
+      this.stepLeave(Math.min(delta, 0.1));
+      this.particles?.update(Math.min(delta, 0.1));
+      return;
+    }
     if (this.active) {
       const dt = Math.min(delta, 0.1);
       this.elapsed += dt;
@@ -630,6 +653,59 @@ export class RevealSystem extends createSystem({}) {
       }
     } else {
       this.bHold = 0;
+    }
+  }
+
+  leave() {
+    const runtime = this.runtime;
+    if (!runtime || this.leaving) return;
+    if (this.active) this.finishReveal(true);
+    this.leaving = true;
+    this.leaveElapsed = 0;
+    this.leaveFrom = runtime.surfaces.map(surface => surface.uniforms.uRevealProgress.value);
+    if (runtime.blueprint) runtime.blueprint.group.visible = false;
+    this.particles?.clear();
+    emit('reveal-leave-started');
+  }
+
+  enter() {
+    if (!this.runtime) {
+      this.startFromBuilder();
+      return;
+    }
+    if (this.leaving) {
+      this.leaving = false;
+      this.leaveElapsed = 0;
+    }
+    this.start('quick');
+  }
+
+  private stepLeave(delta: number) {
+    const runtime = this.runtime;
+    if (!runtime) return;
+    this.leaveElapsed = Math.min(this.leaveDuration, this.leaveElapsed + delta);
+    const t = 1 - this.leaveElapsed / this.leaveDuration;
+    const eased = t * t * (3 - 2 * t);
+    runtime.surfaces.forEach((surface, index) => {
+      surface.uniforms.uRevealProgress.value = (this.leaveFrom[index] ?? 1.05) * eased;
+    });
+    this.setDoorOpacity(eased);
+    for (const prop of runtime.props) {
+      prop.object.visible = prop.finalVisible && eased > 0.01;
+      prop.object.scale.copy(prop.baseScale).multiplyScalar(Math.max(0.001, eased));
+    }
+    for (const sticker of runtime.stickers ?? []) {
+      sticker.object.visible = eased > 0.02;
+      sticker.object.scale.copy(sticker.baseScale).multiplyScalar(Math.max(0.001, eased));
+    }
+    if (this.leaveElapsed >= this.leaveDuration) {
+      this.leaving = false;
+      this.active = false;
+      this.finished = false;
+      runtime.surfaces.forEach(surface => { surface.uniforms.uRevealProgress.value = 0; });
+      for (const prop of runtime.props) prop.object.visible = false;
+      for (const sticker of runtime.stickers ?? []) sticker.object.visible = false;
+      emit('reveal-left');
     }
   }
 

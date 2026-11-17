@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, createSystem, DoubleSide, ExtrudeGeometry, Group,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
   LineBasicMaterial, LineDashedMaterial, LineLoop, Mesh, MeshBasicMaterial, PhysicsBody, PhysicsShape, PhysicsShapeType, PhysicsState,
   PlaneGeometry, Points, PointsMaterial, Quaternion, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, Vector3,
 } from '@iwsdk/core';
@@ -26,6 +26,7 @@ const assetForSlot: Record<string, string> = {
   'calendar-board': 'SLOT_CalendarBoard',
   corkboard: 'SLOT_Corkboard',
   whiteboard: 'SLOT_Whiteboard',
+  boombox: 'SLOT_Boombox',
   pegboard: 'SLOT_PegboardTools',
   shelf: 'SLOT_Shelf',
   crates: 'SLOT_Crates',
@@ -1451,7 +1452,7 @@ export class GarageBuildSystem extends createSystem({}) {
       prop.position.set(placement.position.x, placement.position.y, placement.position.z);
       prop.rotation.y = placement.yaw;
       prop.scale.setScalar(placement.scale);
-      prop.add(this.fitProp(placeholder, target, placement.type, 1));
+      prop.add(this.fitProp(placement.slotId === 'boombox' ? this.createBoombox(target) : placeholder, target, placement.type, 1));
       if (placement.slotId === 'lamp') {
         const glowMaterial = new MeshBasicMaterial({ color: 0xffd38a, transparent: true, opacity: 0, depthWrite: false });
         const glow = new Mesh(new SphereGeometry(0.055, 10, 8), glowMaterial);
@@ -1463,6 +1464,46 @@ export class GarageBuildSystem extends createSystem({}) {
       if (slot?.model) this.loadPropModel(prop, slot, assetId, target, placement.type);
     }
   }
+
+  private createBoombox(target: [number, number, number]) {
+    const group = new Group();
+    group.name = 'Procedural boombox';
+    const width = target[0], height = target[1], depth = target[2];
+    const bodyHeight = height * 0.68;
+    const body = new Mesh(new BoxGeometry(width, bodyHeight, depth), comicMaterial(0x2b3039));
+    body.name = 'Boombox body';
+    body.position.y = bodyHeight / 2;
+    addOutline(body, 'SLOT_Boombox');
+    group.add(body);
+    const face = new Mesh(new PlaneGeometry(width * 0.88, bodyHeight * 0.72), comicMaterial(0x191d24));
+    face.name = 'Boombox face';
+    face.position.set(0, bodyHeight * 0.5, depth / 2 + 0.002);
+    group.add(face);
+    const speakerMaterial = comicMaterial(0x101318);
+    const rimMaterial = comicMaterial(0xff2d95);
+    [-1, 1].forEach(side => {
+      const speaker = new Mesh(new CylinderGeometry(width * 0.16, width * 0.16, 0.018, 20), speakerMaterial);
+      speaker.name = `Boombox speaker ${side < 0 ? 'left' : 'right'}`;
+      speaker.rotation.x = Math.PI / 2;
+      speaker.position.set(side * width * 0.27, bodyHeight * 0.48, depth / 2 + 0.012);
+      group.add(speaker);
+      const rim = new Mesh(new CylinderGeometry(width * 0.185, width * 0.185, 0.012, 20), rimMaterial);
+      rim.rotation.x = Math.PI / 2;
+      rim.position.set(side * width * 0.27, bodyHeight * 0.48, depth / 2 + 0.006);
+      group.add(rim);
+    });
+    const handle = new Mesh(new BoxGeometry(width * 0.42, height * 0.025, depth * 0.22), comicMaterial(0x0d0d10));
+    handle.name = 'Boombox handle';
+    handle.position.set(0, bodyHeight + height * 0.12, 0);
+    group.add(handle);
+    const antenna = new Mesh(new CylinderGeometry(0.004, 0.004, height * 0.42, 8), comicMaterial(0xc8d0da));
+    antenna.name = 'Boombox antenna';
+    antenna.position.set(-width * 0.34, bodyHeight + height * 0.27, 0);
+    antenna.rotation.z = -0.45;
+    group.add(antenna);
+    return group;
+  }
+
 
   private fitProp(model: Group, target: [number, number, number], type: SlotType, maxScale = Infinity) {
     const [width, height, depth] = target;

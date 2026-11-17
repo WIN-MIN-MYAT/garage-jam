@@ -64,6 +64,7 @@ export class WristMenuSystem extends createSystem({}) {
   private frames = 0;
   private gate = 'init';
   private pluginStatus: Record<string, any> = {};
+  private pluginPairing: { provider: string; code: string; url: string } | null = null;
   private spotify: any = { active: false };
   private calendar: any[] = [];
   private weather: any = null;
@@ -97,6 +98,7 @@ export class WristMenuSystem extends createSystem({}) {
       if (this.markingDevices) this.close(true);
     };
     const onPlugins = (event: Event) => { this.pluginStatus = (event as CustomEvent<Record<string, any>>).detail ?? {}; this.refresh(); };
+    const onPairing = (event: Event) => { this.pluginPairing = (event as CustomEvent<any>).detail ?? null; this.showPage('plugins'); this.openPanel(); this.refresh(); };
     const onSpotify = (event: Event) => { this.spotify = (event as CustomEvent<any>).detail ?? { active: false }; this.refresh(); };
     const onCalendar = (event: Event) => { this.calendar = (event as CustomEvent<any[]>).detail ?? []; this.refresh(); };
     const onWeather = (event: Event) => { this.weather = (event as CustomEvent<any>).detail; this.refresh(); };
@@ -109,6 +111,7 @@ export class WristMenuSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-passthrough-changed', passthrough);
     garageEvents.addEventListener('device-marking-active', devices);
     garageEvents.addEventListener('plugin-status', onPlugins);
+    garageEvents.addEventListener('plugin-pairing', onPairing);
     garageEvents.addEventListener('spotify-state', onSpotify);
     garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('weather-current', onWeather);
@@ -126,6 +129,7 @@ export class WristMenuSystem extends createSystem({}) {
       garageEvents.removeEventListener('garage-passthrough-changed', passthrough);
       garageEvents.removeEventListener('device-marking-active', devices);
       garageEvents.removeEventListener('plugin-status', onPlugins);
+      garageEvents.removeEventListener('plugin-pairing', onPairing);
       garageEvents.removeEventListener('spotify-state', onSpotify);
       garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('weather-current', onWeather);
@@ -167,7 +171,7 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-tab-settings', () => this.showPage('settings'));
     on('wm-tab-plugins', () => { this.showPage('plugins'); emit('plugin-refresh'); });
     for (const provider of ['notion', 'spotify', 'calendar', 'weather']) {
-      on(`wm-connect-${provider}`, () => location.assign(`/api/plugins/manage?provider=${provider}`));
+      on(`wm-connect-${provider}`, () => emit('plugin-connect', { provider }));
     }
     on('wm-focus', () => {
       if (this.focus.running) emit('focus-pause');
@@ -182,7 +186,7 @@ export class WristMenuSystem extends createSystem({}) {
       emit('status', mode === 'streaming' ? 'Streaming mode: virtual monitors' : 'Passthrough mode: real devices');
       this.refresh();
     });
-    on('wm-monitors', () => emit('stream-recenter'));
+    on('wm-monitors', () => emit('monitor-manager-open'));
     on('wm-music-prev', () => emit('spotify-action', { action: 'previous' }));
     on('wm-music-next', () => emit('spotify-action', { action: 'next' }));
     on('wm-music-play', () => {
@@ -285,6 +289,14 @@ export class WristMenuSystem extends createSystem({}) {
       if (next === 'weather' && !this.pluginStatus.weather?.connected) emit('status', 'Connect Weather in Plugins for live sky.');
       this.refresh();
     });
+    on('wm-standup', () => {
+      const next = !garageState.preferences.standUpFade;
+      setPreference('standUpFade', next);
+      emit('stand-up-fade-changed', next);
+      emit('status', next ? 'Stand-up fade ON. Sit at your saved working spot to reveal.' : 'Stand-up fade OFF. Garage stays visible.');
+      this.refresh();
+    });
+    on('wm-clear-board', () => emit('whiteboard-clear'));
     on('wm-focus-length', () => {
       const values = [25, 45, 60];
       const next = values[(values.indexOf(garageState.preferences.focusMinutes) + 1) % values.length];
@@ -417,6 +429,7 @@ export class WristMenuSystem extends createSystem({}) {
     set('wm-reveal-value', p.revealOff ? 'OFF' : 'ON');
     set('wm-sound-value', p.revealSound ? 'ON' : 'OFF');
     set('wm-outlines-value', p.outlines ? 'ON' : 'OFF');
+    set('wm-standup-value', p.standUpFade ? 'ON' : 'OFF');
     set('wm-sky-value', p.skyMode === 'golden' ? 'GOLD' : p.skyMode === 'time' ? 'TIME' : 'LIVE');
     set('wm-focus-length-value', `${p.focusMinutes}M`);
     set('wm-focus-value', this.focus.running ? (this.focus.paused ? 'PAUSED' : `${Math.floor(this.focus.remaining / 60)}:${String(Math.floor(this.focus.remaining) % 60).padStart(2, '0')}`) : 'START');
@@ -433,7 +446,9 @@ export class WristMenuSystem extends createSystem({}) {
       const status = this.pluginStatus[provider];
       set(`wm-plugin-${provider}`, status?.connected ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');
     }
-    set('wm-plugin-note', this.pluginStatus.spotify?.connected ? 'Spotify connected' : 'Continue in browser');
+    set('wm-plugin-note', this.pluginPairing
+      ? `CODE ${this.pluginPairing.code} / ${location.host}/connect`
+      : this.pluginStatus.spotify?.connected ? 'Spotify connected' : 'Tap a provider, then open /connect');
   }
 
   private updateFromFrame(frame: XRFrame) {

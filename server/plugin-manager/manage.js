@@ -3,9 +3,12 @@ const labels = { notion: 'Notion', spotify: 'Spotify', calendar: 'Google Calenda
 const notice = document.querySelector('#notice');
 const locations = document.querySelector('#locations');
 const query = new URLSearchParams(location.search);
+const profile = query.get('profile');
 
 async function request(path, method = 'GET', body) {
-  const response = await fetch(prefix + path, {
+  const separator = path.includes('?') ? '&' : '?';
+  const url = prefix + path + (profile ? `${separator}profile=${encodeURIComponent(profile)}` : '');
+  const response = await fetch(url, {
     method,
     headers: body ? { 'Content-Type': 'application/json' } : undefined,
     body: body ? JSON.stringify(body) : undefined,
@@ -43,7 +46,7 @@ function render(id, status) {
     connect.textContent = `${status.connected ? 'Reconnect' : 'Connect'} ${labels[id]}`;
     const setup = document.querySelector(`[data-setup-link="${id}"]`);
     setup.hidden = !offOrigin;
-    if (offOrigin) setup.href = new URL(`${prefix}/manage?provider=${id}`, status.origin);
+    if (offOrigin) setup.href = new URL(`${prefix}/manage?provider=${id}${profile ? `&profile=${encodeURIComponent(profile)}` : ''}`, status.origin);
   }
   control(id, 'verify').hidden = !status.connected || !status.configured;
   control(id, 'remove').hidden = !status.connected;

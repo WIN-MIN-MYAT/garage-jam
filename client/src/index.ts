@@ -10,6 +10,8 @@ import { EnvironmentSystem } from './systems/environment-system.js';
 import { VoiceSystem } from './systems/voice-system.js';
 import { NudgeSystem } from './systems/nudge-system.js';
 import { WhiteboardSystem } from './systems/whiteboard-system.js';
+import { PresenceSystem } from './systems/presence-system.js';
+import { MonitorManagerSystem } from './systems/monitor-manager-system.js';
 import { HudSystem } from './systems/hud-system.js';
 import { SunsetSystem } from './systems/sunset-system.js';
 import { CutoutSpikeSystem } from './systems/cutout-spike-system.js';
@@ -143,6 +145,8 @@ function startApp() {
       world.registerSystem(VoiceSystem);
       world.registerSystem(NudgeSystem);
       world.registerSystem(WhiteboardSystem);
+      world.registerSystem(PresenceSystem);
+      world.registerSystem(MonitorManagerSystem);
     } else {
       world.registerSystem(HudSystem);
     }

@@ -61,6 +61,28 @@ try {
   assert.deepEqual(before.monitors, [true, true, true], JSON.stringify(before));
   assert.equal(before.streams.length, 3);
 
+  await page.evaluate(() => window.garageMonitorDebug?.show());
+  await page.waitForTimeout(400);
+  const panel = await page.evaluate(() => {
+    const manager = window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel');
+    return { visible: manager?.visible ?? false, hasPreset: !!manager?.requireElementById?.('mm-preset') };
+  });
+  assert.equal(panel.visible, true);
+  assert.equal(panel.hasPreset, true);
+  const monitor = async id => page.evaluate(id => window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel').requireElementById(id).dispatchEvent({ type: 'click' }), id);
+  await monitor('mm-monitor-2');
+  await monitor('mm-preset');
+  await monitor('mm-width-up');
+  await monitor('mm-lock');
+  const monitorState = await page.evaluate(() => window.garageMonitorDebug.state());
+  assert.equal(monitorState.selected, 1);
+  assert.equal(monitorState.preset, 'table');
+  assert.ok(monitorState.width > 1);
+  assert.equal(monitorState.locked, true);
+  await monitor('mm-recenter');
+  assert.equal(await page.evaluate(() => window.garageMonitorDebug.state().preset), 'arc');
+  await page.evaluate(() => window.garageMonitorDebug.hide());
+
   await page.evaluate(() => window.garageFocusDebug.start(1));
   await page.waitForFunction(() => window.garageFocusDebug.state.running, null, { timeout: 5000 });
   await page.waitForTimeout(1600);

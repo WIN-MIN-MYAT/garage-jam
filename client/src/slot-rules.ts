@@ -18,6 +18,7 @@ export const slotRules: SlotRule[] = [
   { id: 'patch-bay', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.7, depth: 0.1 }, height: 0.6, preferredHeight: 1.5, minGap: 0.1 },
 
   { id: 'pegboard', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.8, depth: 0.18 }, height: 0.55, preferredHeight: 1.45, minGap: 0.1 },
+  { id: 'boombox', type: 'floor', priority: 1, reach: 'decor', footprint: { width: 0.52, depth: 0.26 }, height: 0.3, minGap: 0.15 },
   { id: 'shelf', type: 'floor', priority: 1, reach: 'decor', footprint: { width: 0.95, depth: 0.4 }, height: 1.6, canScale: true, minGap: 0.12 },
   { id: 'crates', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.5, depth: 0.5 }, height: 0.4, minGap: 0.15 },
   { id: 'tires', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.65, depth: 0.65 }, height: 0.5, minGap: 0.15 },

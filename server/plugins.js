@@ -9,13 +9,18 @@ const path = '/api/plugins';
 const manager = `${path}/manage`;
 const days = 90;
 const stateDuration = 10 * 60 * 1000;
+const pairDuration = 10 * 60 * 1000;
+const profilePattern = /^[A-Za-z0-9_-]{20,80}$/;
 const random = () => randomBytes(32).toString('base64url');
+const code = () => randomBytes(5).toString('hex').slice(0, 6).toUpperCase();
 const hash = (purpose, session) => createHash('sha256').update(`${purpose}:${session}`).digest();
 
 export function createPluginRouter({ env = process.env, fetcher = fetch, directory = join(dataDir, 'plugins') } = {}) {
   const providers = createProviders(env, fetcher);
   const router = express.Router();
   const pending = new Map();
+  const pendingByState = new Map();
+  const pairingCodes = new Map();
   const mutations = new Map();
   let weatherCache = new Map();
   let calendarCache = new Map();
@@ -77,17 +82,28 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     next();
   });
   router.get('/manage', (_req, res) => res.sendFile(join(assets, 'index.html')));
+  router.get('/connect', (_req, res) => res.sendFile(join(assets, 'connect.html')));
   router.use('/assets', express.static(assets, { index: false }));
+  router.post('/pair/claim', run(async (req, res) => {
+    const supplied = typeof req.body?.code === 'string' ? req.body.code.trim().toUpperCase() : '';
+    for (const [key, value] of pairingCodes) if (value.expires <= Date.now()) pairingCodes.delete(key);
+    const pairing = pairingCodes.get(supplied);
+    if (!pairing) throw new PluginError(404, 'That pairing code is missing or expired.');
+    pairingCodes.delete(supplied);
+    res.json({ url: `${manager}?provider=${pairing.id}&profile=${encodeURIComponent(pairing.profile)}` });
+  }));
 
   router.use((req, res, next) => {
     const secure = req.pluginOrigin?.startsWith('https://') ?? false;
     const name = secure ? '__Host-garage-plugins' : 'garage-plugins-local';
-    req.pluginSession = req.get('cookie')?.match(new RegExp(`(?:^|;\\s*)${name}=([A-Za-z0-9_-]{43})(?:;|$)`))?.[1];
+    const cookie = req.get('cookie')?.match(new RegExp(`(?:^|;\\s*)${name}=([A-Za-z0-9_-]{43})(?:;|$)`))?.[1];
+    const supplied = req.get('x-garage-profile') || (typeof req.query.profile === 'string' ? req.query.profile : undefined);
+    req.pluginSession = supplied && profilePattern.test(supplied) ? supplied : cookie;
     if (!req.pluginSession && req.path === '/status' && req.method === 'GET') {
       req.pluginSession = random();
     }
     if (!req.pluginSession) return res.status(400).json({ error: 'Open Plugins in your browser to start a connection.' });
-    if (req.path === '/status' && req.method === 'GET') {
+    if (req.path === '/status' && req.method === 'GET' && !supplied) {
       res.cookie(name, req.pluginSession, { path: '/', httpOnly: true, sameSite: 'lax', secure, maxAge: days * 86400000 });
     }
     next();
@@ -102,6 +118,16 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
       id, publicStatus(provider, await read(req.pluginSession, id)),
     ]));
     res.json(Object.fromEntries(statuses));
+  }));
+
+  router.post('/:id/pair', run(async (req, res) => {
+    const provider = req.plugin;
+    if (!provider.configured) throw new PluginError(503, `${provider.label} setup is incomplete on the server.`);
+    for (const [key, value] of pairingCodes) if (value.expires <= Date.now()) pairingCodes.delete(key);
+    let supplied = code();
+    while (pairingCodes.has(supplied)) supplied = code();
+    pairingCodes.set(supplied, { profile: req.pluginSession, id: req.params.id, expires: Date.now() + pairDuration });
+    res.json({ code: supplied, url: `${req.pluginOrigin}/connect?code=${supplied}`, expiresIn: pairDuration });
   }));
 
   async function withConnection(session, id, operation) {
@@ -238,20 +264,24 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     if (pending.size >= 1000 && !pending.has(key)) throw new PluginError(503, 'Sign-in is busy. Try again shortly.');
     const state = random();
     const verifier = random();
-    pending.set(key, { state, verifier, expires: Date.now() + stateDuration });
+    pending.set(key, { state, verifier, profile: req.pluginSession, id: req.params.id, expires: Date.now() + stateDuration });
+    pendingByState.set(state, key);
     res.json({ url: provider.authorize(state, verifier) });
   }));
 
   router.get('/:id/callback', run(async (req, res) => {
     const { id } = req.params;
     const provider = req.plugin;
-    const session = req.pluginSession;
-    const key = `${session}:${id}`;
-    const result = (value) => res.redirect(303, `${manager}?provider=${id}&result=${value}`);
-    const flow = pending.get(key);
-    if (!provider.configured || provider.origin !== req.pluginOrigin || !flow ||
-        flow.expires <= Date.now() || flow.state !== req.query.state) return result('expired');
+    const state = typeof req.query.state === 'string' ? req.query.state : '';
+    const key = pendingByState.get(state);
+    const flow = key ? pending.get(key) : undefined;
+    const session = flow?.profile;
+    const result = (value) => res.redirect(303, `${manager}?provider=${id}${session ? `&profile=${encodeURIComponent(session)}` : ''}&result=${value}`);
+    if (!provider.configured || provider.origin !== req.pluginOrigin || !flow || flow.id !== id ||
+        flow.expires <= Date.now() || flow.state !== state) return result('expired');
+    if (req.pluginSession && req.pluginSession !== flow.profile) return result('expired');
     pending.delete(key);
+    pendingByState.delete(state);
     if (req.query.error) return result('denied');
     if (typeof req.query.code !== 'string' || !req.query.code) return result('expired');
     try {

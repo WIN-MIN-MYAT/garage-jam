@@ -12,13 +12,13 @@
   .tab { flex-grow: 1; height: 22px; border-radius: 6px; background-color: #191c23; color: #7f848f; font-size: 8px; font-weight: 800; letter-spacing: 0.3px; }
   .tab-active { background-color: #2a303a; color: #e8ff70; }
   .rule { height: 1px; background-color: #242832; }
-  .page { height: 176px; flex-direction: column; gap: 6px; }
+  .page { height: 176px; flex-direction: column; gap: 4px; }
   .action { height: 34px; padding: 8px; border-radius: 8px; background-color: #1d2129; color: #f1eadc; font-size: 11px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
   .primary { background-color: #e8ff70; color: #14161c; }
   .primary-label { color: #14161c; }
   .primary-value { color: #14161c; }
   .row { flex-direction: row; gap: 6px; }
-  .half { flex-grow: 1; height: 30px; padding: 6px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
+  .half { flex-grow: 1; height: 26px; padding: 4px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
   .third { flex-grow: 1; height: 30px; padding: 4px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; flex-direction: row; align-items: center; justify-content: center; }
   .label { font-size: 10.5px; font-weight: 700; color: #e8e2d6; }
   .value { font-size: 9px; font-weight: 800; color: #9de6ef; letter-spacing: 0.4px; }
@@ -74,7 +74,7 @@
     </div>
     <div class="row">
       <button id="wm-mode" class="half"><div class="label">Mode</div><div id="wm-mode-value" class="value">PASS</div></button>
-      <button id="wm-monitors" class="half">Recenter monitors</button>
+      <button id="wm-monitors" class="half">Monitor controls</button>
     </div>
     <div class="foot"><div class="hint">Table, props and room</div><div class="hint">ROOM</div></div>
   </Panel>
@@ -114,6 +114,10 @@
     <div class="row">
       <button id="wm-outlines" class="half"><div class="label">Outlines</div><div id="wm-outlines-value" class="value">ON</div></button>
       <button id="wm-focus-length" class="half"><div class="label">Focus</div><div id="wm-focus-length-value" class="value">25M</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-standup" class="half"><div class="label">Stand fade</div><div id="wm-standup-value" class="value">OFF</div></button>
+      <button id="wm-clear-board" class="half">Clear board</button>
     </div>
     <div class="row">
       <button id="wm-reset" class="half">Reset prefs</button>

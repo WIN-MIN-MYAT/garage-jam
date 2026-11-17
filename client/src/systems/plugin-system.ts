@@ -12,6 +12,7 @@ type SpotifyState = {
 };
 
 export class PluginSystem extends createSystem({}) {
+  private profile = this.loadProfile();
   private statuses: Statuses = {};
   private spotify: SpotifyState = { active: false };
   private calendar: any[] = [];
@@ -19,6 +20,7 @@ export class PluginSystem extends createSystem({}) {
   private devices: any[] = [];
   private playlists: any[] = [];
   private spotifyBackoffUntil = 0;
+  private pairingUntil = 0;
   private pollTimer = 0;
   private lastPoll = 0;
   private active = false;
@@ -30,6 +32,7 @@ export class PluginSystem extends createSystem({}) {
       if (this.active) void this.refresh();
     }));
     const refresh = () => { void this.refresh(); };
+    const connect = (event: Event) => { void this.connect((event as CustomEvent<{ provider: string }>).detail?.provider); };
     const action = (event: Event) => { void this.playerAction((event as CustomEvent).detail); };
     const musicPlay = () => { void this.playMusic(); };
     const musicStop = () => { void this.stopMusic(); };
@@ -38,6 +41,7 @@ export class PluginSystem extends createSystem({}) {
       revealAudio.setMusicVolume(value);
     };
     garageEvents.addEventListener('plugin-refresh', refresh);
+    garageEvents.addEventListener('plugin-connect', connect);
     garageEvents.addEventListener('spotify-action', action);
     garageEvents.addEventListener('music-play', musicPlay);
     garageEvents.addEventListener('music-stop', musicStop);
@@ -45,7 +49,7 @@ export class PluginSystem extends createSystem({}) {
     this.pollTimer = window.setInterval(() => {
       if (!this.active) return;
       const now = Date.now();
-      if (now - this.lastPoll < 12000) return;
+      if (now - this.lastPoll < (now < this.pairingUntil ? 3000 : 12000)) return;
       this.lastPoll = now;
       if (this.statuses.spotify?.connected) void this.pollSpotify();
       if (this.statuses.calendar?.connected) void this.pollCalendar();
@@ -67,6 +71,7 @@ export class PluginSystem extends createSystem({}) {
     this.cleanupFuncs.push(() => {
       window.clearInterval(this.pollTimer);
       garageEvents.removeEventListener('plugin-refresh', refresh);
+      garageEvents.removeEventListener('plugin-connect', connect);
       garageEvents.removeEventListener('spotify-action', action);
       garageEvents.removeEventListener('music-play', musicPlay);
       garageEvents.removeEventListener('music-stop', musicStop);
@@ -74,9 +79,40 @@ export class PluginSystem extends createSystem({}) {
     });
   }
 
+  private loadProfile() {
+    try {
+      let value = localStorage.getItem('garage-jam-plugin-profile');
+      if (!value || !/^[A-Za-z0-9_-]{20,80}$/.test(value)) {
+        value = Array.from(crypto.getRandomValues(new Uint8Array(32))).map(byte => byte.toString(16).padStart(2, '0')).join('');
+        localStorage.setItem('garage-jam-plugin-profile', value);
+      }
+      return value;
+    } catch {
+      return Array.from({ length: 64 }, () => Math.floor(Math.random() * 16).toString(16)).join('');
+    }
+  }
+
+  private api(path: string, options: RequestInit = {}) {
+    return fetch(path, { ...options, headers: { ...(options.headers ?? {}), 'X-Garage-Profile': this.profile } });
+  }
+
+  private async connect(provider: string) {
+    try {
+      const response = await this.api(`/api/plugins/${encodeURIComponent(provider)}/pair`, { method: 'POST' });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error ?? 'Could not create a pairing code.');
+      this.pairingUntil = Date.now() + 600000;
+      emit('plugin-pairing', { provider, code: result.code, url: result.url });
+      emit('status', `Connect ${provider}: open ${result.url} or enter code ${result.code}`);
+    } catch (error) {
+      emit('status', `Could not start ${provider} sign-in: ${(error as Error).message}`);
+    }
+  }
+
+
   private async refresh() {
     try {
-      const response = await fetch('/api/plugins/status');
+      const response = await this.api('/api/plugins/status');
       if (!response.ok) return;
       this.statuses = await response.json();
       emit('plugin-status', this.statuses);
@@ -89,7 +125,7 @@ export class PluginSystem extends createSystem({}) {
   private async pollSpotify() {
     if (Date.now() < this.spotifyBackoffUntil) return;
     try {
-      const response = await fetch('/api/plugins/spotify/state');
+      const response = await this.api('/api/plugins/spotify/state');
       if (response.status === 429) { this.spotifyBackoffUntil = Date.now() + 30000; return; }
       if (!response.ok) return;
       this.spotify = await response.json();
@@ -101,8 +137,8 @@ export class PluginSystem extends createSystem({}) {
   private async pollSpotifyExtras() {
     try {
       const [devices, playlists] = await Promise.all([
-        fetch('/api/plugins/spotify/devices').then(async response => response.ok ? response.json() : this.devices),
-        fetch('/api/plugins/spotify/playlists').then(async response => response.ok ? response.json() : this.playlists),
+        this.api('/api/plugins/spotify/devices').then(async response => response.ok ? response.json() : this.devices),
+        this.api('/api/plugins/spotify/playlists').then(async response => response.ok ? response.json() : this.playlists),
       ]);
       this.devices = devices;
       this.playlists = playlists;
@@ -113,7 +149,7 @@ export class PluginSystem extends createSystem({}) {
 
   private async pollCalendar() {
     try {
-      const response = await fetch('/api/plugins/calendar/today');
+      const response = await this.api('/api/plugins/calendar/today');
       if (!response.ok) return;
       this.calendar = await response.json();
       emit('calendar-events', this.calendar);
@@ -122,7 +158,7 @@ export class PluginSystem extends createSystem({}) {
 
   private async pollWeather() {
     try {
-      const response = await fetch('/api/plugins/weather/current');
+      const response = await this.api('/api/plugins/weather/current');
       if (!response.ok) return;
       this.weather = await response.json();
       emit('weather-current', this.weather);
@@ -135,7 +171,7 @@ export class PluginSystem extends createSystem({}) {
       return;
     }
     try {
-      const response = await fetch('/api/plugins/spotify/player', {
+      const response = await this.api('/api/plugins/spotify/player', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(detail),

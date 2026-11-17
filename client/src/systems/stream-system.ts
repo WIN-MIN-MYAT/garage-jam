@@ -1,4 +1,5 @@
-import { CanvasTexture, createSystem, DoubleSide, Group, LinearFilter, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, VideoTexture, VisibilityState } from '@iwsdk/core';
+import { CanvasTexture, createSystem, DoubleSide, Grabbed, Group, LinearFilter, Mesh, MeshBasicMaterial, OneHandGrabbable, PlaneGeometry, RayInteractable, SRGBColorSpace, VideoTexture, VisibilityState } from '@iwsdk/core';
+import type { Entity } from '@iwsdk/core';
 import { roomConfig } from '../room-config.js';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
@@ -21,6 +22,12 @@ type Channel = {
   highJitterCount?: number;
   pairingStart?: number;
   peerCreatedOnce?: boolean;
+  entity?: Entity;
+  base?: Group;
+  curve: number;
+  locked: boolean;
+  baseWidth: number;
+  baseHeight: number;
 };
 function placeholder(index: number) {
   const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 576;
@@ -30,10 +37,15 @@ function placeholder(index: number) {
   ctx.font = '32px sans-serif'; ctx.fillText('Waiting for Chrome sender', 512, 340);
   const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; return texture;
 }
-export class StreamSystem extends createSystem({}) {
+export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
   private channels: Channel[] = [];
   private active = true;
   private diagnosticsVisible = true;
+  private preset: 'arc' | 'table' | 'stacked' | 'ultrawide' | 'free' = 'arc';
+  private selected = 0;
+  private saving = 0;
+  private wasGrabbed = false;
+  private layoutKey = 'garage-jam-monitor-layout-v1';
   init() {
     const config = roomConfig.monitors;
     const query = new URLSearchParams(location.search);
@@ -44,19 +56,21 @@ export class StreamSystem extends createSystem({}) {
       root.position.set(Math.sin(angle) * config.radius, config.height, -Math.cos(angle) * config.radius);
       root.rotation.y = -angle;
       const ph = placeholder(i + 1);
-      const screen = new Mesh(new PlaneGeometry(1.25, 0.7), new MeshBasicMaterial({ map: ph, side: DoubleSide }));
+      const screen = new Mesh(new PlaneGeometry(1.25, 0.7, 32, 1), new MeshBasicMaterial({ map: ph, side: DoubleSide }));
       screen.name = `Monitor ${i + 1} video`; root.add(screen);
       const frame = new Mesh(new PlaneGeometry(1.31, 0.76), new MeshBasicMaterial({ color: 0xf44ca5, side: DoubleSide }));
       frame.position.z = -0.008; root.add(frame);
       const bezel = new Mesh(new PlaneGeometry(1.4, 0.85), new MeshBasicMaterial({ color: 0x0d0d10, side: DoubleSide }));
       bezel.position.z = -0.016; root.add(bezel);
       root.visible = new URLSearchParams(location.search).get('demo') === '1';
-      this.world.createTransformEntity(root);
+      const entity = this.world.createTransformEntity(root, { persistent: true });
+      entity.addComponent(RayInteractable, {});
+      entity.addComponent(OneHandGrabbable, {});
       registerGarageRoot(root);
       const video = document.createElement('video'); video.muted = true; video.autoplay = true; video.playsInline = true;
       video.disableRemotePlayback = true; video.controls = false; video.style.cssText = 'position:absolute;width:1px;height:1px;left:-10000px;top:-10000px'; document.body.append(video);
       const probeCanvas = document.createElement('canvas');
-      const channel: Channel = { name: `monitor${i + 1}`, root, screen, video, placeholder: ph, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs };
+      const channel: Channel = { name: `monitor${i + 1}`, root, screen, video, placeholder: ph, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity, curve: 0, locked: false, baseWidth: 1.25, baseHeight: 0.7 };
       channel.log = new ConnectionLog('viewer', channel.name);
       channel.machine = new ConnectionStateMachine(channel.log, streamConfig, () => this.updateStatus());
       for (const name of ['stalled', 'waiting', 'playing', 'pause', 'emptied', 'resize']) video.addEventListener(name, () => channel.log.add(`video-${name}`));
@@ -67,10 +81,16 @@ export class StreamSystem extends createSystem({}) {
     const onLayout = () => this.layout();
     const onRefresh = () => this.updateStatus();
     const onForget = () => this.forget();
-    const onRecenter = () => this.layout();
+    const onRecenter = () => this.recenter();
     const onMode = () => this.layout();
     const onPassthrough = () => { if (garageRootsVisible()) this.layout(); };
     const onOverlay = (event: Event) => { if (!(event as CustomEvent<boolean>).detail) this.layout(); };
+    const onPreset = (event: Event) => this.setPreset((event as CustomEvent).detail?.preset);
+    const onCurve = (event: Event) => this.adjustCurve(Number((event as CustomEvent).detail?.delta) || 0);
+    const onResize = (event: Event) => this.resize(Number((event as CustomEvent).detail?.dw) || 0, Number((event as CustomEvent).detail?.dh) || 0);
+    const onLock = () => this.toggleLock();
+    const onSelect = (event: Event) => this.selectMonitor(Number((event as CustomEvent).detail?.index) || 0);
+    const onSave = () => this.saveLayout();
     garageEvents.addEventListener('garage-revealed', onLayout);
     garageEvents.addEventListener('stream-refresh', onRefresh);
     garageEvents.addEventListener('stream-forget', onForget);
@@ -79,6 +99,12 @@ export class StreamSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-passthrough-changed', onPassthrough);
     garageEvents.addEventListener('device-marking-active', onOverlay);
     garageEvents.addEventListener('table-confirm-visibility', onOverlay);
+    garageEvents.addEventListener('monitor-preset', onPreset);
+    garageEvents.addEventListener('monitor-curve', onCurve);
+    garageEvents.addEventListener('monitor-resize', onResize);
+    garageEvents.addEventListener('monitor-lock', onLock);
+    garageEvents.addEventListener('monitor-select', onSelect);
+    garageEvents.addEventListener('monitor-save', onSave);
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('garage-revealed', onLayout);
       garageEvents.removeEventListener('stream-refresh', onRefresh);
@@ -88,6 +114,12 @@ export class StreamSystem extends createSystem({}) {
       garageEvents.removeEventListener('garage-passthrough-changed', onPassthrough);
       garageEvents.removeEventListener('device-marking-active', onOverlay);
       garageEvents.removeEventListener('table-confirm-visibility', onOverlay);
+      garageEvents.removeEventListener('monitor-preset', onPreset);
+      garageEvents.removeEventListener('monitor-curve', onCurve);
+      garageEvents.removeEventListener('monitor-resize', onResize);
+      garageEvents.removeEventListener('monitor-lock', onLock);
+      garageEvents.removeEventListener('monitor-select', onSelect);
+      garageEvents.removeEventListener('monitor-save', onSave);
       for (const channel of this.channels) unregisterGarageRoot(channel.root);
     });
     if (location.hostname === 'localhost') {
@@ -115,21 +147,151 @@ export class StreamSystem extends createSystem({}) {
       this.channels.forEach(channel => { channel.signal?.stop(); this.resetPeer(channel, 'dispose'); channel.machine.dispose(); channel.video.remove(); });
     });
   }
-  private layout() {
+  private layout(force = false) {
     const room = garageState.room;
     if (!room) return;
+    const saved = force ? null : this.loadLayout();
+    if (saved) {
+      this.preset = saved.preset ?? 'arc';
+      this.selected = Math.min(this.channels.length - 1, Math.max(0, saved.selected ?? 0));
+      saved.monitors?.forEach((item: any, index: number) => {
+        const channel = this.channels[index];
+        if (!channel) return;
+        channel.root.position.set(item.x, item.y, item.z);
+        channel.root.scale.set(item.scaleX ?? 1, item.scaleY ?? 1, 1);
+        channel.curve = item.curve ?? 0;
+        channel.locked = !!item.locked;
+        channel.root.lookAt(room.seat.x, item.y, room.seat.z);
+        this.applyCurve(channel);
+        this.applyLock(channel);
+      });
+    } else {
+      this.applyPreset(this.preset, false);
+    }
+    this.channels.forEach(channel => {
+      channel.root.visible = garageState.preferences.mode === 'streaming' && garageRootsVisible();
+    });
+  }
+
+  private applyPreset(name: 'arc' | 'table' | 'stacked' | 'ultrawide' | 'free', save = true) {
+    const room = garageState.room;
+    if (!room || !['arc', 'table', 'stacked', 'ultrawide'].includes(name)) return;
+    this.preset = name;
     const forwardLength = Math.hypot(room.forward.x, room.forward.z) || 1;
     const forward = { x: room.forward.x / forwardLength, z: room.forward.z / forwardLength };
     const right = { x: -forward.z, z: forward.x };
     const floor = room.floor.y;
-    const height = Math.max((room.table?.topY ?? floor + 0.75) + 0.62, floor + 1.28);
-    const distance = 1.75;
+    const table = room.table;
+    const tableCenter = table ? table.polygon.reduce((sum, point) => ({ x: sum.x + point.x / table.polygon.length, z: sum.z + point.z / table.polygon.length }), { x: 0, z: 0 }) : null;
     this.channels.forEach((channel, index) => {
-      const offset = (index - (this.channels.length - 1) / 2) * 0.68;
-      channel.root.position.set(room.seat.x + forward.x * distance + right.x * offset, height, room.seat.z + forward.z * distance + right.z * offset);
+      const middle = index - (this.channels.length - 1) / 2;
+      const height = name === 'table' ? (table?.topY ?? floor + 0.75) + 0.52 : name === 'stacked' ? floor + 1.38 + index * 0.72 : Math.max((table?.topY ?? floor + 0.75) + 0.62, floor + 1.28);
+      const distance = name === 'table' ? 0.95 : 1.75;
+      const offset = name === 'stacked' ? 0 : middle * (name === 'ultrawide' ? 0.52 : 0.68);
+      const cx = name === 'table' && tableCenter ? tableCenter.x : room.seat.x + forward.x * distance;
+      const cz = name === 'table' && tableCenter ? tableCenter.z : room.seat.z + forward.z * distance;
+      const side = name === 'table' ? { x: right.x, z: right.z } : right;
+      channel.root.position.set(cx + side.x * offset, name === 'stacked' ? height : height, cz + side.z * offset);
+      channel.root.scale.set(name === 'ultrawide' ? 1.04 : 1, 1, 1);
       channel.root.lookAt(room.seat.x, height, room.seat.z);
-      channel.root.visible = garageState.preferences.mode === 'streaming' && garageRootsVisible();
+      channel.curve = name === 'ultrawide' ? 0.55 : 0;
+      this.applyCurve(channel);
     });
+    if (save) this.saveLayout();
+  }
+
+  private applyCurve(channel: Channel) {
+    const position = channel.screen.geometry.getAttribute('position');
+    const half = channel.baseWidth / 2;
+    for (let index = 0; index < position.count; index++) {
+      const x = position.getX(index);
+      position.setZ(index, -channel.curve * 0.16 * Math.pow(x / half, 2));
+    }
+    position.needsUpdate = true;
+    channel.screen.geometry.computeBoundingSphere();
+  }
+
+  private applyLock(channel: Channel) {
+    if (!channel.entity) return;
+    if (channel.locked && channel.entity.hasComponent(OneHandGrabbable)) channel.entity.removeComponent(OneHandGrabbable);
+    if (!channel.locked && !channel.entity.hasComponent(OneHandGrabbable)) channel.entity.addComponent(OneHandGrabbable, {});
+  }
+
+  private loadLayout(): any {
+    try { return JSON.parse(localStorage.getItem(this.layoutKey) || 'null'); } catch { return null; }
+  }
+
+  private saveLayout() {
+    if (!garageState.room) return;
+    const data = this.channels.map(channel => ({
+      x: channel.root.position.x, y: channel.root.position.y, z: channel.root.position.z,
+      scaleX: channel.root.scale.x, scaleY: channel.root.scale.y,
+      curve: channel.curve, locked: channel.locked,
+    }));
+    try { localStorage.setItem(this.layoutKey, JSON.stringify({ preset: this.preset, selected: this.selected, monitors: data })); } catch { /* private mode */ }
+    emit('monitor-layout', this.managerState());
+  }
+
+  private recenter() {
+    this.applyPreset('arc');
+    emit('status', 'Monitors recentered');
+  }
+
+  setPreset(name: 'arc' | 'table' | 'stacked' | 'ultrawide' | 'free') {
+    if (!['arc', 'table', 'stacked', 'ultrawide', 'free'].includes(name)) return;
+    if (name === 'free') { this.preset = 'free'; this.saveLayout(); emit('monitor-layout', this.managerState()); return; }
+    this.applyPreset(name);
+    emit('monitor-layout', this.managerState());
+  }
+
+  selectMonitor(index: number) {
+    this.selected = Math.max(0, Math.min(this.channels.length - 1, index));
+    this.saveLayout();
+    emit('monitor-layout', this.managerState());
+  }
+
+  adjustCurve(delta: number) {
+    const channel = this.channels[this.selected];
+    if (!channel) return;
+    channel.curve = Math.max(-0.8, Math.min(0.8, channel.curve + delta));
+    this.applyCurve(channel);
+    this.saveLayout();
+    emit('monitor-layout', this.managerState());
+  }
+
+  resize(dw: number, dh: number) {
+    const channel = this.channels[this.selected];
+    if (!channel || channel.locked) return;
+    channel.root.scale.x = Math.max(0.6, Math.min(1.8, channel.root.scale.x + dw));
+    channel.root.scale.y = Math.max(0.6, Math.min(1.8, channel.root.scale.y + dh));
+    this.saveLayout();
+    emit('monitor-layout', this.managerState());
+  }
+
+  toggleLock() {
+    const channel = this.channels[this.selected];
+    if (!channel) return;
+    channel.locked = !channel.locked;
+    this.applyLock(channel);
+    this.saveLayout();
+    emit('monitor-layout', this.managerState());
+  }
+
+  managerState() {
+    const channel = this.channels[this.selected];
+    return {
+      preset: this.preset, selected: this.selected, count: this.channels.length,
+      curve: channel?.curve ?? 0, width: channel?.root.scale.x ?? 1, height: channel?.root.scale.y ?? 1,
+      locked: channel?.locked ?? false,
+    };
+  }
+
+  update() {
+    const grabbed = this.queries.grabbed.entities.size > 0;
+    if (grabbed !== this.wasGrabbed) {
+      this.wasGrabbed = grabbed;
+      if (!grabbed) this.saveLayout();
+    }
   }
 
   private forget() {
