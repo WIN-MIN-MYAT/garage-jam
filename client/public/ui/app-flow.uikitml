@@ -73,7 +73,7 @@
 
   <Panel id="page-ready" class="flow-page" style="display: none">
     <div class="flow-title">Garage ready</div>
-    <div class="flow-body">Look at your non-dominant wrist or turn your palm up and pinch to open the menu.</div>
+    <div class="flow-body">Look at either wrist or turn your palm up and pinch to open the menu.</div>
     <button id="flow-start" class="flow-primary">Enter garage</button>
   </Panel>
 </Panel>

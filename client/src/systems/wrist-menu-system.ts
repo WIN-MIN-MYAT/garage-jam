@@ -75,6 +75,7 @@ export class WristMenuSystem extends createSystem({}) {
   private hand = { side: null as Side | null, palmUp: false, pinch: 0, lift: 0, active: false, backY: 0, note: 'idle' };
   private frames = 0;
   private gate = 'init';
+  private menuSide: Side = 'left';
   private pluginStatus: Record<string, any> = {};
   private pluginPairing: { provider: string; code: string; url: string } | null = null;
   private spotify: any = { active: false };
@@ -582,15 +583,26 @@ export class WristMenuSystem extends createSystem({}) {
     this.forward.set(0, 0, -1).applyQuaternion(this.rotation.set(orientation.x, orientation.y, orientation.z, orientation.w));
     this.readHand(frame, space);
 
-    const menuSide = garageState.preferences.dominantHand === 'right' ? 'left' : 'right';
-    const handSource = this.input.xr.getPrimaryInputSource?.(menuSide)
-      ?? Array.from(this.world.session.inputSources).find(input => input.handedness === menuSide);
-    const wristJoint = handSource?.hand?.get('wrist');
-    const wristPose = wristJoint ? frame.getJointPose?.(wristJoint, space) : handSource?.gripSpace ? frame.getPose(handSource.gripSpace, space) : null;
-    const wrist = wristPose?.transform.position;
-    const distance = wrist ? this.offset.set(wrist.x, wrist.y, wrist.z).sub(this.head).length() : 0;
-    const dot = distance ? this.offset.dot(this.forward) / distance : 0;
-    const lookingAtWrist = distance >= 0.18 && distance <= 0.95 && dot >= wristAngle;
+    let wristSide: Side | null = null;
+    let wristDistance = 0;
+    let wristDot = 0;
+    for (const side of ['left', 'right'] as const) {
+      const source = this.input.xr.getPrimaryInputSource?.(side)
+        ?? Array.from(this.world.session.inputSources).find(input => input.handedness === side);
+      const wristJoint = source?.hand?.get('wrist');
+      const wristPose = wristJoint ? frame.getJointPose?.(wristJoint, space) : source?.gripSpace ? frame.getPose(source.gripSpace, space) : null;
+      const wrist = wristPose?.transform.position;
+      if (!wrist) continue;
+      const distance = this.offset.set(wrist.x, wrist.y, wrist.z).sub(this.head).length();
+      if (distance < 0.18 || distance > 0.95) continue;
+      const dot = this.offset.dot(this.forward) / distance;
+      if (dot < wristAngle || dot <= wristDot) continue;
+      wristSide = side;
+      wristDistance = distance;
+      wristDot = dot;
+    }
+    const lookingAtWrist = wristSide !== null;
+    if (wristSide) this.menuSide = wristSide;
     this.menuHead.copy(this.head);
     this.menuForward.copy(this.forward);
     const cameraParent = this.world.camera.parent;
@@ -599,7 +611,7 @@ export class WristMenuSystem extends createSystem({}) {
       this.menuForward.applyQuaternion(cameraParent.getWorldQuaternion(this.parentRotation));
     }
     const lookingAtMenu = panel.visible && panel.getWorldPosition(this.offset).sub(this.menuHead).normalize().dot(this.menuForward) >= panelAngle;
-    this.gesture = { lookingAtWrist, lookingAtMenu, distance, dot };
+    this.gesture = { lookingAtWrist, lookingAtMenu, distance: wristDistance, dot: wristDot };
     const now = performance.now();
     const leftPad = this.input.xr.gamepads.left;
     const rightPad = this.input.xr.gamepads.right;
@@ -622,6 +634,7 @@ export class WristMenuSystem extends createSystem({}) {
     }
     const gestureHold = this.handStarted !== null && now - this.handStarted >= handHold;
     if (!panel.visible && now >= this.reopenAt && !uiInputActive() && (gestureHold || (this.glanceStarted !== null && now - this.glanceStarted >= glanceDelay))) {
+      if (gestureHold && this.hand.side) this.menuSide = this.hand.side;
       this.openPanel();
     }
     const interacting = this.panelEntity
@@ -702,7 +715,7 @@ export class WristMenuSystem extends createSystem({}) {
     this.right.set(-this.offset.z, 0, this.offset.x);
     this.offset.y = Math.max(-0.45, Math.min(0, this.forward.y - 0.10));
     this.offset.normalize();
-    const side = garageState.preferences.dominantHand === 'right' ? -0.075 : 0.075;
+    const side = this.menuSide === 'left' ? -0.075 : 0.075;
     panel.position.copy(head)
       .addScaledVector(this.offset, panelDistance)
       .addScaledVector(this.right, side);

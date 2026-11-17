@@ -1,6 +1,9 @@
 # Vercel only builds the WebXR client. The Node server lives on Render/Fly.
+Dockerfile
+.dockerignore
 client/scripts/
 scripts/
+submission/
 server/data/
 client/dist/
 assets/models/raw/

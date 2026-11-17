@@ -9,3 +9,6 @@ server/.env
 *.pem
 *.key
 scripts/*.png
+
+.vercel
+.env*

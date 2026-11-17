@@ -527,7 +527,7 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-start', () => {
         this.hidePanel();
         this.live = true;
-        emit('status', 'Garage live - look at your non-dominant wrist or palm-up pinch for the menu');
+        emit('status', 'Garage live - look at either wrist or palm-up pinch for the menu');
       });
       this.panelReady = true;
       if (this.sessionWasVisible) this.setStage(this.stage, false);

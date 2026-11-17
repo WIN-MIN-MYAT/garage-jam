@@ -75,6 +75,7 @@ export class ToastSystem extends createSystem({}) {
   private opacity = 0;
   private lastText = '';
   private lastAt = 0;
+  private pending?: { text: string; severity: Severity; until: number };
   private head = new Vector3();
   private forward = new Vector3();
   private lastForward = new Vector3(0, 0, -1);
@@ -99,8 +100,12 @@ export class ToastSystem extends createSystem({}) {
 
     const onStatus = (event: Event) => {
       const text = String((event as CustomEvent).detail ?? '').replace(/\s+/g, ' ').trim();
-      if (!text || !this.world.session) return;
+      if (!text) return;
       const severity = classify(text);
+      if (!this.world.session) {
+        if (severity === 'error') this.pending = { text, severity, until: performance.now() + 30_000 };
+        return;
+      }
       if (severity !== 'error' && (technicalNoise.test(text) || taskNoise.test(text))) return;
       const now = performance.now();
       if (text === this.lastText && now - this.lastAt < 1500) return;
@@ -109,7 +114,15 @@ export class ToastSystem extends createSystem({}) {
       this.show(text, severity);
     };
     const stopVisibility = this.world.visibilityState.subscribe(state => {
-      if (state === VisibilityState.NonImmersive) this.hideNow();
+      if (state === VisibilityState.NonImmersive) {
+        this.hideNow();
+        return;
+      }
+      if (this.pending && performance.now() < this.pending.until) {
+        const { text, severity } = this.pending;
+        this.pending = undefined;
+        this.show(text, severity);
+      }
     });
     garageEvents.addEventListener('status', onStatus);
     this.cleanupFuncs.push(() => {
@@ -145,8 +158,8 @@ export class ToastSystem extends createSystem({}) {
     if (this.forward.lengthSq() < 1e-4) this.forward.copy(this.lastForward);
     else this.lastForward.copy(this.forward);
     this.forward.normalize();
-    sprite.position.copy(this.head).addScaledVector(this.forward, 1.05);
-    sprite.position.y = this.head.y - 0.14;
+    sprite.position.copy(this.head).addScaledVector(this.forward, 1.10);
+    sprite.position.y = this.head.y + 0.22;
     sprite.visible = true;
     this.shownAt = performance.now();
     this.visibleUntil = this.shownAt + 4600;
