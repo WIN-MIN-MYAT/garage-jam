@@ -1,4 +1,4 @@
-import { BoxGeometry, CanvasTexture, Color, createSystem, Group, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial } from '@iwsdk/core';
+import { BoxGeometry, CanvasTexture, Color, createSystem, Group, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Sprite, SpriteMaterial, Vector3 } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
@@ -180,7 +180,8 @@ export class FocusSystem extends createSystem({}) {
       this.duration = this.breakSeconds;
       this.applyDim(0.55);
       emit('status', `Focus complete. Take a ${Math.max(1, Math.round(this.breakSeconds / 60))}-minute break.`);
-      if (!revealAudio.playGameplay('focus_break_start')) revealAudio.playChime();
+      const position = this.sign?.getWorldPosition(new Vector3());
+      if (!revealAudio.playGameplay('focus_break_start', position)) revealAudio.playChime(position);
       showComicWord('DING-DONG.');
       this.drawSign();
       emit('focus-state', this.state());
@@ -220,12 +221,17 @@ export class FocusSystem extends createSystem({}) {
     if (!canvas) return;
     const ctx = canvas.getContext('2d')!;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.fillStyle = 'rgba(13,13,16,0.92)'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.strokeStyle = this.running ? '#e8ff2a' : '#3a4656'; ctx.lineWidth = 8; ctx.strokeRect(4, 4, canvas.width - 8, canvas.height - 8);
-    ctx.fillStyle = '#f5ecd7'; ctx.textAlign = 'center';
+    ctx.beginPath(); ctx.roundRect(3, 3, canvas.width - 6, canvas.height - 6, 12);
+    ctx.fillStyle = '#edd8ac'; ctx.fill();
+    ctx.strokeStyle = '#654450'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.fillStyle = '#886759';
+    for (const x of [15, canvas.width - 15]) {
+      ctx.beginPath(); ctx.arc(x, canvas.height / 2, 3, 0, Math.PI * 2); ctx.fill();
+    }
+    ctx.fillStyle = '#513745'; ctx.textAlign = 'center';
     ctx.font = 'bold 22px "GarageDisplay", sans-serif';
     ctx.fillText(this.running ? (this.paused ? 'PAUSED' : this.phase === 'focus' ? 'FOCUS' : 'BREAK') : 'READY', 160, 42);
-    ctx.fillStyle = this.phase === 'focus' ? '#e8ff2a' : '#19e3ff';
+    ctx.fillStyle = this.phase === 'focus' ? '#a03e52' : '#366362';
     ctx.font = 'bold 54px "GarageDisplay", sans-serif';
     const clock = `${Math.floor(Math.max(0, this.remaining) / 60)}:${String(Math.max(0, Math.floor(this.remaining)) % 60).padStart(2, '0')}`;
     ctx.fillText(this.running ? clock : '25:00', 160, 100);

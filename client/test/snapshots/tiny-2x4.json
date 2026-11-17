@@ -138,10 +138,6 @@
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
-      "slotId": "paint-cans",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
-    {
       "slotId": "pegboard",
       "reason": "no valid candidate after gap/scale fallback"
     },

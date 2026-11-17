@@ -9,7 +9,7 @@ All of these GLBs live in `assets/models/optimized/`, were processed with meshop
 | Build slot | Manifest key | Model file | Placement |
 | --- | --- | --- | --- |
 | `trash` | `SLOT_TrashCan` | `trash-can.glb` | floor |
-| `paint-cans` | `SLOT_PaintCans` | `paint-cans.glb` | floor |
+| `paint-cans` | - | removed for now | - |
 | `pegboard` | `SLOT_PegboardTools` | `tool-set.glb` | wall |
 | `shelf` | `SLOT_Shelf` | `storage-shelf.glb` | floor |
 | `lamp` | `SLOT_Lamp` | `industrial-light.glb` | ceiling |
@@ -26,7 +26,7 @@ The GLBs were checked in a front/back/side preview: their native front is **+Z**
 
 - Wall props use the wall normal, so the front faces into the room.
 - Floor and table props rotate to face the seat.
-- The workbench uses the table's **oriented outline**, not its world-axis bounding box. Its long side follows the table's long side, its yaw faces the seat, and its flat worktop face is scaled to the table width/depth. The model bounding box includes the vise above the worktop, so the loader detects the largest upward-facing horizontal face (native y ≈ 0.575 of a 0.65 m bbox), anchors that face to the table height, and centers that face on the table outline. The vise sits above and outside the worktop as expected.
+- The workbench uses the table's **oriented outline**, not its world-axis bounding box. Its long side follows the table's long side, its yaw faces the seat, and its main wooden worktop is scaled to the table width/depth. The model bounding box includes the vise and handle, so the loader finds the largest connected upward-facing surface, ignores every attached hardware island, anchors the wooden face to the table height, and centers it on the table outline. The vise sits above and outside the worktop as expected; it does not inflate the measured length, depth, or height.
 - Ceiling props hang from the ceiling; the light is rotated toward the seat.
 - Crumpled paper has no meaningful facing.
 

@@ -7,7 +7,7 @@ export class SunsetSystem extends createSystem({}) {
   private running = false;
   private sky?: ShaderMaterial;
   private sun?: DirectionalLight;
-  private gold = new Color(0xffad59);
+  private gold = new Color(1, 0.79, 0.59);
   private dusk = new Color(0x8976ad);
   init() {
     const shell = this.world.getSceneObject('garage-shell');
@@ -22,7 +22,7 @@ export class SunsetSystem extends createSystem({}) {
     this.cleanupFuncs.push(() => { garageEvents.removeEventListener('sunset-start', start); garageEvents.removeEventListener('sunset-pause', pause); garageEvents.removeEventListener('sunset-reset', reset); window.removeEventListener('keydown', key); });
   }
   private apply(t: number) {
-    if (this.sun) { this.sun.color.lerpColors(this.gold, this.dusk, t); this.sun.intensity = 1.8 - t * 1.1; this.sun.position.y = 2.5 - t * 1.7; }
+    if (this.sun) { this.sun.color.lerpColors(this.gold, this.dusk, t); this.sun.intensity = 1.45 - t * 0.75; this.sun.position.y = 2.5 - t * 1.7; }
     if (this.sky) {
       const top = this.sky.uniforms.topColor.value as number[];
       const bottom = this.sky.uniforms.bottomColor.value as number[];

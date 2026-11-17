@@ -15,7 +15,7 @@ import { showComicWord } from '../comic-word.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 
 type Channel = {
-  name: string; root: Group; screen: Mesh; video: HTMLVideoElement; placeholder: CanvasTexture;
+  name: string; root: Group; screen: Mesh; frame: Mesh<PlaneGeometry, MeshBasicMaterial>; video: HTMLVideoElement;
   signal?: any; peer?: RTCPeerConnection; log: any; machine: any; generation: number; remoteSession?: string;
   pendingCandidates: Map<number, RTCIceCandidateInit[]>; previousStats?: RTCStatsReport; lastPackets?: number; lastTraffic?: number; lastHeartbeat?: number;
   statsTimer?: number; probeTimer?: number; frameCallback?: number; texture?: VideoTexture; stats?: any; samples: number[];
@@ -31,16 +31,27 @@ type Channel = {
   baseWidth: number;
   baseHeight: number;
 };
-function placeholder(index: number) {
-  const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 576;
-  const ctx = canvas.getContext('2d')!; ctx.fillStyle = '#101822'; ctx.fillRect(0, 0, 1024, 576);
-  ctx.strokeStyle = '#f254aa'; ctx.lineWidth = 18; ctx.strokeRect(12, 12, 1000, 552);
-  ctx.fillStyle = '#ffe3a2'; ctx.textAlign = 'center'; ctx.font = 'bold 60px sans-serif'; ctx.fillText(`MONITOR ${index}`, 512, 265);
-  ctx.font = '32px sans-serif'; ctx.fillText('Waiting for Chrome sender', 512, 340);
-  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace; return texture;
+function connectionCard() {
+  const canvas = document.createElement('canvas'); canvas.width = 640; canvas.height = 240;
+  const ctx = canvas.getContext('2d')!;
+  ctx.beginPath(); ctx.roundRect(4, 4, 632, 232, 26);
+  ctx.fillStyle = '#292835'; ctx.fill();
+  ctx.strokeStyle = '#6c5460'; ctx.lineWidth = 4; ctx.stroke();
+  ctx.fillStyle = '#f4b478'; ctx.beginPath(); ctx.arc(53, 66, 7, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#fff0db'; ctx.font = '800 48px "GarageDisplay", sans-serif';
+  ctx.fillText('Connect a laptop', 78, 93, 518);
+  ctx.fillStyle = '#e2d0c2'; ctx.font = '28px sans-serif'; ctx.fillText('Open /sender in Chrome', 47, 166);
+  const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+  const card = new Mesh(new PlaneGeometry(0.68, 0.255), new MeshBasicMaterial({ map: texture, transparent: true }));
+  card.name = 'Stream connection card';
+  card.position.z = 0.15;
+  return card;
 }
 export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
   private channels: Channel[] = [];
+  private connectionCard = connectionCard();
+  private editingLayout = false;
+  private showMonitors = false;
   private active = true;
   private announcedPicture = false;
   private diagnosticsVisible = true;
@@ -53,19 +64,18 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const config = roomConfig.monitors;
     const query = new URLSearchParams(location.search);
     const count = Math.max(1, Math.min(3, Number(query.get('monitors')) || config.count));
+    this.showMonitors = query.get('demo') === '1';
     for (let i = 0; i < count; i++) {
       const angle = (i - (count - 1) / 2) * config.stepDegrees * Math.PI / 180;
       const root = new Group(); root.name = `Monitor ${i + 1}`;
       root.position.set(Math.sin(angle) * config.radius, config.height, -Math.cos(angle) * config.radius);
       root.rotation.y = -angle;
-      const ph = placeholder(i + 1);
-      const screen = new Mesh(new PlaneGeometry(1.25, 0.7, 32, 1), new MeshBasicMaterial({ map: ph, side: DoubleSide }));
+      const screen = new Mesh(new PlaneGeometry(1.25, 0.7, 32, 1), new MeshBasicMaterial({ color: 0x25232d, side: DoubleSide }));
       screen.name = `Monitor ${i + 1} video`; root.add(screen);
-      const frame = new Mesh(new PlaneGeometry(1.31, 0.76), new MeshBasicMaterial({ color: 0xf44ca5, side: DoubleSide }));
-      frame.position.z = -0.008; root.add(frame);
-      const bezel = new Mesh(new PlaneGeometry(1.4, 0.85), new MeshBasicMaterial({ color: 0x0d0d10, side: DoubleSide }));
-      bezel.position.z = -0.016; root.add(bezel);
-      root.visible = new URLSearchParams(location.search).get('demo') === '1';
+      const frame = new Mesh(new PlaneGeometry(1.268, 0.718, 32, 1), new MeshBasicMaterial({ color: 0x302d35, side: DoubleSide }));
+      frame.name = `Monitor ${i + 1} frame`;
+      frame.position.z = -0.003; root.add(frame);
+      root.visible = false;
       const entity = this.world.createTransformEntity(root, { persistent: true });
       entity.addComponent(RayInteractable, {});
       entity.addComponent(OneHandGrabbable, {});
@@ -73,7 +83,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       const video = document.createElement('video'); video.muted = true; video.autoplay = true; video.playsInline = true;
       video.disableRemotePlayback = true; video.controls = false; video.style.cssText = 'position:absolute;width:1px;height:1px;left:-10000px;top:-10000px'; document.body.append(video);
       const probeCanvas = document.createElement('canvas');
-      const channel: Channel = { name: `monitor${i + 1}`, root, screen, video, placeholder: ph, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity, curve: 0, locked: false, baseWidth: 1.25, baseHeight: 0.7 };
+      const channel: Channel = { name: `monitor${i + 1}`, root, screen, frame, video, log: null, machine: null, generation: -1, pendingCandidates: new Map(), samples: [], probeCanvas, probeContext: probeCanvas.getContext('2d', { willReadFrequently: true })!, jitterTarget: streamConfig.jitterMs, entity, curve: 0, locked: false, baseWidth: 1.25, baseHeight: 0.7 };
       channel.log = new ConnectionLog('viewer', channel.name);
       channel.machine = new ConnectionStateMachine(channel.log, streamConfig, () => this.updateStatus());
       for (const name of ['stalled', 'waiting', 'playing', 'pause', 'emptied', 'resize']) video.addEventListener(name, () => channel.log.add(`video-${name}`));
@@ -94,11 +104,12 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const onLock = () => this.toggleLock();
     const onSelect = (event: Event) => this.selectMonitor(Number((event as CustomEvent).detail?.index) || 0);
     const onSave = () => {
+      const position = this.channels[this.selected]?.screen.getWorldPosition(new Vector3());
       if (this.saveLayout()) {
-        revealAudio.playGameplay('setup_lock');
+        revealAudio.playGameplay('setup_lock', position);
         showComicWord('KLIK.');
       } else {
-        revealAudio.playGameplay('ui_action_blocked');
+        revealAudio.playGameplay('ui_action_blocked', position);
         showComicWord('TOK.');
       }
     };
@@ -156,6 +167,10 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       document.removeEventListener('visibilitychange', visibility); document.removeEventListener('freeze', freeze); document.removeEventListener('resume', resume);
       garageEvents.removeEventListener('stream-diagnostics-toggle', toggle); garageEvents.removeEventListener('stream-record', record);
       this.channels.forEach(channel => { channel.signal?.stop(); this.resetPeer(channel, 'dispose'); channel.machine.dispose(); channel.video.remove(); });
+      this.connectionCard.removeFromParent();
+      this.connectionCard.geometry.dispose();
+      this.connectionCard.material.map?.dispose();
+      this.connectionCard.material.dispose();
     });
   }
   private layout(force = false) {
@@ -179,11 +194,31 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     } else {
       this.applyPreset(this.preset, false);
     }
+    this.showMonitors = garageState.preferences.mode === 'streaming';
+    this.refreshPresentation();
     this.channels.forEach(channel => {
-      channel.root.visible = garageState.preferences.mode === 'streaming' && garageRootsVisible();
       if (channel.texture && channel.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !channel.video.paused) {
         this.announcePicture(channel);
       }
+    });
+  }
+
+  setLayoutEditing(editing: boolean) {
+    this.editingLayout = editing;
+    this.refreshPresentation();
+  }
+
+  private refreshPresentation() {
+    const show = this.showMonitors && garageRootsVisible();
+    const idle = this.channels.filter(channel => !channel.texture || channel.machine.state === 'source-stopped');
+    const cardHost = idle[Math.floor(idle.length / 2)];
+    if (cardHost && this.connectionCard.parent !== cardHost.root) cardHost.root.add(this.connectionCard);
+    this.connectionCard.visible = show && !this.editingLayout && !!cardHost;
+    this.channels.forEach((channel, index) => {
+      const screenVisible = this.editingLayout || !idle.includes(channel);
+      channel.root.visible = show && (screenVisible || channel === cardHost);
+      channel.screen.visible = channel.frame.visible = screenVisible;
+      channel.frame.material.color.setHex(this.editingLayout && this.selected === index ? 0xd575a5 : 0x302d35);
     });
   }
 
@@ -215,14 +250,16 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private applyCurve(channel: Channel) {
-    const position = channel.screen.geometry.getAttribute('position');
-    const half = channel.baseWidth / 2;
-    for (let index = 0; index < position.count; index++) {
-      const x = position.getX(index);
-      position.setZ(index, -channel.curve * 0.16 * Math.pow(x / half, 2));
+    for (const panel of [channel.screen, channel.frame]) {
+      const geometry = panel.geometry as PlaneGeometry;
+      const position = geometry.getAttribute('position');
+      const half = geometry.parameters.width / 2;
+      for (let index = 0; index < position.count; index++) {
+        position.setZ(index, -channel.curve * 0.16 * Math.pow(position.getX(index) / half, 2));
+      }
+      position.needsUpdate = true;
+      geometry.computeBoundingSphere();
     }
-    position.needsUpdate = true;
-    channel.screen.geometry.computeBoundingSphere();
   }
 
   private applyLock(channel: Channel) {
@@ -265,6 +302,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
 
   selectMonitor(index: number) {
     this.selected = Math.max(0, Math.min(this.channels.length - 1, index));
+    this.refreshPresentation();
     this.saveLayout();
     emit('monitor-layout', this.managerState());
   }
@@ -324,6 +362,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private updateStatus() {
+    this.refreshPresentation();
     emit('streams', this.channels.map(channel => `${channel.name.slice(-1)}:${channel.machine.state}`).join('  '));
     emit('stream-status', this.channels.map(channel => ({
       name: channel.name, state: channel.machine.state, connected: channel.machine.state === 'live',
@@ -345,7 +384,8 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     channel.lastPackets = undefined; channel.lastTraffic = undefined; channel.lastHeartbeat = undefined;
     const material = channel.screen.material as MeshBasicMaterial;
     if (channel.texture) { channel.texture.dispose(); channel.texture = undefined; }
-    material.map = channel.placeholder; material.needsUpdate = true;
+    material.map = null; material.color.setHex(0x25232d); material.needsUpdate = true;
+    channel.screen.scale.x = channel.frame.scale.x = 1;
   }
   private connect(channel: Channel) {
     channel.signal = new SignalingClient(channel.name, 'viewer', channel.log, streamConfig, (msg: any) => void this.onMessage(channel, msg), (state: string) => {
@@ -418,9 +458,14 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         if (channel.peer !== peer) return;
         const texture = new VideoTexture(channel.video); texture.colorSpace = SRGBColorSpace; texture.generateMipmaps = false; texture.minFilter = LinearFilter; texture.magFilter = LinearFilter;
         channel.texture = texture;
-        const material = channel.screen.material as MeshBasicMaterial; material.map = texture; material.needsUpdate = true;
-        const updateAspect = () => { if (channel.video.videoWidth) channel.screen.scale.x = (channel.video.videoWidth / channel.video.videoHeight) / (16 / 9); };
+        const material = channel.screen.material as MeshBasicMaterial; material.map = texture; material.color.setHex(0xffffff); material.needsUpdate = true;
+        const updateAspect = () => {
+          if (channel.peer === peer && channel.video.videoWidth) {
+            channel.screen.scale.x = channel.frame.scale.x = (channel.video.videoWidth / channel.video.videoHeight) / (16 / 9);
+          }
+        };
         channel.video.addEventListener('loadedmetadata', updateAspect, { once: true }); updateAspect();
+        this.refreshPresentation();
         this.watchFrames(channel);
         if ('requestVideoFrameCallback' in channel.video) {
           channel.video.requestVideoFrameCallback(() => {

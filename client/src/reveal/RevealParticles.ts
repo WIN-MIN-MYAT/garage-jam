@@ -72,7 +72,7 @@ class BillboardPool {
   private cursor = 0;
   private budget: number;
 
-  constructor(parent: Group, texture: CanvasTexture, max: number, uvScaleX: number, uvScaleY = 1) {
+  constructor(parent: Group, texture: CanvasTexture, max: number, uvScaleX: number, uvScaleY = 1, overlay = false) {
     this.max = max;
     this.budget = max;
     this.centers = new Float32Array(max * 3);
@@ -111,13 +111,13 @@ class BillboardPool {
       fragmentShader,
       transparent: true,
       depthWrite: false,
-      depthTest: true,
+      depthTest: !overlay,
       side: DoubleSide,
       blending: NormalBlending,
     });
     this.mesh = new Mesh(geometry, material);
     this.mesh.frustumCulled = false;
-    this.mesh.renderOrder = 900;
+    this.mesh.renderOrder = overlay ? 1500 : 900;
     this.mesh.name = 'Reveal particles';
     parent.add(this.mesh);
   }
@@ -281,7 +281,7 @@ export class RevealParticles {
     const particleTexture = makeParticleTexture();
     const popTexture = makePopAtlas();
     this.dust = new BillboardPool(parent, particleTexture, 200, 1);
-    this.pops = new BillboardPool(parent, popTexture, 8, 1 / atlasColumns, 1 / atlasRows);
+    this.pops = new BillboardPool(parent, popTexture, 8, 1 / atlasColumns, 1 / atlasRows, true);
     this.dust.mesh.name = 'Reveal dust pool';
     this.pops.mesh.name = 'Reveal pop pool';
     this.setBudget(200);

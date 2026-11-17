@@ -17,7 +17,7 @@ import { bindPress, sendPanelToFront } from '../ui-press.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
 
-type PanelPage = 'scan' | 'reveal' | 'mode' | 'devices' | 'pairing' | 'ready';
+type PanelPage = 'scan' | 'mode' | 'devices' | 'pairing' | 'ready';
 
 const stageOrder: AppStage[] = ['S0', 'S1', 'S2', 'S3', 'S4', 'S5', 'S6', 'S7', 'S8', 'S9a', 'S9b', 'S10', 'S11'];
 
@@ -38,7 +38,6 @@ export class AppFlowSystem extends createSystem({}) {
   private scanMissing = false;
   private revealHandled = false;
   private markTableAfterBuild = false;
-  private headPosition = new Vector3();
 
   init() {
     this.builder = this.world.getSystem(GarageBuildSystem) ?? undefined;
@@ -148,7 +147,6 @@ export class AppFlowSystem extends createSystem({}) {
         manual: () => thisSystem.beginManual(),
         scanMissing: () => thisSystem.onScanMissing(),
         chooseMode: (mode: 'passthrough' | 'streaming') => thisSystem.chooseMode(mode),
-        skipReveal: () => emit('reveal-skip'),
         rescan: () => thisSystem.rescan(),
         resumeAvailable: () => resumeAvailable(),
         resumeDebug: () => {
@@ -302,7 +300,7 @@ export class AppFlowSystem extends createSystem({}) {
       this.scanTitle('ROOM LOCKED');
       this.scanBody('Hold still for a moment while the garage is measured.');
       if (!this.showedScanLock) {
-        revealAudio.playGameplay('setup_lock');
+        revealAudio.playGameplay('setup_lock', this.panel?.getWorldPosition(new Vector3()));
         showComicWord('KLIK.');
       }
       this.showedScanLock = true;
@@ -395,7 +393,7 @@ export class AppFlowSystem extends createSystem({}) {
 
   private pageForStage(stage: AppStage): PanelPage | null {
     if (stage === 'S2' || stage === 'S5') return 'scan';
-    if (stage === 'S6' || stage === 'S11') return 'reveal';
+    if (stage === 'S6' || stage === 'S11') return null;
     if (stage === 'S7') return null;
     if (stage === 'S8') return 'mode';
     if (stage === 'S9a') return 'devices';
@@ -427,36 +425,35 @@ export class AppFlowSystem extends createSystem({}) {
 
   private showPage(page: PanelPage) {
     if (!this.panel) return;
-    const pages: PanelPage[] = ['scan', 'reveal', 'mode', 'devices', 'pairing', 'ready'];
+    const pages: PanelPage[] = ['scan', 'mode', 'devices', 'pairing', 'ready'];
     for (const name of pages) this.panel.getElementById(`page-${name}`)?.setProperties({ display: name === page ? 'flex' : 'none' });
     if (page === 'pairing') {
       this.panel.getElementById('flow-pair-url')?.setProperties({ text: `${location.host}/sender` });
       emit('stream-refresh');
     }
-    if (!this.panel.visible && this.sessionWasVisible && page !== 'reveal') revealAudio.playPanel();
+    const opening = !this.panel.visible && this.sessionWasVisible;
     this.panel.visible = this.sessionWasVisible;
     this.panelReady = true;
     this.placePanel(page);
+    if (opening) revealAudio.playPanel(this.panel);
   }
 
   private hidePanel() {
     if (this.panel) this.panel.visible = false;
   }
 
-  private placePanel(page: PanelPage) {
+  private placePanel(_page: PanelPage) {
     if (!this.panel || !this.sessionWasVisible) return;
     const camera = this.world.camera;
     const head = camera.getWorldPosition(new Vector3());
     const forward = camera.getWorldDirection(new Vector3());
     const up = new Vector3(0, 1, 0);
     const right = new Vector3().crossVectors(forward, up).normalize();
-    const reveal = page === 'reveal';
-    const distance = reveal ? 0.90 : 0.98;
-    const side = reveal ? -0.30 : 0;
-    const lift = reveal ? -0.22 : -0.02;
+    const distance = 0.98;
+    const lift = -0.02;
     this.panel.position.copy(head)
       .addScaledVector(forward, distance)
-      .addScaledVector(right, side)
+      .addScaledVector(right, 0)
       .addScaledVector(up, lift);
     this.panel.lookAt(head.x, head.y + lift, head.z);
     this.panel.visible = true;
@@ -474,7 +471,7 @@ export class AppFlowSystem extends createSystem({}) {
       entity.addComponent(PokeInteractable, {});
       this.panel = panel;
       const on = (id: string, handler: () => void) => bindPress(panel, id, () => {
-        revealAudio.playPress();
+        revealAudio.playPress(panel);
         handler();
       });
       on('flow-run-scan', () => {
@@ -486,7 +483,6 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-use-table', () => { this.builder?.useLiveScan(true); });
       on('flow-skip-table', () => { this.builder?.useLiveScan(false); });
       on('flow-mark-table', () => { this.markTableAfterBuild = this.builder?.useLiveScan(false) ?? false; });
-      on('flow-skip', () => emit('reveal-skip'));
       on('flow-mode-passthrough', () => this.chooseMode('passthrough'));
       on('flow-mode-streaming', () => this.chooseMode('streaming'));
       on('flow-continue', () => this.goLive());
@@ -508,16 +504,6 @@ export class AppFlowSystem extends createSystem({}) {
     } catch (error) {
       emit('status', `Flow panel failed: ${String(error)}`);
       console.warn('[app-flow]', error);
-    }
-  }
-
-  update() {
-    if (!this.panel || !this.panelReady) return;
-    if (this.stage === 'S6' && this.panel.visible && this.sessionWasVisible) {
-      // Keep the skip panel in the lower-left as the user looks around.
-      const head = this.world.camera.getWorldPosition(this.headPosition);
-      const distance = Math.hypot(this.panel.position.x - head.x, this.panel.position.z - head.z);
-      if (distance > 1.6) this.placePanel('reveal');
     }
   }
 }

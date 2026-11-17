@@ -43,10 +43,57 @@ export function createPlaceholder(id: string, size: [number, number, number], pi
     decal.name = 'PH_SLOT_GraffitiDecals_decal'; group.add(decal);
     return group;
   }
-  const isCylinder = /TrashCan|PaintCans|TireStack|Marker/.test(id);
+  if (id === 'SLOT_TireStack') {
+    const rubber = comicMaterial(0x47414d);
+    const tread = comicMaterial(0x655b64);
+    const radius = Math.min(w, d) / 2;
+    const centerY = pivot === 'bottom' ? h / 2 : 0;
+    for (let i = 0; i < 3; i++) {
+      const tire = new Mesh(new CylinderGeometry(radius, radius, h * 0.30, 18), rubber);
+      tire.position.y = centerY + (i - 1) * h * 0.33;
+      group.add(tire);
+      const band = new Mesh(new CylinderGeometry(radius * 1.005, radius * 1.005, h * 0.04, 18), tread);
+      band.position.y = tire.position.y;
+      group.add(band);
+    }
+    const hub = new Mesh(new CylinderGeometry(radius * 0.62, radius * 0.62, h * 0.006, 18), comicMaterial(0x211b28));
+    hub.position.y = centerY + h * 0.482;
+    group.add(hub);
+    return group;
+  }
+  const isCylinder = /TrashCan|Marker/.test(id);
   const geometry = isCylinder ? new CylinderGeometry(Math.max(w, d) / 2, Math.max(w, d) / 2, h, 12, 1, id === 'SLOT_TrashCan') : new BoxGeometry(Math.max(w, 0.01), Math.max(h, 0.01), Math.max(d, 0.01));
-  const mesh = new Mesh(geometry, comicMaterial(id === 'SLOT_TrashCan' ? 0x313c44 : 0x39444b));
+  const cabinet = id === 'SLOT_MiniFridge' || id === 'SLOT_Crates' || id === 'SLOT_Toolbox';
+  const bodyColor = id === 'SLOT_MiniFridge' ? 0x756378 : id === 'SLOT_Crates' ? 0x8c614d
+    : id === 'SLOT_Toolbox' ? 0x844657 : id === 'SLOT_TrashCan' ? 0x313c44 : 0x39444b;
+  const mesh = new Mesh(geometry, comicMaterial(bodyColor));
   mesh.name = `PH_${id}_body`; mesh.position.y = pivot === 'bottom' ? h / 2 : 0; group.add(mesh); addOutline(mesh, id);
+  if (cabinet) {
+    const canvas = document.createElement('canvas'); canvas.width = canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    const panel = ctx.createLinearGradient(0, 0, 256, 256);
+    panel.addColorStop(0, id === 'SLOT_MiniFridge' ? '#a991a0' : id === 'SLOT_Crates' ? '#b08360' : '#a76272');
+    panel.addColorStop(1, id === 'SLOT_MiniFridge' ? '#5c4e68' : id === 'SLOT_Crates' ? '#705046' : '#643849');
+    ctx.fillStyle = panel; ctx.fillRect(0, 0, 256, 256);
+    ctx.strokeStyle = 'rgba(255,228,192,0.44)'; ctx.lineWidth = 3; ctx.strokeRect(11, 11, 234, 234);
+    ctx.strokeStyle = 'rgba(35,24,35,0.68)'; ctx.lineWidth = 4;
+    for (const y of id === 'SLOT_Crates' ? [68, 132, 195] : id === 'SLOT_Toolbox' ? [75, 128, 181] : [80]) {
+      ctx.beginPath(); ctx.moveTo(14, y); ctx.lineTo(242, y); ctx.stroke();
+    }
+    ctx.fillStyle = '#3d303b';
+    for (const y of id === 'SLOT_Crates' ? [33] : id === 'SLOT_Toolbox' ? [97, 150, 204] : [44, 106]) {
+      const x = id === 'SLOT_MiniFridge' ? 179 : 91;
+      ctx.beginPath(); ctx.roundRect(x, y, id === 'SLOT_MiniFridge' ? 40 : 74, 11, 4); ctx.fill();
+      ctx.fillStyle = '#ddbcab'; ctx.fillRect(x + 4, y + 1, id === 'SLOT_MiniFridge' ? 32 : 66, 2);
+      ctx.fillStyle = '#3d303b';
+    }
+    const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
+    const faceMaterial = new MeshBasicMaterial({ map: texture, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 });
+    faceMaterial.userData.ownedTexture = texture;
+    const face = new Mesh(new PlaneGeometry(w, h), faceMaterial);
+    face.position.set(0, mesh.position.y, d / 2);
+    group.add(face);
+  }
   if (id === 'SLOT_NeonSign') {
     const sign = new Mesh(new PlaneGeometry(w * 0.95, h * 0.8), new MeshBasicMaterial({ map: labelTexture('GARAGE JAM') }));
     sign.position.z = d / 2 + 0.011; group.add(sign);

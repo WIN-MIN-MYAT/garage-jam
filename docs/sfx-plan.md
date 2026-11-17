@@ -1,5 +1,31 @@
 # Garage Jam — SFX Production Plan
 
+## Distant street and spatial mix
+
+Five ElevenLabs recordings add quiet neighborhood detail in about 92 KB of mono 48 kHz Ogg Opus.
+
+| Assets | Playback |
+|---|---|
+| `amb_distant_car_01`, `amb_distant_car_02` | Two soft vehicle passes that travel along the street beyond the opening |
+| `amb_distant_bike` | A lighter pass with a faint freewheel tick |
+| `amb_distant_dog`, `amb_distant_gate` | Stationary sources a few houses away |
+
+Only one street event plays at a time. The next plays after a 45–120 second gap, with occasional extra silence. The doorway breeze and street share a low-pass filter and volume reduction when the focus shutter closes. The street and room ambience fade when the garage leaves view.
+
+In-app playback uses head-tracked HRTF panners. Interaction cues come from their objects or panels, reveal sounds come from the build, and local music comes from the boombox when placed. Spotify continues playing on the selected Spotify device.
+
+## Reveal accents · 2026-11-17
+
+Three more ElevenLabs clips bring the reveal to 12 authored effects. The new files are mono 48 kHz Ogg Opus and add about 13 KB.
+
+| Asset | Visual trigger |
+|---|---|
+| `rev_sticker_snap` | One soft vinyl **FWAP** on the first sticker landing in the full and quick reveals |
+| `rev_workbench_roller` | A short ink roller pass when the virtual tabletop starts filling in during the full reveal |
+| `rev_ceiling_lamp_on` | A quiet switch click and flutter on the lamp's first visible glow after it lands |
+
+The blueprint, wall, door, and tabletop clips fit their available beat time when the reveal is sped up. The floor spray fades at the end of the paint beat. Prop drop timing leaves room for the last landing before **READY!**. Forced completion or falling back to a dissolve fades the active reveal cues.
+
 ## Comic gameplay pack · 2026-11-17
 
 ElevenLabs Sound Effects v2 generated these 15 shipped clips. They add about 371 KB of 48 kHz Ogg Opus. The one-shots use close, dry comic foley and play alongside the matching Bangers lettering. The inventory below reflects the current gameplay pack.
@@ -23,7 +49,7 @@ Checked against the current code and assets on 2026-11-16.
 
 ElevenLabs Sound Effects v2 generated the first **13 clips**. The prompts use close, dry workshop foley with light hand-drawn comic timing. The room-tone and exterior ambience loops were removed from this pass and will be generated again later.
 
-The shipped pack plays from `assets/audio/` as 48 kHz Ogg Opus. The connector supplied MP3 sources, which were trimmed and leveled for runtime. Floor, door, and prop cues play from their world positions. Interface cues play centered.
+The shipped pack plays from `assets/audio/` as 48 kHz Ogg Opus. The connector supplied MP3 sources, which were trimmed and leveled for runtime. Floor, door, prop, and interface cues play from their scene positions.
 
 | Asset | Cue in the app | Runtime length |
 |---|---|---|
@@ -54,7 +80,7 @@ The palette is **analog garage + hand-drawn comic + quiet golden hour**. Use rea
 - Warm electrical hums and neon buzz.
 - Soft suburban/golden-hour exterior ambience.
 - Short, dry, consistent UI sounds.
-- Spatialised world events; non-spatial UI.
+- Spatialised world events and panel feedback.
 - 2–4 variants for repeated sounds; random pitch and gain.
 - One continuous low ambience bed; duck it under key moments. (Replacement loops pending.)
 - Fewer, better sounds. Do not fill every moment.
@@ -76,7 +102,7 @@ The palette is **analog garage + hand-drawn comic + quiet golden hour**. Use rea
 
 # P0 — current app
 
-## 1. UI / panel pack (non-spatial)
+## 1. UI / panel pack
 
 One shared UI sound family so every panel feels related.
 
@@ -146,7 +172,7 @@ The first pack replaces the main procedural cues with authored clips and keeps p
 | `rev_neon_on` | Neon flickers on | 390 ms switch and buzz | SHIPPED |
 | `rev_lamp_on` | Lamp flickers on | 0.4–0.6 s electrical clunk + hum start | MISSING |
 | `rev_ready_chime` | READY! | 660 ms warm chime | SHIPPED |
-| `rev_skip` | Skip reveal | 0.2–0.35 s jump whoosh | MISSING |
+| `rev_skip` | Retired (reveal is no longer skippable) | - | - |
 
 ## 4. Table confirm pack
 
@@ -348,7 +374,7 @@ Do **not** synthesize keyboard typing or footsteps for the real world. Those sho
 These are the places where sound triggers should be added or extended:
 
 - `client/src/reveal/RevealTimeline.ts` — beat ids and existing `sfx` labels.
-- `client/src/reveal/RevealSystem.ts` — reveal beat timing, prop landing, READY, skip, adaptive fallback.
+- `client/src/reveal/RevealSystem.ts` - reveal beat timing, prop landing, READY, forced completion, adaptive fallback.
 - `client/src/reveal/RevealAudio.ts` — current procedural audio to replace/layer.
 - `client/src/systems/app-flow-system.ts` — S0–S11 panel buttons, scan progress, manual calibration, mode choice, ready, resume.
 - `client/src/systems/table-confirm-system.ts` — panel open/close, height ticks, TOUCH TABLE, YEP, FIX IT, table view.

@@ -158,8 +158,10 @@ async function read(page) {
       floorSize: debug.getTableInfo() ? [debug.getTableInfo().roomWidth, debug.getTableInfo().roomDepth] : null,
       floorCenter: [Number(((box.minX + box.maxX) / 2).toFixed(3)), Number(((box.minZ + box.maxZ) / 2).toFixed(3))],
       tableTopY: debug.room.table?.topY ?? null,
+      workbenchSurface: debug.getWorkbenchSurface?.() ?? null,
       tableCenter: tableCenterPoint ? [Number(tableCenterPoint.x.toFixed(3)), Number(tableCenterPoint.z.toFixed(3))] : null,
       tableSize: table ? [Number((table.maxX - table.minX).toFixed(3)), Number((table.maxZ - table.minZ).toFixed(3))] : null,
+      tableFrame: debug.tableFrame?.() ?? null,
       doorWall: door?.wallId ?? null,
       doorDistance: doorDistance == null ? null : Number(doorDistance.toFixed(3)),
       tableForward: tableForward == null ? null : Number(tableForward.toFixed(3)),
@@ -211,10 +213,17 @@ function assertWorktopMatches(result) {
     minZ: Math.min(box.minZ, point.z), maxZ: Math.max(box.maxZ, point.z),
   }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
   assert.ok(
-    close(actual.minX, bounds.minX, 0.12) && close(actual.maxX, bounds.maxX, 0.12) &&
-    close(actual.minZ, bounds.minZ, 0.12) && close(actual.maxZ, bounds.maxZ, 0.12),
-    `worktop must match the measured tabletop extents: ${JSON.stringify({ actual, bounds })}`,
+    actual.minX <= bounds.minX + 0.05 && actual.maxX >= bounds.maxX - 0.05 &&
+    actual.minZ <= bounds.minZ + 0.05 && actual.maxZ >= bounds.maxZ - 0.05,
+    `worktop must cover the measured tabletop; attached hardware may overhang: ${JSON.stringify({ actual, bounds })}`,
   );
+  const surface = result.workbenchSurface;
+  assert.ok(surface, 'expected the measured wooden worktop');
+  const frame = result.tableFrame;
+  assert.ok(frame, 'expected the measured table frame');
+  assert.ok(close(surface.width, frame.width, 0.02), `wooden top width ${surface.width} must match measured ${frame.width}`);
+  assert.ok(close(surface.depth, frame.depth, 0.02), `wooden top depth ${surface.depth} must match measured ${frame.depth}`);
+  assert.ok(close(surface.topY, result.tableTopY, 0.01), 'wooden top must sit at the measured table height');
 }
 assert.equal(scanResult.presenting, true);
 assert.equal(scanResult.source, 'SCAN');

@@ -23,7 +23,6 @@ export const slotRules: SlotRule[] = [
   { id: 'crates', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.5, depth: 0.5 }, height: 0.4, minGap: 0.15 },
   { id: 'tires', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.65, depth: 0.65 }, height: 0.5, minGap: 0.15 },
   { id: 'mini-fridge', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.5, depth: 0.5 }, height: 0.85, minGap: 0.15 },
-  { id: 'paint-cans', type: 'table', priority: 1, reach: 'near', footprint: { width: 0.32, depth: 0.26 }, height: 0.26, minGap: 0.03 },
   { id: 'toolbox', type: 'floor', priority: 2, reach: 'decor', footprint: { width: 0.4, depth: 0.25 }, height: 0.35, minGap: 0.15 },
   { id: 'lamp', type: 'ceiling', priority: 2, reach: 'decor', footprint: { width: 1.0, depth: 0.1 }, height: 0.12, minGap: 0 },
   { id: 'shutter', type: 'wall', priority: 2, reach: 'decor', footprint: { width: 1.6, depth: 0.4 }, height: 1.5, preferredHeight: 0.75, minGap: 0.1 },

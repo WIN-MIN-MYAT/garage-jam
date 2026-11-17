@@ -6,7 +6,13 @@ import { slotRules } from '../slot-rules.js';
 
 type Stroke = { color: string; points: { x: number; y: number }[] };
 const key = 'garage-jam-whiteboard-v1';
-const colors = ['#ff2d95', '#19e3ff', '#e8ff2a', '#f5ecd7'];
+const colors = ['#9b315d', '#245c73', '#65621f', '#443347'];
+const legacyInk: Record<string, string> = {
+  '#ff2d95': colors[0],
+  '#19e3ff': colors[1],
+  '#e8ff2a': colors[2],
+  '#f5ecd7': colors[3],
+};
 
 function load(): Stroke[] {
   try { const value = JSON.parse(localStorage.getItem(key) || '[]'); return Array.isArray(value) ? value : []; }
@@ -33,11 +39,13 @@ export class WhiteboardSystem extends createSystem({}) {
     const onClear = () => this.clear();
     const onReset = () => this.clear();
     garageEvents.addEventListener('garage-revealed', onRevealed);
+    garageEvents.addEventListener('garage-props-rebuilt', onRevealed);
     garageEvents.addEventListener('garage-reset', onReset);
     garageEvents.addEventListener('whiteboard-clear', onClear);
     const stop = this.world.onXRFrame(frame => this.sample(frame));
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('garage-revealed', onRevealed);
+      garageEvents.removeEventListener('garage-props-rebuilt', onRevealed);
       garageEvents.removeEventListener('garage-reset', onReset);
       garageEvents.removeEventListener('whiteboard-clear', onClear);
       stop();
@@ -65,6 +73,7 @@ export class WhiteboardSystem extends createSystem({}) {
   }
 
   private build() {
+    if (this.drawing) this.finish();
     this.clearMeshes();
     const placement = garageState.placements.find(item => item.slotId === 'whiteboard');
     const room = garageState.room;
@@ -82,8 +91,11 @@ export class WhiteboardSystem extends createSystem({}) {
     const mesh = new Mesh(new PlaneGeometry(this.width, this.height), new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false, side: 2 }));
     mesh.name = 'Whiteboard marker layer';
     mesh.renderOrder = 4;
-    mesh.position.set(placement.position.x + wall.normal.x * 0.045, placement.position.y, placement.position.z + wall.normal.z * 0.045);
-    mesh.lookAt(placement.position.x + wall.normal.x, placement.position.y, placement.position.z + wall.normal.z);
+    const centerY = placement.position.y + this.height * placement.scale / 2;
+    const offset = placement.footprint.depth * placement.scale / 2 + 0.015;
+    mesh.position.set(placement.position.x + wall.normal.x * offset, centerY, placement.position.z + wall.normal.z * offset);
+    mesh.lookAt(placement.position.x + wall.normal.x, centerY, placement.position.z + wall.normal.z);
+    mesh.scale.setScalar(placement.scale);
     this.mesh = mesh;
     this.root.add(mesh);
     this.redraw();
@@ -149,7 +161,7 @@ export class WhiteboardSystem extends createSystem({}) {
     ctx.lineCap = 'round'; ctx.lineJoin = 'round';
     for (const stroke of this.strokes) {
       if (!stroke.points.length) continue;
-      ctx.strokeStyle = stroke.color;
+      ctx.strokeStyle = legacyInk[stroke.color] ?? stroke.color;
       ctx.lineWidth = 7;
       ctx.beginPath();
       stroke.points.forEach((point, index) => {

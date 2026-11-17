@@ -12,6 +12,8 @@ export {
   makeMonitor,
   rememberDevice,
   restoreDevice,
+  rememberRoomPoint,
+  restoreRoomPoint,
   screenDragCorners,
   minScreenDepth,
   minZoneHeight,

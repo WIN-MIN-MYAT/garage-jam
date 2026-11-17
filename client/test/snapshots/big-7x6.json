@@ -69,17 +69,6 @@
       "wallId": null
     },
     {
-      "slotId": "paint-cans",
-      "position": [
-        0.48,
-        0.76,
-        -1.42
-      ],
-      "yaw": -0.326,
-      "scale": 1,
-      "wallId": null
-    },
-    {
       "slotId": "paper-zone",
       "position": [
         -0.12,

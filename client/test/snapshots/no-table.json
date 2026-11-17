@@ -134,10 +134,6 @@
       "reason": "removed to make room for P0 paper-zone"
     },
     {
-      "slotId": "paint-cans",
-      "reason": "no table; side-tray fallback required"
-    },
-    {
       "slotId": "paper-zone",
       "reason": "no table; side-tray fallback required"
     },

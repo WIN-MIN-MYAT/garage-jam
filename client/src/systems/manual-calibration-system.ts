@@ -31,7 +31,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
   private acceptAfter = 0;
   private nextPointAt = 0;
   private issue = '';
-  private cursor = new Mesh(new RingGeometry(0.009, 0.014, 24), new MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false }));
+  private cursor = new Mesh(new RingGeometry(0.009, 0.014, 24), new MeshBasicMaterial({ color: 0xffffff, depthTest: false, depthWrite: false, transparent: true }));
   private lineMaterial = new LineBasicMaterial({ color: 0x8ef5ef, depthTest: false, depthWrite: false, transparent: true, opacity: 0.95 });
   private stamps: SpriteMaterial[] = [];
   private ray = new Ray();
@@ -44,6 +44,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
     this.root.name = 'Calibration corner markers';
     this.root.add(this.markers, this.cursor);
     this.cursor.rotation.x = -Math.PI / 2;
+    this.cursor.renderOrder = 1600;
     this.root.visible = false;
     const entity = this.world.createTransformEntity(this.root, { persistent: true });
     this.stamps = [1, 2, 3, 4].map(number => this.createStamp(number));
@@ -248,7 +249,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
       }
     } catch (error) {
       this.issue = (error as Error).message;
-      revealAudio.playGameplay('ui_action_blocked');
+      revealAudio.playGameplay('ui_action_blocked', this.panel?.getWorldPosition(new Vector3()));
       showComicWord('TOK.');
       this.refresh();
     }

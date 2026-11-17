@@ -1,4 +1,4 @@
-import { CanvasTexture, createSystem, Group, SRGBColorSpace, Sprite, SpriteMaterial } from '@iwsdk/core';
+import { CanvasTexture, createSystem, Group, SRGBColorSpace, Sprite, SpriteMaterial, Vector3 } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
@@ -85,7 +85,7 @@ export class NudgeSystem extends createSystem({}) {
     this.visibleUntil = Date.now() + 12000;
     emit('status', message);
     emit('nudge', { message });
-    revealAudio.playNudge();
+    revealAudio.playNudge(this.sprite.getWorldPosition(new Vector3()));
   }
 
   private hide() {

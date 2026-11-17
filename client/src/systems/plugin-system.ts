@@ -1,4 +1,5 @@
-import { createSystem, Mesh, VisibilityState } from '@iwsdk/core';
+import { createSystem, Mesh, Vector3, VisibilityState } from '@iwsdk/core';
+import type { Object3D } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
@@ -23,6 +24,8 @@ export class PluginSystem extends createSystem({}) {
   private pairingUntil = 0;
   private localMusic = false;
   private speakers: Mesh[] = [];
+  private boombox?: Object3D;
+  private musicPosition = new Vector3();
   private pollTimer = 0;
   private lastPoll = 0;
   private active = false;
@@ -31,8 +34,8 @@ export class PluginSystem extends createSystem({}) {
     revealAudio.setMusicVolume(garageState.preferences.musicVolume);
     const onRevealed = () => {
       this.speakers = [];
-      const boombox = this.world.scene.getObjectByName('PLACED_boombox');
-      boombox?.traverse(object => { if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object); });
+      this.boombox = this.world.scene.getObjectByName('PLACED_boombox');
+      this.boombox?.traverse(object => { if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object); });
     };
     garageEvents.addEventListener('garage-revealed', onRevealed);
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
@@ -200,7 +203,7 @@ export class PluginSystem extends createSystem({}) {
       await this.playerAction({ action: 'play' });
       return;
     }
-    if (revealAudio.startLoFi()) {
+    if (revealAudio.startLoFi(this.boombox?.getWorldPosition(this.musicPosition))) {
       this.localMusic = true;
       emit('status', 'Playing local lo-fi fallback');
     }
@@ -214,6 +217,7 @@ export class PluginSystem extends createSystem({}) {
 
   update() {
     const playing = !!this.spotify.playing || this.localMusic;
+    if (this.localMusic && this.boombox) revealAudio.moveLoFi(this.boombox.getWorldPosition(this.musicPosition));
     if (!this.speakers.length) return;
     const pulse = playing ? 1 + Math.sin(performance.now() / 110) * 0.055 : 1;
     for (const speaker of this.speakers) {

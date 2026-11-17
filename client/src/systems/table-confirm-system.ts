@@ -67,8 +67,8 @@ export class TableConfirmSystem extends createSystem({}) {
       panel.visible = false;
       this.panel = panel;
       const on = (id: string, handler: () => void) => bindPress(panel, id, () => {
-        if (id === 'yep-button') revealAudio.playTableStamp();
-        else revealAudio.playPress();
+        if (id === 'yep-button') revealAudio.playTableStamp(panel);
+        else revealAudio.playPress(panel);
         handler();
       });
       on('height-minus', () => this.adjust(-0.005));
@@ -147,7 +147,7 @@ export class TableConfirmSystem extends createSystem({}) {
     const info = this.builder.getTableInfo();
     if (!info) return;
     this.positionPanel(info);
-    if (!this.panel.visible) revealAudio.playPanel();
+    if (!this.panel.visible) revealAudio.playPanel(this.panel);
     this.panel.visible = true;
     emit('table-confirm-visibility', true);
     this.renderContent(info);

@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
+  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
   LineBasicMaterial, LineDashedMaterial, LineLoop, Mesh, MeshBasicMaterial, PhysicsBody, PhysicsShape, PhysicsShapeType, PhysicsState,
   PlaneGeometry, Points, PointsMaterial, Quaternion, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, Vector3,
 } from '@iwsdk/core';
@@ -8,7 +8,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { addOutline, comicMaterial } from '../comic-style.js';
 import { makeDemoRoom } from '../demo-room.js';
-import { emit } from '../events.js';
+import { emit, garageEvents } from '../events.js';
 import { garageState, saveLastRoom, savePreferences, setPreference, type TableView } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
 import { isProductEntry } from '../app-flow/app-flow.js';
@@ -32,7 +32,6 @@ const assetForSlot: Record<string, string> = {
   crates: 'SLOT_Crates',
   tires: 'SLOT_TireStack',
   'mini-fridge': 'SLOT_MiniFridge',
-  'paint-cans': 'SLOT_PaintCans',
   toolbox: 'SLOT_Toolbox',
   'patch-bay': 'SLOT_PatchBay',
   lamp: 'SLOT_Lamp',
@@ -135,7 +134,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private building = false;
   private scanning = false;
   private deviceObstacles: Obstacle[] = [];
-  private deviceSignature = '';
+  private deviceSignature = '[]';
   private layoutResolveToken = 0;
   private root = new Group();
   private loader = new GLTFLoader();
@@ -147,6 +146,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private doorRuntime: RevealDoor | null = null;
   private revealRuntime: RevealRuntime | null = null;
   private tableSurface?: RevealSurface;
+  private workbenchSurface: { width: number; depth: number; topY: number } | null = null;
   private doorFrameMaterial?: MeshBasicMaterial;
   private modelLoads: Promise<void>[] = [];
   private scanOverlay = new Group();
@@ -209,7 +209,13 @@ export class GarageBuildSystem extends createSystem({}) {
     } else {
       this.beginRoomScan();
     }
+    const onPaperZone = (event: Event) => {
+      const marker = this.tableGroup?.getObjectByName('Paper zone marker');
+      if (marker) marker.visible = this.revealed && (event as CustomEvent<boolean>).detail;
+    };
+    garageEvents.addEventListener('paper-zone-highlight', onPaperZone);
     this.cleanupFuncs.push(() => {
+      garageEvents.removeEventListener('paper-zone-highlight', onPaperZone);
       stopTrackingSpace();
       this.referenceSpace?.removeEventListener('reset', this.onSpaceReset);
       this.stopScanning();
@@ -689,12 +695,12 @@ export class GarageBuildSystem extends createSystem({}) {
     this.blueprint = null;
     this.doorRuntime = null;
     this.modelLoads = [];
-    const floorMaterial = comicMaterial(0x34383f);
-    const wallMaterial = comicMaterial(0x464b54);
-    const ceilingMaterial = comicMaterial(0x30343c);
-    const tableMaterial = comicMaterial(0x7a573b);
+    const floorMaterial = comicMaterial(0x49414b);
+    const wallMaterial = comicMaterial(0x625766);
+    const ceilingMaterial = comicMaterial(0x51495b);
+    const tableMaterial = comicMaterial(0xa06e51);
     this.tableMaterial = tableMaterial;
-    const trimMaterial = comicMaterial(0x101318);
+    const trimMaterial = comicMaterial(0x3f343f);
     (floorMaterial as any).side = DoubleSide;
     (ceilingMaterial as any).side = DoubleSide;
     (tableMaterial as any).side = DoubleSide;
@@ -734,7 +740,7 @@ export class GarageBuildSystem extends createSystem({}) {
     applyRevealMaterial(trimMaterial, trimSurface);
     this.surfaces.push(trimSurface);
 
-    this.doorFrameMaterial = new MeshBasicMaterial({ color: 0x0d0d10, transparent: true, opacity: 0, depthWrite: false });
+    this.doorFrameMaterial = new MeshBasicMaterial({ color: 0x72544f, transparent: true, opacity: 0, depthWrite: false });
 
     const floor = new Mesh(polygonShape(this.room.floor.polygon), floorMaterial);
     floor.name = 'Room floor skin'; floor.position.y = this.room.floor.y + 0.002;
@@ -785,6 +791,7 @@ export class GarageBuildSystem extends createSystem({}) {
         source: this.sourceLabel, tableMode: this.tableMode, scan: this.scanInfo,
         getTableInfo: () => this.getTableInfo(),
         tableFrame: () => this.room.table ? tableFrame(this.room.table.polygon) : null,
+        getWorkbenchSurface: () => this.workbenchSurface,
         setTableHeight: (height: number) => this.setTableHeight(this.room.floor.y + height),
         setTableTopY: (topY: number) => this.setTableHeight(topY),
         confirmTable: () => this.confirmTable(),
@@ -834,7 +841,7 @@ export class GarageBuildSystem extends createSystem({}) {
       return bSize.x * bSize.z - aSize.x * aSize.z;
     });
     const rand = this.stickerRandom();
-    const targetCount = 42;
+    const targetCount = 12;
     const candidates = this.stickerCandidates(placements, rand, targetCount);
     const count = Math.min(candidates.length, targetCount);
     if (!count) return;
@@ -861,12 +868,13 @@ export class GarageBuildSystem extends createSystem({}) {
       const flat = size.y <= Math.min(size.x, size.z) * 0.35;
       const vertical = size.z <= Math.min(size.x, size.y) * 0.35;
       const long = flat ? Math.max(size.x, size.z) : vertical ? Math.max(size.x, size.y) : Math.max(size.x, size.z);
-      const targetLong = 0.12 + Math.pow(rand(), 1.35) * 0.24 + (rand() < 0.07 ? 0.05 : 0);
+      const targetLong = 0.13 + rand() * 0.12;
       const scale = Math.max(0.08, Math.min(1.8, Math.min(0.38, targetLong) / Math.max(long, 0.001)));
       let material = materialCache.get(map);
       if (!material) {
         material = new MeshBasicMaterial({
           map,
+          color: 0xdac5b7,
           side: DoubleSide,
           depthWrite: true,
           polygonOffset: true,
@@ -972,15 +980,6 @@ export class GarageBuildSystem extends createSystem({}) {
 
     const minHeight = floorY + 0.85;
     const maxHeight = Math.min(1.9, this.room.ceilingY - 0.32);
-    const totalLength = wallInfos.reduce((sum, info) => sum + info.length, 0);
-    const pickWall = (): StickerWallInfo => {
-      let pick = rand() * totalLength;
-      for (const info of wallInfos) {
-        pick -= info.length;
-        if (pick <= 0) return info;
-      }
-      return wallInfos[wallInfos.length - 1];
-    };
     const valid = (info: StickerWallInfo, along: number, height: number) => {
       if (along < 0.25 || along > info.length - 0.25) return false;
       if (height < minHeight || height > maxHeight) return false;
@@ -1007,25 +1006,20 @@ export class GarageBuildSystem extends createSystem({}) {
       });
     };
 
-    const quotas = wallInfos.map(info => Math.floor(targetCount * info.length / totalLength));
-    let remaining = targetCount - quotas.reduce((sum, value) => sum + value, 0);
-    for (let index = 0; remaining > 0; index = (index + 1) % quotas.length, remaining--) quotas[index]++;
-    for (let wallIndex = 0; wallIndex < wallInfos.length; wallIndex++) {
-      const info = wallInfos[wallIndex];
-      for (let count = 0; count < quotas[wallIndex] && result.length < targetCount; count++) {
-        for (let attempt = 0; attempt < 60; attempt++) {
-          const along = 0.25 + rand() * Math.max(0.01, info.length - 0.5);
-          const height = minHeight + rand() * Math.max(0.01, maxHeight - minHeight);
-          const before = result.length;
-          add(info, along, height);
-          if (result.length > before) break;
-        }
+    const walls = [...wallInfos].sort((a, b) => b.length - a.length);
+    const clusterSize = 4;
+    for (const info of walls) {
+      if (result.length >= targetCount) break;
+      const quota = Math.min(targetCount, result.length + clusterSize);
+      const anchors = [0.3, 0.7, 0.5].flatMap(fraction =>
+        [0.55, 0.25, 0.8].map(level => [info.length * fraction, minHeight + (maxHeight - minHeight) * level]));
+      const anchor = anchors.find(([along, height]) => valid(info, along, height));
+      if (!anchor) continue;
+      const [along, height] = anchor;
+      add(info, along, height);
+      for (let attempt = 0; attempt < 36 && result.length < quota; attempt++) {
+        add(info, along + (rand() - 0.5) * 0.94, height + (rand() - 0.5) * 0.62);
       }
-    }
-    let guard = 0;
-    while (result.length < targetCount && guard++ < 600) {
-      const info = pickWall();
-      add(info, 0.25 + rand() * Math.max(0.01, info.length - 0.5), minHeight + rand() * Math.max(0.01, maxHeight - minHeight));
     }
     return result;
   }
@@ -1104,7 +1098,7 @@ export class GarageBuildSystem extends createSystem({}) {
       const length = Math.hypot(dx, dz);
       if (length < 0.05) continue;
       const yaw = Math.atan2(-dz, dx);
-      for (const [y, height, depth] of [[floorY + 0.045, 0.09, 0.16], [ceilingY - 0.04, 0.07, 0.14]]) {
+      for (const [y, height, depth] of [[floorY + 0.025, 0.05, 0.16], [ceilingY - 0.025, 0.04, 0.14]]) {
         const trim = new Mesh(new BoxGeometry(length, height, depth), material);
         trim.name = 'Ink wall trim';
         const offset = -depth / 2 + 0.003;
@@ -1157,7 +1151,7 @@ export class GarageBuildSystem extends createSystem({}) {
       addSegment(end, length, floorY, ceilingY);
       addSegment(start, end, doorTop, ceilingY);
 
-      const frameMaterial = this.doorFrameMaterial ?? new MeshBasicMaterial({ color: 0x0d0d10 });
+      const frameMaterial = this.doorFrameMaterial ?? new MeshBasicMaterial({ color: 0x72544f });
       const frameDepth = 0.18, frameWidth = 0.08, inset = -frameDepth / 2 + 0.003;
       const addFrame = (width: number, height: number, t: number, y: number) => {
         const point = wallPoint(wall, t);
@@ -1264,7 +1258,12 @@ export class GarageBuildSystem extends createSystem({}) {
         else if (child instanceof Mesh) {
           child.geometry.dispose();
           const materials = Array.isArray(child.material) ? child.material : [child.material];
-          materials.forEach(material => { if (material !== this.tableMaterial) (material as any)?.dispose?.(); });
+          materials.forEach(material => {
+            if (material !== this.tableMaterial) {
+              material.userData.ownedTexture?.dispose();
+              material.dispose();
+            }
+          });
         }
       }
       this.tableEditToken++;
@@ -1342,6 +1341,23 @@ export class GarageBuildSystem extends createSystem({}) {
     if (!table) return;
     const { center, width, depth, yaw } = tableFrame(table.polygon);
     const height = table.topY - this.room.floor.y;
+    const shadowCanvas = document.createElement('canvas');
+    shadowCanvas.width = shadowCanvas.height = 64;
+    const shadowCtx = shadowCanvas.getContext('2d')!;
+    const shade = shadowCtx.createRadialGradient(32, 32, 14, 32, 32, 31);
+    shade.addColorStop(0, 'rgba(28,18,28,0.68)');
+    shade.addColorStop(1, 'rgba(28,18,28,0)');
+    shadowCtx.fillStyle = shade; shadowCtx.fillRect(0, 0, 64, 64);
+    const shadowTexture = new CanvasTexture(shadowCanvas);
+    shadowTexture.colorSpace = SRGBColorSpace;
+    const shadowMaterial = new MeshBasicMaterial({ map: shadowTexture, transparent: true, depthWrite: false });
+    shadowMaterial.userData.ownedTexture = shadowTexture;
+    if (this.tableSurface) applyRevealMaterial(shadowMaterial, this.tableSurface);
+    const shadow = new Mesh(new PlaneGeometry(width, depth), shadowMaterial);
+    shadow.name = 'Workbench contact shade';
+    shadow.rotation.set(-Math.PI / 2, yaw, 0, 'YXZ');
+    shadow.position.set(center.x, this.room.floor.y + 0.004, center.z);
+    group.add(shadow);
     const workbench = config['SLOT_Workbench'];
     if (workbench?.model) {
       const root = new Group();
@@ -1356,17 +1372,24 @@ export class GarageBuildSystem extends createSystem({}) {
     }
     const paper = placements.find(placement => placement.slotId === 'paper-zone');
     if (paper) {
-      const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 384;
+      const canvas = document.createElement('canvas'); canvas.width = 256; canvas.height = 256;
       const ctx = canvas.getContext('2d')!;
-      ctx.clearRect(0, 0, 512, 384);
-      ctx.setLineDash([18, 12]); ctx.strokeStyle = '#e8ff2a'; ctx.lineWidth = 8; ctx.strokeRect(12, 12, 488, 360);
-      ctx.setLineDash([]); ctx.fillStyle = '#e8ff2a'; ctx.font = 'bold 40px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText('PAPER ZONE', 256, 196);
+      const light = ctx.createRadialGradient(128, 128, 40, 128, 128, 126);
+      light.addColorStop(0, 'rgba(255,205,138,0.22)');
+      light.addColorStop(1, 'rgba(255,205,138,0)');
+      ctx.fillStyle = light; ctx.fillRect(0, 0, 256, 256);
+      ctx.strokeStyle = 'rgba(255,224,176,0.65)'; ctx.lineWidth = 3; ctx.lineCap = 'round';
+      for (const x of [28, 228]) for (const y of [28, 228]) {
+        ctx.beginPath(); ctx.moveTo(x, y + Math.sign(128 - y) * 26); ctx.lineTo(x, y);
+        ctx.lineTo(x + Math.sign(128 - x) * 26, y); ctx.stroke();
+      }
       const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
       const material = new MeshBasicMaterial({ map: texture, transparent: true, depthWrite: false });
+      material.userData.ownedTexture = texture;
       if (this.tableSurface) applyRevealMaterial(material, this.tableSurface);
       const plane = new Mesh(new PlaneGeometry(paper.footprint.width * paper.scale, paper.footprint.depth * paper.scale), material);
       plane.name = 'Paper zone marker';
+      plane.visible = false;
       plane.rotation.set(-Math.PI / 2, paper.yaw, 0, 'YXZ');
       plane.position.set(paper.position.x, table.topY + 0.006, paper.position.z);
       group.add(plane);
@@ -1395,9 +1418,19 @@ export class GarageBuildSystem extends createSystem({}) {
     }
   }
 
+  /**
+   * Find the main wooden worktop. Only upward-facing triangles in the largest
+   * connected surface are used, so attached hardware such as the vise and its
+   * handle cannot inflate the table's measured length, depth or height.
+   */
   private findTopSurface(model: Group) {
     model.updateMatrixWorld(true);
-    const buckets = new Map<number, { area: number; minX: number; maxX: number; minZ: number; maxZ: number }>();
+    type Triangle = {
+      area: number;
+      points: [number, number, number, number, number, number, number, number, number];
+      y: number;
+    };
+    const triangles: Triangle[] = [];
     const a = new Vector3(), b = new Vector3(), c = new Vector3();
     const ab = new Vector3(), ac = new Vector3(), normal = new Vector3();
     model.traverse(object => {
@@ -1417,21 +1450,65 @@ export class GarageBuildSystem extends createSystem({}) {
         ab.subVectors(b, a); ac.subVectors(c, a); normal.crossVectors(ab, ac);
         const length = normal.length();
         if (length < 1e-6 || normal.y / length < 0.5) continue;
-        const y = Math.round(((a.y + b.y + c.y) / 3) * 200) / 200;
-        const bucket = buckets.get(y) ?? { area: 0, minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity };
-        bucket.area += length / 2;
-        for (const point of [a, b, c]) {
-          bucket.minX = Math.min(bucket.minX, point.x); bucket.maxX = Math.max(bucket.maxX, point.x);
-          bucket.minZ = Math.min(bucket.minZ, point.z); bucket.maxZ = Math.max(bucket.maxZ, point.z);
-        }
-        buckets.set(y, bucket);
+        triangles.push({
+          area: length / 2,
+          y: (a.y + b.y + c.y) / 3,
+          points: [a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z],
+        });
       }
     });
-    let best: { y: number; area: number; minX: number; maxX: number; minZ: number; maxZ: number } | null = null;
-    for (const [y, bucket] of buckets) if (!best || bucket.area > best.area) best = { y, ...bucket };
-    if (!best) return null;
+    if (!triangles.length) return null;
+
+    // Union the upward faces that share an edge. The worktop is one large
+    // connected slab; the vise and handle are separate islands.
+    const parent = triangles.map((_, index) => index);
+    const find = (index: number): number => {
+      let root = index;
+      while (parent[root] !== root) root = parent[root];
+      while (parent[index] !== root) {
+        const next = parent[index];
+        parent[index] = root;
+        index = next;
+      }
+      return root;
+    };
+    const union = (left: number, right: number) => {
+      const aRoot = find(left), bRoot = find(right);
+      if (aRoot !== bRoot) parent[aRoot] = bRoot;
+    };
+    const vertexOwner = new Map<string, number>();
+    triangles.forEach((triangle, index) => {
+      const points = triangle.points;
+      for (let i = 0; i < 9; i += 3) {
+        const key = `${Math.round(points[i] * 10000)},${Math.round(points[i + 1] * 10000)},${Math.round(points[i + 2] * 10000)}`;
+        const owner = vertexOwner.get(key);
+        if (owner === undefined) vertexOwner.set(key, index);
+        else union(index, owner);
+      }
+    });
+    type Cluster = { area: number; weightedY: number; minX: number; maxX: number; minZ: number; maxZ: number };
+    const clusters = new Map<number, Cluster>();
+    triangles.forEach((triangle, index) => {
+      const root = find(index);
+      const cluster: Cluster = clusters.get(root) ?? {
+        area: 0, weightedY: 0,
+        minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity,
+      };
+      cluster.area += triangle.area;
+      cluster.weightedY += triangle.y * triangle.area;
+      for (let i = 0; i < 9; i += 3) {
+        cluster.minX = Math.min(cluster.minX, triangle.points[i]);
+        cluster.maxX = Math.max(cluster.maxX, triangle.points[i]);
+        cluster.minZ = Math.min(cluster.minZ, triangle.points[i + 2]);
+        cluster.maxZ = Math.max(cluster.maxZ, triangle.points[i + 2]);
+      }
+      clusters.set(root, cluster);
+    });
+    let best: Cluster | null = null;
+    for (const cluster of clusters.values()) if (!best || cluster.area > best.area) best = cluster;
+    if (!best || best.area < 1e-6) return null;
     return {
-      y: best.y,
+      y: best.weightedY / best.area,
       size: { x: best.maxX - best.minX, z: best.maxZ - best.minZ },
       center: { x: (best.minX + best.maxX) / 2, z: (best.minZ + best.maxZ) / 2 },
     };
@@ -1443,8 +1520,8 @@ export class GarageBuildSystem extends createSystem({}) {
         if (token !== this.tableEditToken) { resolve(); return; }
         const model = gltf.scene;
         model.name = 'SLOT_Workbench model';
-        // The model bounding box includes the vise above the worktop. Anchor the
-        // large flat worktop surface at the scanned table height instead.
+        // Measure the wooden worktop, not the model's full bounds. The vise
+        // and handle stick out beyond the top and must not shrink its size.
         const physical = new Box3().setFromObject(model, true);
         const surface = this.findTopSurface(model);
         if (!surface) { fallback(); resolve(); return; }
@@ -1454,10 +1531,10 @@ export class GarageBuildSystem extends createSystem({}) {
         model.traverse(object => { if (object instanceof Mesh) meshes.push(object); });
         meshes.forEach(mesh => {
           const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
-          const next = comicMaterial((material as any)?.color ?? 0xffffff, (material as any)?.map ?? null);
+          const color = new Color((material as any)?.color ?? 0xffffff).multiply(new Color(0xc7d4de));
+          const next = comicMaterial(color, (material as any)?.map ?? null);
           if (this.tableSurface) applyRevealMaterial(next, this.tableSurface);
           mesh.material = next;
-          addOutline(mesh, 'SLOT_Workbench');
         });
         const frame = new Group();
         frame.add(model);
@@ -1465,9 +1542,15 @@ export class GarageBuildSystem extends createSystem({}) {
         const scaleY = target[1] / surfaceHeight;
         const scaleZ = target[2] / surface.size.z;
         frame.scale.set(scaleX, scaleY, scaleZ);
-        // Align the actual worktop face, not the bounding box that includes the vise.
+        // Center the wooden top on the measured tabletop. The vise may extend
+        // beyond the measured footprint without changing the table size.
         frame.position.set(-surface.center.x * scaleX, -physical.min.y * scaleY, -surface.center.z * scaleZ);
         root.add(frame);
+        this.workbenchSurface = {
+          width: surface.size.x * scaleX,
+          depth: surface.size.z * scaleZ,
+          topY: this.room.table?.topY ?? this.room.floor.y + target[1],
+        };
         resolve();
       }, undefined, error => {
         if (token === this.tableEditToken) {
@@ -1581,6 +1664,8 @@ export class GarageBuildSystem extends createSystem({}) {
           addOutline(mesh, id);
         });
         for (const child of [...root.children]) {
+          // The reveal animates this light independently of the lamp model.
+          if (child.name === 'Lamp glow') continue;
           if (child instanceof Group) this.disposeGroup(child);
           root.remove(child);
         }
@@ -1601,36 +1686,48 @@ export class GarageBuildSystem extends createSystem({}) {
     const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 768;
     const ctx = canvas.getContext('2d')!;
     const gradient = ctx.createLinearGradient(0, 0, 0, 768);
-    gradient.addColorStop(0, '#3a2b5c'); gradient.addColorStop(0.48, '#c75b4d'); gradient.addColorStop(1, '#ffb45e');
+    gradient.addColorStop(0, '#332e50');
+    gradient.addColorStop(0.40, '#875069');
+    gradient.addColorStop(0.64, '#e19073');
+    gradient.addColorStop(1, '#eead7d');
     ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1024, 768);
-    ctx.fillStyle = 'rgba(255,231,168,0.95)'; ctx.beginPath(); ctx.arc(650, 300, 78, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = 'rgba(64,45,66,0.35)';
-    for (const [x, y, w] of [[120, 240, 220], [380, 170, 180], [760, 190, 200]]) {
-      ctx.beginPath(); ctx.ellipse(x, y, w / 2, 26, 0, 0, Math.PI * 2); ctx.fill();
+    const glow = ctx.createRadialGradient(580, 405, 26, 580, 405, 160);
+    glow.addColorStop(0, 'rgba(255,209,137,0.70)');
+    glow.addColorStop(1, 'rgba(255,209,137,0)');
+    ctx.fillStyle = glow; ctx.fillRect(400, 235, 360, 340);
+    ctx.fillStyle = '#ffdc9d'; ctx.beginPath(); ctx.arc(580, 405, 43, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#89586b'; ctx.beginPath(); ctx.moveTo(0, 505);
+    ctx.bezierCurveTo(170, 463, 280, 515, 419, 489);
+    ctx.bezierCurveTo(594, 516, 743, 443, 1024, 495);
+    ctx.lineTo(1024, 768); ctx.lineTo(0, 768); ctx.fill();
+    ctx.fillStyle = '#564356';
+    for (const [x, y, width, height] of [[30, 489, 150, 58], [220, 467, 111, 77], [355, 492, 112, 47], [685, 477, 136, 68], [832, 455, 145, 88]]) {
+      ctx.beginPath(); ctx.moveTo(x, y + height); ctx.lineTo(x, y + 13);
+      ctx.lineTo(x + width * 0.48, y - 9); ctx.lineTo(x + width, y + 13);
+      ctx.lineTo(x + width, y + height); ctx.fill();
     }
+    ctx.fillRect(0, 535, 1024, 233);
+    ctx.fillStyle = '#e3a87f';
+    for (const [x, y] of [[140, 520], [251, 502], [276, 502], [728, 516], [756, 516], [884, 495]]) ctx.fillRect(x, y, 10, 5);
     const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
     const enclosureMaterial = new MeshBasicMaterial({ map: texture, side: BackSide, transparent: true, opacity: 0, depthWrite: false });
     // A large inward-facing sky shell closes every seam, so an oblique view can never
     // leak passthrough through the wall/backdrop edges.
     const enclosure = new Mesh(new BoxGeometry(40, 24, 40), enclosureMaterial);
+    enclosureMaterial.userData.ownedTexture = texture;
     enclosure.name = 'Sky enclosure (gap cover)';
+    enclosure.renderOrder = -30;
     const roomBox = bounds(this.room.floor.polygon);
     enclosure.position.set((roomBox.minX + roomBox.maxX) / 2, this.room.floor.y + 10, (roomBox.minZ + roomBox.maxZ) / 2);
     group.add(enclosure);
     const material = new MeshBasicMaterial({ map: texture, side: DoubleSide, transparent: true, opacity: 0, depthWrite: false });
     const plane = new Mesh(new PlaneGeometry(9, 6), material);
     plane.name = 'Golden hour sky';
-    if (door) {
-      const wall = this.room.walls.find(item => item.id === door.wallId);
-      if (wall) {
-        const dx = wall.p1.x - wall.p0.x, dz = wall.p1.z - wall.p0.z;
-        const length = Math.hypot(dx, dz) || 1;
-        const t = ((door.position.x - wall.p0.x) * (dx / length) + (door.position.z - wall.p0.z) * (dz / length));
-        plane.position.set(wall.p0.x + dx / length * t - wall.normal.x * 4, this.room.floor.y + 2.1, wall.p0.z + dz / length * t - wall.normal.z * 4);
-        plane.rotation.y = Math.atan2(wall.normal.x, wall.normal.z);
-      } else {
-        plane.position.set(0, 2.1, -5);
-      }
+    plane.renderOrder = -29;
+    const wall = door && this.room.walls.find(item => item.id === door.wallId);
+    if (door && wall) {
+      plane.position.set(door.position.x - wall.normal.x * 4, this.room.floor.y + 2.1, door.position.z - wall.normal.z * 4);
+      plane.rotation.y = Math.atan2(wall.normal.x, wall.normal.z);
     } else {
       plane.position.set(0, 2.1, -5);
     }
@@ -1638,23 +1735,46 @@ export class GarageBuildSystem extends createSystem({}) {
 
     const beamCanvas = document.createElement('canvas'); beamCanvas.width = 256; beamCanvas.height = 256;
     const beamCtx = beamCanvas.getContext('2d')!;
-    const beamGradient = beamCtx.createRadialGradient(128, 216, 8, 128, 216, 190);
-    beamGradient.addColorStop(0, 'rgba(255,236,176,0.95)');
-    beamGradient.addColorStop(0.45, 'rgba(255,196,112,0.38)');
+    const beamGradient = beamCtx.createRadialGradient(128, 128, 14, 128, 128, 126);
+    beamGradient.addColorStop(0, 'rgba(255,199,131,0.50)');
+    beamGradient.addColorStop(0.55, 'rgba(255,175,102,0.18)');
     beamGradient.addColorStop(1, 'rgba(255,196,112,0)');
     beamCtx.fillStyle = beamGradient; beamCtx.fillRect(0, 0, 256, 256);
     const beamTexture = new CanvasTexture(beamCanvas); beamTexture.colorSpace = SRGBColorSpace;
     const beamMaterial = new MeshBasicMaterial({ map: beamTexture, transparent: true, opacity: 0, depthWrite: false, side: DoubleSide, blending: AdditiveBlending });
-    const beam = new Mesh(new PlaneGeometry(3.2, 2.6), beamMaterial);
-    beam.name = 'Sun beam';
-    beam.position.copy(plane.position);
-    beam.position.y -= 0.35;
-    if (door) {
-      const wall = this.room.walls.find(item => item.id === door.wallId);
-      if (wall) beam.position.add(new Vector3(wall.normal.x * 0.6, 0, wall.normal.z * 0.6));
+    const beams: Mesh[] = [];
+    const exteriorMaterials: MeshBasicMaterial[] = [];
+    if (door && wall) {
+      const driveCanvas = document.createElement('canvas');
+      driveCanvas.width = driveCanvas.height = 128;
+      const driveCtx = driveCanvas.getContext('2d')!;
+      const pavement = driveCtx.createLinearGradient(0, 0, 0, 128);
+      pavement.addColorStop(0, '#564356'); pavement.addColorStop(1, '#6b515b');
+      driveCtx.fillStyle = pavement; driveCtx.fillRect(0, 0, 128, 128);
+      driveCtx.fillStyle = '#907075'; driveCtx.fillRect(0, 66, 128, 2);
+      driveCtx.fillStyle = '#745963'; driveCtx.fillRect(0, 68, 128, 6);
+      const drivewayTexture = new CanvasTexture(driveCanvas); drivewayTexture.colorSpace = SRGBColorSpace;
+      const drivewayMaterial = new MeshBasicMaterial({ map: drivewayTexture, transparent: true, opacity: 0, depthWrite: false });
+      drivewayMaterial.userData.ownedTexture = drivewayTexture;
+      const driveway = new Mesh(new PlaneGeometry(11, 7), drivewayMaterial);
+      driveway.name = 'Dusk driveway';
+      driveway.renderOrder = -28;
+      driveway.rotation.set(-Math.PI / 2, plane.rotation.y, 0, 'YXZ');
+      driveway.position.set(door.position.x - wall.normal.x * 3.5, this.room.floor.y - 0.024, door.position.z - wall.normal.z * 3.5);
+      group.add(driveway);
+      exteriorMaterials.push(drivewayMaterial);
+
+      const spill = new Mesh(new PlaneGeometry(door.footprint.width * door.scale, 1.9), beamMaterial);
+      spill.name = 'Doorway light spill';
+      spill.position.set(door.position.x + wall.normal.x * 0.64, this.room.floor.y + 0.005, door.position.z + wall.normal.z * 0.64);
+      spill.rotation.set(-Math.PI / 2, plane.rotation.y, 0, 'YXZ');
+      beamMaterial.userData.ownedTexture = beamTexture;
+      group.add(spill);
+      beams.push(spill);
+    } else {
+      beamTexture.dispose();
+      beamMaterial.dispose();
     }
-    beam.rotation.y = plane.rotation.y;
-    group.add(beam);
 
     const dustGeometry = new BufferGeometry();
     const dustCount = 70;
@@ -1672,8 +1792,8 @@ export class GarageBuildSystem extends createSystem({}) {
 
     this.doorRuntime = {
       group,
-      materials: [enclosureMaterial, material, ...(this.doorFrameMaterial ? [this.doorFrameMaterial] : [])],
-      beams: [beam],
+      materials: [enclosureMaterial, material, ...exteriorMaterials, ...(this.doorFrameMaterial ? [this.doorFrameMaterial] : [])],
+      beams,
       dust,
       opacity: 0,
     };
@@ -1730,10 +1850,11 @@ export class GarageBuildSystem extends createSystem({}) {
     this.propGroup = undefined;
     this.tableOccluder = undefined;
     this.tableSurface = undefined;
+    this.workbenchSurface = null;
     this.doorFrameMaterial = undefined;
     this.placements = [];
     this.deviceObstacles = [];
-    this.deviceSignature = '';
+    this.deviceSignature = '[]';
     this.modelLoads = [];
     garageState.room = null;
     garageState.placements = [];
@@ -1812,7 +1933,10 @@ export class GarageBuildSystem extends createSystem({}) {
       if (object instanceof Mesh) {
         object.geometry.dispose();
         const list = Array.isArray(object.material) ? object.material : [object.material];
-        list.forEach(material => (material as any).dispose?.());
+        list.forEach(material => {
+          material.userData.ownedTexture?.dispose();
+          material.dispose();
+        });
       }
     });
   }

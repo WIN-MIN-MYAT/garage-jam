@@ -1,22 +1,20 @@
 <style>
-  .card { width: 420px; flex-direction: column; gap: 10px; padding: 18px; border-radius: 18px; background-color: #141923; border-width: 1px; border-color: #3a4656; }
+  .card { width: 400px; flex-direction: column; gap: 8px; padding: 18px; border-radius: 18px; background-color: #272431; border-width: 1px; border-color: #5a4857; }
   .top { flex-direction: row; align-items: center; justify-content: space-between; }
-  .kicker { color: #19e3ff; font-size: 14px; font-weight: 800; letter-spacing: 2px; }
-  .title { color: #f5f8fc; font-size: 28px; font-weight: 800; }
-  .status { color: #9de6ef; font-size: 16px; font-weight: 700; }
+  .title { color: #f8e7d6; font-size: 26px; font-weight: 800; }
+  .status { color: #d5bac4; font-size: 15px; font-weight: 700; }
   .row { flex-direction: row; gap: 7px; }
-  .button { flex-grow: 1; height: 40px; border-radius: 8px; background-color: #263243; color: #ebf3fe; font-size: 15px; font-weight: 700; }
-  .active { background-color: #e8ff70; color: #161a22; }
-  .small { height: 34px; font-size: 13px; }
-  .note { color: #9aa6b6; font-size: 14px; line-height: 1.35; }
-  .close { width: 46px; height: 28px; border-radius: 6px; background-color: #263243; color: #e8f0fc; font-size: 14px; font-weight: 700; }
+  .button { flex-grow: 1; height: 38px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 15px; font-weight: 700; }
+  .active { background-color: #d575a5; color: #241727; }
+  .small { font-size: 13px; }
+  .note { color: #c5b5bd; font-size: 14px; }
+  .close { width: 42px; height: 36px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 14px; font-weight: 700; }
 </style>
 <Panel id="mm-card" class="card">
   <div class="top">
-    <div class="kicker">GARAGE JAM / MONITORS</div>
+    <div class="title">Monitor layout</div>
     <button id="mm-close" class="close">X</button>
   </div>
-  <div class="title">MONITOR LAYOUT</div>
   <div id="mm-status" class="status">Monitor 1 / ARC / flat</div>
   <div class="row">
     <button id="mm-monitor-1" class="button active">1</button>
@@ -41,5 +39,5 @@
     <button id="mm-recenter" class="button small">RECENTER</button>
     <button id="mm-save" class="button small">SAVE LAYOUT</button>
   </div>
-  <div class="note">Grab a monitor frame to move it. Resize from the selected monitor controls. LOCK keeps it fixed.</div>
+  <div class="note">Grab an unlocked monitor to move it.</div>
 </Panel>

@@ -70,7 +70,7 @@ If a connection fails while both devices are on the same LAN, check Chrome's `ch
 
 ## Room Build Reveal
 
-The reveal is a data-driven timeline in `client/src/reveal/`. It uses a world-space alpha-clip shader: unrevealed skin fragments discard, so the real room remains visible through passthrough. Beats: blueprint floor-plan, floor spray, staggered wall wipes with drips, ceiling roll, door/sun beam/dust, table roller, prop drops with squash and comic pops, lamp/neon flicker, and `READY!`. All skins and props are precreated and precompiled; the timeline scales with the room diagonal to 4–8 s, the resume version is 2.2–3 s, and reduced motion is a 0.6 s dissolve. Skip (right B/A long-press or the panel button), reveal-off and reduced motion produce the same final state. The adaptive fallback halves particles, then removes drips/noise, then switches to the 0.6 s dissolve under load. `revealMode`, `revealSpeed`, `revealParticles`, `revealPops`, `revealAdaptive` and `revealStress` are available as query overrides.
+The reveal is a data-driven timeline in `client/src/reveal/`. It uses a world-space alpha-clip shader: unrevealed skin fragments discard, so the real room remains visible through passthrough. Beats: blueprint floor-plan, floor spray, staggered wall wipes with drips, ceiling roll, door/sun beam/dust, table roller, prop drops with squash and comic pops, lamp/neon flicker, and `READY!`. All skins and props are precreated and precompiled; the timeline scales with the room diagonal to 4-8 s, the resume version is 2.2-3 s, and reduced motion is a 0.6 s dissolve. The reveal always plays to completion; there is no skip prompt or skip button. Reveal-off and reduced motion produce the same final state. The adaptive fallback halves particles, then removes drips/noise, then switches to the 0.6 s dissolve under load. `revealMode`, `revealSpeed`, `revealParticles`, `revealPops`, `revealAdaptive` and `revealStress` are available as query overrides.
 
 ## Room-driven garage build (developer probe)
 
@@ -87,13 +87,13 @@ The script writes `client/scripts/garage-build-emulator.png`. Emulator FPS is no
 
 After the garage reveal, `THIS YOUR TABLE?` appears beside the table. Use `-0.5 cm` / `+0.5 cm` or `TOUCH TABLE` to adjust the height, then press `YEP!` to save. Use `MARK 4 CORNERS` to replace the outline and height together. Full touch setup guides you through the floor first, then the table. Touch each corner in perimeter order, review the numbered outline, and choose whether to use it or undo a point.
 
-Look at your left wrist for 140 ms, or pinch thumb and index with your palm up for 180 ms, to open the compact menu at direct-touch range (~43 cm). It stays static in world space; poke a button with your fingertip, use a controller ray, or keep using the wrist. **PIN** keeps it open, **X** or the left X/right A button dismisses it, and looking away closes it after 1.5 s unless pinned or touched. **Center panel** brings it back in front of you. The Home page has passthrough, table view, cutouts, mark-devices and center; Room has table corners, table height, rearrange, rescan and debug; Settings has units, dominant hand, motion, reveal, sound and outlines, plus reset and forget.
+Look at your left wrist for 140 ms, or pinch thumb and index with your palm up for 180 ms, to open the compact menu at direct-touch range (~43 cm). It stays static in world space; poke a button with your fingertip, use a controller ray, or keep using the wrist. **PIN** keeps it open, **X** or the left X/right A button dismisses it, and looking away closes it after 1.5 s unless pinned or touched. **Center panel** brings it back in front of you. The pages are **HOME** (passthrough, table view, cutouts, mark devices, center, focus, voice), **ROOM** (table corners, height, rearrange, rescan, debug, mode, monitor controls, forget room), **MUSIC**, **CONNECT**, and **SET** (a three-column settings grid for units, hand, motion, reveal, sound, outlines, sky, focus length, stand fade, save seat, clear board and reset).
 
 The reveal, flow, scan overlay, compact wrist pages, device marking, papers, focus, boards and streaming integration are implementation-tested in the IWSDK emulator; Quest 72 Hz, physical controller/hand input, haptics, persistent anchors/fingerprint resume and the physical Gate 8+ checks remain unverified.
 
 ### Device marking and passthrough cutouts
 
-Choose **Mark devices** in setup or from the wrist menu. The panel opens in passthrough. Point your fingertip or controller at one corner and pinch or press to plant it. Keep pinching and drag the same hand to the diagonally opposite corner; the outline follows live and releasing completes it. A second pinch also works when you prefer two taps. Once the first corner is placed, only the hand or controller that drew it can continue, so the other hand cannot swap corners mid-outline. Check the outline and its dimensions before saving. You can undo either corner. Marking, table, calibration, flow and wrist panels draw above the garage props so labels stay readable when a panel overlaps the workbench or a shelf.
+Choose **Mark devices** in setup or from the wrist menu. The panel opens in passthrough. Point your fingertip or controller at one corner and pinch or press to plant it. Keep pinching and drag the same hand to the diagonally opposite corner; the outline follows live and releasing completes it. A second pinch also works when you prefer two taps. Once the first corner is placed, only the hand or controller that drew it can continue, so the other hand cannot swap corners mid-outline. Check the outline and its dimensions before saving. You can undo either corner. Marking, table, calibration, flow and wrist panels draw above the garage props so labels stay readable when a panel overlaps the workbench or a shelf. The IWSDK ray reticle and the device/calibration cursors are also depth-independent, so pointing stays visible over models and panels.
 
 - **Laptop** measures the tilted display and offers the same two-corner flow for the base. **Use fitted base** estimates it from the hinge.
 - **Monitor only** saves the display. **Desktop setup** can add a keyboard with two more corner marks.
@@ -101,7 +101,7 @@ Choose **Mark devices** in setup or from the wrist menu. The panel opens in pass
 
 Displays start with 5 mm depth. Saved outlines remain visible in passthrough. The virtual garage draws a thin bezel around displays, with depth-only cutouts for real devices when **Cutouts** is enabled. **Done** restores the view you had before opening device setup.
 
-Saved placements are relative to the measured tabletop or floor. On resume, Garage Jam matches that surface against the current room outline and openings before showing the saved devices. Older seat-relative records and ambiguous matches stay available under **Re-mark device**. **Settings / Forget room** clears the saved placements.
+Saved placements are relative to the measured tabletop or floor. On resume, Garage Jam matches that surface against the current room outline and openings before showing the saved devices. Older seat-relative records and ambiguous matches stay available under **Re-mark device**. **Room / Forget room** clears the saved placements.
 
 ## Wall stickers and garage dressing
 
@@ -115,10 +115,10 @@ Garage dressing is anchored rather than random:
 
 - **Storage shelf** - against the wall behind the seat, tucked into a corner and turned to face the room. It is no longer placed in the center.
 - **Trash can** - about 0.6 m beside the seat on the dominant-hand side, with an exit-corridor check.
-- **Paint/spray cans** - a P1 workbench prop at 0.32 x 0.26 m so they appear on the table instead of being skipped as optional floor clutter.
+- **Paint/spray cans** - currently removed from the room and slot set.
 - **Pegboard/tool board** - reduced to 0.8 x 0.55 m and promoted to P1.
 
-Evidence: `scripts/stickers-wall.png`, `scripts/stickers-scatter.png`, `scripts/garage-shelf-corner.png`, `scripts/garage-paint-cans.png`, `scripts/garage-trash-seat.png`. The added sticker draw calls and 512 px textures still need a Quest 72 Hz check; the current screenshots are from the desktop emulator.
+Evidence: `scripts/stickers-wall.png`, `scripts/stickers-scatter.png`, `scripts/garage-shelf-corner.png`, `scripts/garage-trash-seat.png`. The added sticker draw calls and 512 px textures still need a Quest 72 Hz check; the current screenshots are from the desktop emulator.
 
 ## Quest controls and demo
 
@@ -132,7 +132,7 @@ Start a sunset with the **SUNSET** button. The default timeline is 30 minutes; `
 
 **Focus** starts from the wrist Home page. A procedural shutter rolls over the garage opening, a countdown sign appears, the sky dims, and music starts if enabled. The default session is 25 minutes with a 5-minute break; `?focusDemo=1` uses 1 minute/20 seconds. Focus minutes and completed-task streaks feed the stats board. Break nudges default to 50 minutes (`?nudgeDemo=1` for 45 seconds) and flash a neon sign message.
 
-**Stand-up fade** is off by default and lives in wrist Settings. When enabled, the first seated head pose is stored. Sitting at that spot runs the quick reveal and shows the garage; standing or walking away reverses the reveal and fades to passthrough. **Forget room** clears the stored pose.
+**Stand-up fade** is off by default and lives in wrist Settings. When enabled, the first seated head pose is stored. Sitting at that spot runs the quick reveal and shows the garage; standing or walking away reverses the reveal and fades to passthrough. **Room / Forget room** clears the stored pose.
 
 The **boombox** is a code-built retro prop in a floor corner, not on the workbench. It does not replace the wrist Music page; the speakers pulse while Spotify or the local fallback is playing.
 
@@ -142,7 +142,7 @@ For an immersive VR session instead of the default immersive AR session, change 
 
 ## Table model
 
-The room-driven build uses the provided `assets/models/optimized/wooden-workbench.glb` in scan, manual and demo rooms. It is scaled to the measured tabletop extents, its flat worktop face is anchored at the measured table height, and it is turned toward the seat. The procedural brown top/legs remain only as a load-failure fallback.
+The room-driven build uses the provided `assets/models/optimized/wooden-workbench.glb` in scan, manual and demo rooms. Its fitting measures only the **main wooden worktop**, not the vise or its handle: the loader finds the largest connected upward-facing surface and scales its width and depth to the measured tabletop, then anchors that face at the measured table height. The vise can overhang the measured footprint without shortening or narrowing the table. The procedural brown top/legs remain only as a load-failure fallback.
 
 ## Replacing a placeholder
 

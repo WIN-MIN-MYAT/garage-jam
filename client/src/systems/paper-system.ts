@@ -80,6 +80,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private paperLoader = new GLTFLoader();
   private tasks = new Map<string, Task>();
   private roomHidden = false;
+  private highlightingZone = false;
 
   init() {
     this.paperLoader.setMeshoptDecoder(MeshoptDecoder);
@@ -362,7 +363,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     } catch (error) {
       entity.setValue(PaperTask, 'completed', false);
       emit('status', `Write-back failed: ${(error as Error).message}`);
-      if (!this.roomHidden && this.world.session) revealAudio.playGameplay('ui_action_blocked');
+      if (!this.roomHidden && this.world.session) revealAudio.playGameplay('ui_action_blocked', this.trash);
       showComicWord('TOK.');
     }
   }
@@ -378,7 +379,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.trashContacts.delete(entity.index);
     this.motion.delete(entity.index);
     entity.dispose();
-    if (!this.roomHidden && this.world.session) revealAudio.playTaskDone();
+    if (!this.roomHidden && this.world.session) revealAudio.playTaskDone(this.trash);
     showComicWord('KA-CHAK!');
     this.pulse(0.45, 55);
   }
@@ -387,10 +388,22 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     if (this.queries.held.entities.size && (this.input.xr.gamepads.left?.getButtonDown(InputComponent.Trigger) || this.input.xr.gamepads.right?.getButtonDown(InputComponent.Trigger))) {
       this.crumple(this.queries.held.entities.values().next().value!);
     }
+    const zone = this.queries.held.entities.size && !this.roomHidden
+      ? garageState.placements.find(item => item.slotId === 'paper-zone') : undefined;
+    const tabletop = garageState.room?.table;
+    let highlightZone = false;
     for (const entity of this.queries.papers.entities) {
       entity.object3D?.getWorldPosition(this.position);
       const last = this.previous.get(entity.index);
       if (this.queries.held.entities.has(entity)) {
+        if (zone && tabletop && entity.getValue(PaperTask, 'state') === 'flat') {
+          const dx = this.position.x - zone.position.x, dz = this.position.z - zone.position.z;
+          const cos = Math.cos(zone.yaw), sin = Math.sin(zone.yaw);
+          const aboveTable = this.position.y - tabletop.topY;
+          highlightZone ||= aboveTable >= -0.025 && aboveTable < 0.33
+            && Math.abs(dx * cos - dz * sin) < zone.footprint.width * zone.scale / 2 + 0.1
+            && Math.abs(dx * sin + dz * cos) < zone.footprint.depth * zone.scale / 2 + 0.1;
+        }
         const history = this.motion.get(entity.index);
         if (history) {
           const offset = history.next * 4;
@@ -407,7 +420,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
           if (!this.trashContacts.has(entity.index)) {
             this.trashContacts.add(entity.index);
             revealAudio.playTrash(this.trash);
-            showComicWord('P’LUNK!', this.trash);
+            showComicWord('P’LUNK!', { x: this.trash.x, y: this.trash.y + 0.36, z: this.trash.z });
             void this.complete(entity);
           }
         } else {
@@ -415,6 +428,10 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
         }
       }
       last?.copy(this.position);
+    }
+    if (highlightZone !== this.highlightingZone) {
+      this.highlightingZone = highlightZone;
+      emit('paper-zone-highlight', highlightZone);
     }
   }
 }

@@ -14,6 +14,18 @@ try {
   await page.waitForFunction(() => window.garageDeviceDebug?.panel && window.IWER_DEVICE);
   await page.locator('#garage-test-badge').click();
   await page.waitForFunction(() => window.garageBuildDebug?.ready && window.garageTableDebug?.panel.visible);
+  await page.waitForTimeout(1200);
+  const cursorOverlay = await page.evaluate(() => {
+    let found = 0, overlaid = 0;
+    window.garageEmulatorWorld.scene.traverse(object => {
+      if (object.isMesh && object.renderOrder === Infinity && object.userData?.attached === true) {
+        found++;
+        if (object.material?.depthTest === false && object.material?.depthWrite === false) overlaid++;
+      }
+    });
+    return { found, overlaid };
+  });
+  assert.ok(cursorOverlay.found > 0 && cursorOverlay.overlaid === cursorOverlay.found, `pointer cursor must draw above props and panels: ${JSON.stringify(cursorOverlay)}`);
   await page.evaluate(() => window.garageTableDebug.panel.requireElementById('yep-button').dispatchEvent({ type: 'click' }));
   const deviceClick = id => page.evaluate(id => window.garageDeviceDebug.panel.requireElementById(id).dispatchEvent({ type: 'click' }), id);
   const send = (method, params) => page.evaluate(({ method, params }) => window.IWER_DEVICE.remote.dispatch(method, params), { method, params });
@@ -144,8 +156,9 @@ try {
   await deviceClick('dev-done');
   await page.waitForFunction(() => window.garageBuildDebug.root.visible);
   assert.equal(await page.evaluate(() => {
-    const setup = window.garageEmulatorWorld.scene.getObjectByName('Device display Monitor');
-    return setup.visible && setup.getObjectByName('Monitor bezel').children.length === 4;
+    const scene = window.garageEmulatorWorld.scene;
+    const display = scene.getObjectByName('Device display Monitor');
+    return !display.visible && !display.getObjectByName('Monitor bezel') && scene.getObjectByName('Device occluders Monitor').visible;
   }), true);
   await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud')
     .requireElementById('passthrough-button').dispatchEvent({ type: 'click' }));
@@ -184,7 +197,7 @@ try {
   });
   assert.ok(Math.abs(flat.a.y - flat.b.y) < 0.001 && Math.abs(flat.a.y - flat.zoneY) < 0.001, 'desk marks and the saved zone use one surface');
   assert.deepEqual(errors, []);
-  console.log('Independent controller and hand marks, corner undo, UI ownership, desk alignment, passthrough outlines, monitor bezel and reload persistence passed.');
+  console.log('Independent controller and hand marks, corner undo, UI ownership, desk alignment, passthrough outlines, bezel-free cutout and reload persistence passed.');
 } finally {
   await browser.close();
 }

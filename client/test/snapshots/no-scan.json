@@ -43,10 +43,6 @@
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
-      "slotId": "paint-cans",
-      "reason": "no table; side-tray fallback required"
-    },
-    {
       "slotId": "paper-zone",
       "reason": "no table; side-tray fallback required"
     },

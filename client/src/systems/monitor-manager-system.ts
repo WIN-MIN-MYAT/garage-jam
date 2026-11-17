@@ -21,6 +21,7 @@ export class MonitorManagerSystem extends createSystem({}) {
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('monitor-manager-open', onOpen);
       garageEvents.removeEventListener('monitor-layout', onLayout);
+      this.stream?.setLayoutEditing(false);
       this.panel?.dispose();
     });
     void this.createPanel().catch(error => emit('status', `Monitor panel failed: ${String(error)}`));
@@ -37,7 +38,7 @@ export class MonitorManagerSystem extends createSystem({}) {
     entity.addComponent(PokeInteractable, {});
     this.panel = panel;
     new PanelInput(panel, () => { /* keep open while pressed */ });
-    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(); action(); });
+    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(panel); action(); });
     on('mm-close', () => this.hide());
     for (let index = 0; index < 3; index++) on(`mm-monitor-${index + 1}`, () => this.emit('monitor-select', { index }));
     on('mm-preset', () => {
@@ -65,6 +66,7 @@ export class MonitorManagerSystem extends createSystem({}) {
   private show() {
     if (!this.panel) return;
     this.open = true;
+    this.stream?.setLayoutEditing(true);
     this.panel.visible = true;
     const head = this.world.camera.getWorldPosition(new Vector3());
     const forward = this.world.camera.getWorldDirection(new Vector3());
@@ -72,14 +74,15 @@ export class MonitorManagerSystem extends createSystem({}) {
     if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
     forward.normalize();
     const side = garageStateSide();
-    this.panel.position.copy(head).addScaledVector(forward, 0.98).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.26);
-    this.panel.position.y -= 0.18;
+    this.panel.position.copy(head).addScaledVector(forward, 0.98).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.40);
+    this.panel.position.y -= 0.30;
     this.panel.lookAt(head);
     this.refresh();
   }
 
   private hide() {
     this.open = false;
+    this.stream?.setLayoutEditing(false);
     if (this.panel) this.panel.visible = false;
   }
 
@@ -90,8 +93,8 @@ export class MonitorManagerSystem extends createSystem({}) {
     const set = (id: string, props: object) => this.panel?.getElementById(id)?.setProperties(props);
     for (let index = 0; index < 3; index++) {
       set(`mm-monitor-${index + 1}`, {
-        backgroundColor: state.selected === index ? '#e8ff70' : '#263243',
-        color: state.selected === index ? '#161a22' : '#ebf3fe',
+        backgroundColor: state.selected === index ? '#d575a5' : '#39313e',
+        color: state.selected === index ? '#241727' : '#f3e5df',
         display: index < state.count ? 'flex' : 'none',
       });
     }

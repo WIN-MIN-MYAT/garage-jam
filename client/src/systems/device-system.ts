@@ -37,7 +37,7 @@ export class DeviceSystem extends createSystem({}) {
   private panelInput?: PanelInput;
   private root = new Group();
   private preview = new Group();
-  private cursor = new Mesh(new RingGeometry(0.009, 0.014, 24), new MeshBasicMaterial({ color: 0xe8ff70, depthTest: false, side: DoubleSide }));
+  private cursor = new Mesh(new RingGeometry(0.009, 0.014, 24), new MeshBasicMaterial({ color: 0xe8ff70, depthTest: false, depthWrite: false, transparent: true, side: DoubleSide }));
   private firstMarker = new Mesh(new RingGeometry(0.006, 0.012, 24), this.cursor.material);
   private previewFill?: Mesh;
   private previewOutline?: Line;
@@ -60,7 +60,6 @@ export class DeviceSystem extends createSystem({}) {
   private tip = new Vector3();
 
   private occluder = new MeshBasicMaterial({ colorWrite: false, depthWrite: true, side: DoubleSide });
-  private bezel = new MeshBasicMaterial({ color: 0x2b3442, side: DoubleSide });
   private displayMat = new MeshBasicMaterial({ color: 0x111924, side: DoubleSide });
   private outlineMat = new LineBasicMaterial({ color: 0x8ef5ef, depthTest: false, depthWrite: false, transparent: true, opacity: 0.94 });
   private fill = new MeshBasicMaterial({ color: 0x8ef5ef, depthTest: false, depthWrite: false, transparent: true, opacity: 0.14, side: DoubleSide });
@@ -83,9 +82,9 @@ export class DeviceSystem extends createSystem({}) {
     this.preview.add(this.previewFill, this.previewOutline, this.previewScreen);
     this.root.add(this.preview, this.cursor, this.firstMarker);
     this.cursor.visible = false;
-    this.cursor.renderOrder = 221;
+    this.cursor.renderOrder = 1600;
     this.firstMarker.visible = false;
-    this.firstMarker.renderOrder = 221;
+    this.firstMarker.renderOrder = 1600;
     const entity = this.world.createTransformEntity(this.root, { persistent: true });
     const listeners: Record<string, (event: Event) => void> = {
       'device-marking-open': () => this.openPanel(),
@@ -113,7 +112,7 @@ export class DeviceSystem extends createSystem({}) {
       this.previewScreen?.geometry.dispose();
       this.cursor.geometry.dispose();
       this.firstMarker.geometry.dispose();
-      for (const mat of [this.cursor.material, this.occluder, this.bezel, this.displayMat, this.outlineMat, this.fill]) mat.dispose();
+      for (const mat of [this.cursor.material, this.occluder, this.displayMat, this.outlineMat, this.fill]) mat.dispose();
       this.panel?.dispose();
       entity.destroy();
     });
@@ -154,7 +153,7 @@ export class DeviceSystem extends createSystem({}) {
     entity.addComponent(RayInteractable, {});
     entity.addComponent(PokeInteractable, {});
     this.panelEntity = entity;
-    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(); action(); });
+    const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(panel); action(); });
     for (const [name, template] of templates) on(`dev-template-${name}`, () => this.start(template));
     on('dev-use', () => this.commit());
     on('dev-skip-keyboard', () => this.skipSurface());
@@ -597,10 +596,8 @@ export class DeviceSystem extends createSystem({}) {
     this.root.visible = this.loaded;
     for (const { device, occluder, display, outline } of this.visuals) {
       occluder.visible = device.enabled && garage && cutouts;
-      display.visible = device.enabled && garage;
+      display.visible = device.enabled && garage && !cutouts;
       outline.visible = device.enabled && !garage;
-      const face = display.getObjectByName('Virtual display');
-      if (face) face.visible = !cutouts;
     }
   }
 
@@ -685,23 +682,11 @@ export class DeviceSystem extends createSystem({}) {
         occluder.add(box);
         if (part.part !== 'typing') outline.add(this.rectangle(part));
         if (part.part !== 'screen') continue;
-        const w = part.size.x, h = part.size.y, edge = Math.min(0.008, h * 0.04);
+        const w = part.size.x, h = part.size.y;
         const face = new Mesh(new PlaneGeometry(w, h), this.displayMat);
         face.name = 'Virtual display';
         this.place(face, part);
         display.add(face);
-        const bezel = new Group();
-        bezel.name = 'Monitor bezel';
-        this.place(bezel, part);
-        for (const [x, y, width, height] of [
-          [0, (h + edge) / 2, w + 2 * edge, edge], [0, -(h + edge) / 2, w + 2 * edge, edge],
-          [(w + edge) / 2, 0, edge, h], [-(w + edge) / 2, 0, edge, h],
-        ]) {
-          const strip = new Mesh(new PlaneGeometry(width, height), this.bezel);
-          strip.position.set(x, y, 0.003);
-          bezel.add(strip);
-        }
-        display.add(bezel);
       }
       this.root.add(occluder, display, outline);
       this.visuals.push({ device, occluder, display, outline });

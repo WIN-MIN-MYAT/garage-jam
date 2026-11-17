@@ -9,7 +9,7 @@ const bundle = await build({ entryPoints: [join(here, 'device-entry.ts')], bundl
 const {
   deviceInsideTyping, deviceObstacles, devicesFromSeat, devicesToSeat, keyboardVolume,
   makeExtra, makeLaptop, makeMonitor, nextDeviceState, screenVolume, seatFrameYaw, seatToWorld,
-  rememberDevice, restoreDevice, screenDragCorners, minScreenDepth, minZoneHeight,
+  rememberDevice, restoreDevice, rememberRoomPoint, restoreRoomPoint, screenDragCorners, minScreenDepth, minZoneHeight,
   worldToSeat, solve, slotRules, validatePlacements,
 } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
 
@@ -141,6 +141,27 @@ test('an ambiguous symmetric room keeps the device unplaced', () => {
   const original = room();
   const symmetric = room({ table: { ...original.table, polygon: original.table.polygon.map(p => ({ ...p, z: p.z + 0.9 })) } });
   assert.equal(restoreDevice(symmetric, rememberDevice(symmetric, makeLaptop(laptopCorners, symmetric))), null);
+});
+
+test('the saved stand-fade seat follows a realigned room and keeps its floor-relative height', () => {
+  const before = room();
+  const seat = { x: 0.24, y: 1.17, z: -0.27 };
+  const memory = rememberRoomPoint(before, seat);
+  const transform = p => ({ x: 4 + p.z, z: 2 - p.x });
+  const after = room({
+    floor: { y: 0.18, polygon: before.floor.polygon.map(transform) },
+    table: { ...before.table, topY: 0.98, polygon: before.table.polygon.map(transform) },
+    seat: { x: -9, y: 0.18, z: 7 },
+    forward: { x: 0, z: 1 },
+  });
+  const restored = restoreRoomPoint(after, JSON.parse(JSON.stringify(memory)));
+  const expected = transform(seat);
+  assert.ok(restored);
+  assert.ok(Math.hypot(restored.x - expected.x, restored.z - expected.z) < 1e-6);
+  assert.ok(Math.abs(restored.y - 1.35) < 1e-6);
+  assert.equal(restoreRoomPoint(room({ table: null }), memory), null);
+  const symmetric = room({ table: { ...before.table, polygon: before.table.polygon.map(p => ({ ...p, z: p.z + 0.9 })) } });
+  assert.equal(restoreRoomPoint(symmetric, rememberRoomPoint(symmetric, seat)), null);
 });
 
 test('device obstacles respect padding and enabled state', () => {

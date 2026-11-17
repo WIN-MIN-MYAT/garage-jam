@@ -19,17 +19,17 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Enter XR. Passthrough starts and the HUD is visible.
 - [ ] Run Space Setup or choose **Set up by touching**. Complete four floor corners and four table corners.
 - [ ] Confirm the garage floor/walls/table sit on the real room and the table height is within about 2 cm.
+- [ ] Confirm the workbench wooden top matches the measured table width and depth. The vise and handle may overhang the measured footprint; they must not shorten or narrow the wooden top.
 - [ ] Toggle **Cutouts** off/on and confirm the real laptop/monitor silhouette from front, left, right, above, and ±60 degrees.
 - [ ] Confirm no real wall or desk shows outside the device-shaped cutout when the garage is opaque.
 - [ ] Put a real hand over the marked keyboard. Confirm the virtual hand is masked and the real hand is visible.
 
 ## Gate 5–7: build, table, wrist, devices
 
-- [ ] Watch the full reveal without skipping. Confirm it finishes in about 4–8 s and the garage is stable.
-- [ ] Press **SKIP REVEAL** once and confirm the final state is the same.
+- [ ] Watch the full reveal (there is no skip prompt or skip button). Confirm it finishes in about 4-8 s and the garage is stable.
 - [ ] Change table height with ± and **TOUCH TABLE**. Confirm the workbench, paper zone, props, and device volumes move live.
 - [ ] Toggle **Table view**. Confirm the real-table depth slab works and hides the virtual workbench.
-- [ ] Open the wrist menu with a left-wrist glance and with a palm-up pinch. Confirm the panel is not clipped and all buttons are reachable.
+- [ ] Open the wrist menu with a left-wrist glance and with a palm-up pinch. Confirm the panel is not clipped, the three-column Settings grid is readable, and all buttons are reachable.
 - [ ] Mark a laptop by drag-to-draw and by two separate pinches. Confirm the second hand cannot finish an outline started by the first.
 - [ ] Restart the app. Confirm the room, table height, devices, and device cutouts restore.
 - [ ] Confirm the black box is no longer on the workbench (the boombox placeholder was removed); the procedural boombox should be on the floor in a corner.
@@ -74,7 +74,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Finish a 1-minute demo focus (`?focusDemo=1`) or the configured 25-minute session. Confirm break mode, chime, and focus minutes on the stats board/whiteboard.
 - [ ] Confirm each completed task adds a paint splat to the mural and that splats persist after reload.
 - [ ] Drop/release a flat paper near the corkboard. Confirm it freezes on the corkboard, pins into Today / Top 3, and persists after reload.
-- [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and the bottom-right **Clear board** button clears them.
+- [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and **Clear board** in wrist SET clears them.
 - [ ] Trigger **Voice task** and say “add task …”. Confirm a new local task and paper appear. If Web Speech is unavailable in Quest Browser, confirm the friendly fallback message.
 - [ ] Let the break nudge appear (use `?nudgeDemo=1`), confirm the neon message, sound, and dismissal event.
 - [ ] Confirm the local lo-fi fallback plays from the Music page when Spotify is not connected, and stops on pause.
@@ -85,7 +85,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Check that the wrist menu, panels, and scan labels remain readable over props.
 - [ ] Confirm `?style=plain` improves performance if the comic materials are too heavy.
 - [ ] Confirm the app still works after a headset sleep/wake and an XR session restart.
-- [ ] Confirm **Forget room** clears the room, devices, progress, mural, pins, and whiteboard, and returns to S0.
+- [ ] Confirm **Forget room** on wrist ROOM clears the room, devices, progress, mural, pins, and whiteboard, and returns to S0.
 
 ## Evidence to collect
 

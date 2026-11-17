@@ -77,6 +77,7 @@ export class TaskBoardSystem extends createSystem({}) {
     const onDone = () => { this.progress = loadProgress(); this.addSplat(); this.schedule(); };
     const onReset = () => { this.clear(); };
     garageEvents.addEventListener('garage-revealed', onBuilt);
+    garageEvents.addEventListener('garage-props-rebuilt', onBuilt);
     garageEvents.addEventListener('tasks-updated', onTasks);
     garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('focus-state', onFocus);
@@ -114,6 +115,7 @@ export class TaskBoardSystem extends createSystem({}) {
     }).catch(() => { /* local progress is enough */ });
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('garage-revealed', onBuilt);
+      garageEvents.removeEventListener('garage-props-rebuilt', onBuilt);
       garageEvents.removeEventListener('tasks-updated', onTasks);
       garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('focus-state', onFocus);
@@ -178,10 +180,11 @@ export class TaskBoardSystem extends createSystem({}) {
       (entry as any).ctx = ctx;
     }
     const normal = this.normalFor(placement);
-    entry.mesh.position.set(placement.position.x + normal.x * 0.035, placement.position.y, placement.position.z + normal.z * 0.035);
-    entry.mesh.lookAt(placement.position.x + normal.x, placement.position.y, placement.position.z + normal.z);
-    // The content is always the authored board size, regardless of prop scale.
-    entry.mesh.scale.set(1, 1, 1);
+    const centerY = placement.position.y + rule.height * placement.scale / 2;
+    const offset = placement.footprint.depth * placement.scale / 2 + 0.005;
+    entry.mesh.position.set(placement.position.x + normal.x * offset, centerY, placement.position.z + normal.z * offset);
+    entry.mesh.lookAt(placement.position.x + normal.x, centerY, placement.position.z + normal.z);
+    entry.mesh.scale.setScalar(placement.scale);
     return entry as typeof entry & { ctx: CanvasRenderingContext2D; canvas: HTMLCanvasElement };
   }
 
@@ -203,17 +206,22 @@ export class TaskBoardSystem extends createSystem({}) {
     const calendar = this.ensureBoard('calendar-board');
     if (calendar) {
       const ctx = calendar.ctx, w = calendar.canvas.width, h = calendar.canvas.height;
-      boardBase(ctx, w, h, 'TODAY');
+      ctx.fillStyle = '#644e53'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#eddcc7'; ctx.fillRect(14, 14, w - 28, h - 28);
+      ctx.fillStyle = '#c8a098'; ctx.fillRect(197, 8, 118, 18);
+      ctx.fillStyle = '#623b50'; ctx.font = '800 25px "GarageDisplay", sans-serif';
+      ctx.fillText('TODAY', 37, 64);
+      ctx.fillStyle = '#cbb4a7'; ctx.fillRect(37, 78, w - 74, 2);
       ctx.textAlign = 'left';
       if (!this.calendar.length) {
-        ctx.fillStyle = boardInk; ctx.font = 'bold 26px "GarageDisplay", sans-serif'; ctx.fillText('NO EVENTS TODAY', 38, 120);
-        ctx.fillStyle = '#9aa6b6'; ctx.font = '18px sans-serif'; ctx.fillText('Connect Google Calendar in Plugins.', 38, 152);
+        ctx.fillStyle = '#403341'; ctx.font = 'bold 26px "GarageDisplay", sans-serif'; ctx.fillText('No events today', 38, 128);
+        ctx.fillStyle = '#665254'; ctx.font = '18px sans-serif'; ctx.fillText('Connect Google Calendar in Plugins.', 38, 159);
       } else {
         this.calendar.slice(0, 3).forEach((event, index) => {
           const y = 112 + index * 76;
           const time = event.allDay ? 'ALL DAY' : event.start ? new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          ctx.fillStyle = palette[index % palette.length]; ctx.font = 'bold 18px sans-serif'; ctx.fillText(time, 38, y);
-          ctx.fillStyle = boardInk; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
+          ctx.fillStyle = '#79405c'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(time, 38, y);
+          ctx.fillStyle = '#403341'; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
           ctx.fillText(fitted(ctx, event.title, 400, 22, 1)[0] ?? event.title, 38, y + 28, 420);
         });
       }
@@ -222,7 +230,18 @@ export class TaskBoardSystem extends createSystem({}) {
     const cork = this.ensureBoard('corkboard');
     if (cork) {
       const ctx = cork.ctx, w = cork.canvas.width, h = cork.canvas.height;
-      boardBase(ctx, w, h, 'TOP 3');
+      ctx.fillStyle = '#745144'; ctx.fillRect(0, 0, w, h);
+      ctx.fillStyle = '#b78a67'; ctx.fillRect(13, 13, w - 26, h - 26);
+      ctx.strokeStyle = '#91664e'; ctx.lineWidth = 2; ctx.strokeRect(15, 15, w - 30, h - 30);
+      let seed = 418;
+      for (let i = 0; i < 360; i++) {
+        ctx.fillStyle = i % 3 ? 'rgba(78,42,32,0.19)' : 'rgba(255,221,170,0.29)';
+        seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+        ctx.fillRect(18 + (seed >>> 16) % (w - 38), 18 + (seed & 0xffff) % (h - 38), 2 + i % 3, 2);
+      }
+      ctx.fillStyle = '#f5dfb7'; ctx.fillRect(32, 28, 135, 36);
+      ctx.fillStyle = '#4b302d'; ctx.font = '800 23px "GarageDisplay", sans-serif';
+      ctx.fillText('TOP 3', 46, 54);
       const ranked = [...this.tasks].sort((a, b) => {
         const pin = this.progress.pinned.indexOf(a.id) - this.progress.pinned.indexOf(b.id);
         if (pin && this.progress.pinned.includes(a.id) !== this.progress.pinned.includes(b.id)) return this.progress.pinned.includes(a.id) ? -1 : 1;
@@ -230,32 +249,40 @@ export class TaskBoardSystem extends createSystem({}) {
         return (weight[(a.priority ?? '').toLowerCase()] ?? 3) - (weight[(b.priority ?? '').toLowerCase()] ?? 3);
       }).slice(0, 3);
       if (!ranked.length) {
-        ctx.fillStyle = boardInk; ctx.font = 'bold 24px "GarageDisplay", sans-serif'; ctx.fillText('NO PAPERS YET', 38, 128);
+        ctx.fillStyle = '#4b302d'; ctx.font = 'bold 24px "GarageDisplay", sans-serif'; ctx.fillText('No papers yet', 38, 128);
       }
       ranked.forEach((task, index) => {
-        const y = 112 + index * 78;
-        ctx.fillStyle = palette[index % palette.length]; ctx.beginPath(); ctx.arc(52, y - 6, 10, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = boardInk; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
-        ctx.fillText(fitted(ctx, task.title, 380, 22, 1)[0] ?? task.title, 78, y, 400);
-        if (this.progress.pinned.includes(task.id)) { ctx.fillStyle = '#e8ff2a'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('PINNED', 78, y + 22); }
+        const y = 82 + index * 84;
+        ctx.fillStyle = 'rgba(83,48,34,0.32)'; ctx.fillRect(42, y + 5, w - 80, 67);
+        ctx.fillStyle = index % 2 ? '#f3dfae' : '#f9ebce'; ctx.fillRect(38, y, w - 80, 67);
+        ctx.fillStyle = ['#a74463', '#4c7774', '#ac642f'][index];
+        ctx.beginPath(); ctx.arc(55, y + 12, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#382a2c'; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
+        ctx.fillText(fitted(ctx, task.title, 380, 22, 1)[0] ?? task.title, 72, y + 34, 380);
+        if (this.progress.pinned.includes(task.id)) {
+          ctx.fillStyle = '#79405c'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('PINNED', 72, y + 55);
+        }
       });
       cork.texture.needsUpdate = true;
     }
     const whiteboard = this.ensureBoard('whiteboard');
     if (whiteboard) {
       const ctx = whiteboard.ctx, w = whiteboard.canvas.width, h = whiteboard.canvas.height;
-      ctx.fillStyle = '#f4f1e8'; ctx.fillRect(0, 0, w, h);
-      ctx.strokeStyle = '#343b46'; ctx.lineWidth = 8; ctx.strokeRect(12, 12, w - 24, h - 24);
-      ctx.fillStyle = '#ff2d95'; ctx.font = 'bold 20px "GarageDisplay", sans-serif'; ctx.fillText('GARAGE JAM / FOCUS', 34, 44);
-      ctx.fillStyle = '#161922';
+      const enamel = ctx.createLinearGradient(0, 0, 0, h);
+      enamel.addColorStop(0, '#f8f5e9');
+      enamel.addColorStop(1, '#e8e1d2');
+      ctx.fillStyle = enamel; ctx.fillRect(0, 0, w, h);
+      ctx.strokeStyle = '#655d66'; ctx.lineWidth = 12; ctx.strokeRect(6, 6, w - 12, h - 12);
+      ctx.fillStyle = '#6e3d56'; ctx.font = 'bold 24px "GarageDisplay", sans-serif'; ctx.fillText('WORKSHOP BOARD', 34, 48);
+      ctx.fillStyle = '#c5bdb1'; ctx.fillRect(34, 60, w - 68, 2);
+      ctx.fillStyle = '#403341';
       if (this.focus.running) {
-        ctx.font = 'bold 92px "GarageDisplay", sans-serif'; ctx.fillText(this.clock(this.focus.remaining), 44, 190);
-        ctx.font = 'bold 24px sans-serif'; ctx.fillText(this.focus.phase === 'focus' ? 'DOOR DOWN / DEEP WORK' : 'BREAK / LOOK AWAY', 46, 232);
+        ctx.font = 'bold 38px "GarageDisplay", sans-serif'; ctx.fillText(this.clock(this.focus.remaining), 35, 108);
+        ctx.font = 'bold 17px sans-serif'; ctx.fillText(this.focus.phase === 'focus' ? 'Focus session' : 'On break', 145, 105);
       } else {
-        ctx.font = 'bold 44px "GarageDisplay", sans-serif'; ctx.fillText('READY WHEN YOU ARE', 44, 156);
-        ctx.font = 'bold 22px sans-serif'; ctx.fillText('Start Focus from the wrist menu.', 46, 194);
+        ctx.font = 'bold 19px sans-serif'; ctx.fillText('Start Focus from the wrist menu.', 35, 103);
       }
-      ctx.fillStyle = '#19e3ff'; ctx.font = 'bold 20px sans-serif'; ctx.fillText(`${completedToday(this.progress)} done today  /  ${streakDays(this.progress)} day streak`, 44, 300);
+      ctx.fillStyle = '#665760'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(`${completedToday(this.progress)} done today  /  ${streakDays(this.progress)} day streak`, 35, h - 29);
       whiteboard.texture.needsUpdate = true;
     }
     for (const [id, entry] of this.content) entry.mesh.visible = !!this.boardPlacement(id);

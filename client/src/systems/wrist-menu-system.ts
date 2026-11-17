@@ -20,6 +20,7 @@ import { resetProgress } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
 import { GarageBuildSystem } from './garage-build-system.js';
+import { clearStandSeat } from '../stand-seat-memory.js';
 
 const pages = ['home', 'room', 'music', 'settings', 'plugins'] as const;
 type Page = typeof pages[number];
@@ -41,6 +42,7 @@ export class WristMenuSystem extends createSystem({}) {
   private panelEntity?: { hasComponent: (component: any) => boolean };
   private builder?: GarageBuildSystem;
   private page: Page = 'home';
+  private standSeatState = 'SET';
   private pinned = false;
   private stage: AppStage = 'S0';
   private calibrating = false;
@@ -105,6 +107,11 @@ export class WristMenuSystem extends createSystem({}) {
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<any>).detail ?? this.focus; this.refresh(); };
     const onDevices = (event: Event) => { this.devices = (event as CustomEvent<any[]>).detail ?? []; this.deviceIndex = 0; this.refresh(); };
     const onPlaylists = (event: Event) => { this.playlists = (event as CustomEvent<any[]>).detail ?? []; this.playlistIndex = 0; this.refresh(); };
+    const onStandSeat = (event: Event) => {
+      this.standSeatState = (event as CustomEvent<string>).detail;
+      this.refresh();
+    };
+    garageEvents.addEventListener('stand-seat-state', onStandSeat);
     garageEvents.addEventListener('app-flow-stage', onStage);
     garageEvents.addEventListener('room-manual-active', calibration);
     garageEvents.addEventListener('table-confirm-visibility', tablePanel);
@@ -123,6 +130,7 @@ export class WristMenuSystem extends createSystem({}) {
       if (state === VisibilityState.NonImmersive) this.close();
     });
     this.cleanupFuncs.push(() => {
+      garageEvents.removeEventListener('stand-seat-state', onStandSeat);
       garageEvents.removeEventListener('app-flow-stage', onStage);
       garageEvents.removeEventListener('room-manual-active', calibration);
       garageEvents.removeEventListener('table-confirm-visibility', tablePanel);
@@ -156,7 +164,7 @@ export class WristMenuSystem extends createSystem({}) {
     this.panel = panel;
     new PanelInput(panel, () => { this.lastLook = performance.now(); });
     const on = (id: string, action: () => void) => bindPress(panel, id, () => {
-      if (id !== 'wm-sound') revealAudio.playPress();
+      if (id !== 'wm-sound') revealAudio.playPress(panel);
       action();
     });
     on('wm-pin', () => {
@@ -273,7 +281,7 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-sound', () => {
       setPreference('revealSound', !garageState.preferences.revealSound);
       this.applySound();
-      if (garageState.preferences.revealSound) revealAudio.playPress();
+      if (garageState.preferences.revealSound) revealAudio.playPress(panel);
       this.refresh();
     });
     on('wm-outlines', () => {
@@ -293,9 +301,10 @@ export class WristMenuSystem extends createSystem({}) {
       const next = !garageState.preferences.standUpFade;
       setPreference('standUpFade', next);
       emit('stand-up-fade-changed', next);
-      emit('status', next ? 'Stand-up fade ON. Sit at your saved working spot to reveal.' : 'Stand-up fade OFF. Garage stays visible.');
+      if (!next) emit('status', 'Stand-up fade OFF. Garage stays visible.');
       this.refresh();
     });
+    on('wm-save-seat', () => emit('standup-seat-store'));
     on('wm-clear-board', () => emit('whiteboard-clear'));
     on('wm-focus-length', () => {
       const values = [25, 45, 60];
@@ -305,6 +314,7 @@ export class WristMenuSystem extends createSystem({}) {
     });
     on('wm-reset', () => {
       resetPreferences();
+      emit('stand-up-fade-changed', garageState.preferences.standUpFade);
       this.builder?.setTableView(garageState.preferences.tableView);
       this.builder?.setOutlines(garageState.preferences.outlines);
       emit('garage-debug-toggle', garageState.preferences.debugOverlay);
@@ -316,6 +326,7 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-forget', () => {
       resetPreferences();
       clearDeviceCollection();
+      clearStandSeat();
       localStorage.removeItem(manualRoomStorageKey);
       localStorage.removeItem(lastRoomStorageKey);
       localStorage.removeItem('garage-jam-progress-v1');
@@ -349,7 +360,7 @@ export class WristMenuSystem extends createSystem({}) {
             pinned: system.pinned,
             scale: panel.scale.x,
             position: panel.position.toArray(),
-            size: { width: 208 * panelScale * 0.01, height: 264 * panelScale * 0.01 },
+            size: { width: 232 * panelScale * 0.01, height: 292 * panelScale * 0.01 },
           };
         },
       };
@@ -390,7 +401,7 @@ export class WristMenuSystem extends createSystem({}) {
     if (!panel.visible || this.placeOnOpen) this.placePanel();
     if (!panel.visible) {
       this.refresh();
-      revealAudio.playPanel();
+      revealAudio.playPanel(panel);
     }
     panel.visible = true;
     this.lastLook = performance.now();
@@ -430,6 +441,7 @@ export class WristMenuSystem extends createSystem({}) {
     set('wm-sound-value', p.revealSound ? 'ON' : 'OFF');
     set('wm-outlines-value', p.outlines ? 'ON' : 'OFF');
     set('wm-standup-value', p.standUpFade ? 'ON' : 'OFF');
+    set('wm-save-seat-value', this.standSeatState);
     set('wm-sky-value', p.skyMode === 'golden' ? 'GOLD' : p.skyMode === 'time' ? 'TIME' : 'LIVE');
     set('wm-focus-length-value', `${p.focusMinutes}M`);
     set('wm-focus-value', this.focus.running ? (this.focus.paused ? 'PAUSED' : `${Math.floor(this.focus.remaining / 60)}:${String(Math.floor(this.focus.remaining) % 60).padStart(2, '0')}`) : 'START');

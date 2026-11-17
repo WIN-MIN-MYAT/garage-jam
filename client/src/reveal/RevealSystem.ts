@@ -1,7 +1,7 @@
-import { Color, createSystem, Group, InputComponent, Vector3, VisibilityState } from '@iwsdk/core';
+import { Color, createSystem, Group, Vector3, VisibilityState } from '@iwsdk/core';
 import config from './reveal.config.json';
 import { buildRevealTimeline, beatOf, beatProgress, quantize, type RevealTimeline } from './RevealTimeline.js';
-import { RevealParticles, type PopWord } from './RevealParticles.js';
+import { RevealParticles } from './RevealParticles.js';
 import { revealAudio } from './RevealAudio.js';
 import type { RevealRuntime } from './reveal-types.js';
 import type { RevealMode } from '../app-flow/app-flow.js';
@@ -31,15 +31,20 @@ export class RevealSystem extends createSystem({}) {
   private leaveFrom: number[] = [];
   private readySpawned = false;
   private doorSoundStarted = false;
-  private ceilingSoundStarted = false;
   private wallSoundStarted = false;
   private blueprintSoundStarted = false;
   private sunbeamSoundStarted = false;
+  private stickerSoundStarted = false;
+  private tableSoundStarted = false;
+  private lampActivated = false;
   private audioVisible = false;
   private doorwayAudio = new Vector3();
+  private doorwayOut = new Vector3();
+  private roomAudio = new Vector3();
+  private cuePosition = new Vector3();
+  private hasDoorwayAudio = false;
   private sprayCursor = 0;
   private lampGlow: any = null;
-  private bHold = 0;
   private fallbackStep = 0;
   private frameTimes = new Float32Array(20);
   private frameCursor = 0;
@@ -68,7 +73,6 @@ export class RevealSystem extends createSystem({}) {
       if (detail?.mode) this.requestedMode = detail.mode;
     };
     const onBuilt = () => this.startFromBuilder();
-    const onSkip = () => this.skip();
     const onPropsRebuilt = () => this.startPropsOnly();
     const onRoomEnter = () => this.enter();
     const onRoomLeave = () => this.leave();
@@ -117,7 +121,6 @@ export class RevealSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-built', onBuilt);
     garageEvents.addEventListener('garage-props-rebuilt', onPropsRebuilt);
     garageEvents.addEventListener('garage-reset', onReset);
-    garageEvents.addEventListener('reveal-skip', onSkip);
     garageEvents.addEventListener('room-enter', onRoomEnter);
     garageEvents.addEventListener('room-leave', onRoomLeave);
     garageEvents.addEventListener('app-flow-stage', onStage);
@@ -127,6 +130,7 @@ export class RevealSystem extends createSystem({}) {
       if (!this.audioVisible) {
         lastComicWord.clear();
         this.particles?.clearPops();
+        revealAudio.stopSpray();
         revealAudio.updateAmbience(false, null);
         revealAudio.stopRevealSamples();
         revealAudio.stopGameplaySamples();
@@ -135,17 +139,23 @@ export class RevealSystem extends createSystem({}) {
         if (this.active) this.finishReveal(true);
       }
     });
+    const stopAudioFrame = this.world.onXRFrame(frame => {
+      if (!this.audioVisible) return;
+      const space = this.world.renderer.xr.getReferenceSpace();
+      const pose = space && frame.getViewerPose(space);
+      if (pose) revealAudio.updateListener(this.world.camera, pose.transform);
+    });
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('reveal-request', onRequest);
       garageEvents.removeEventListener('garage-built', onBuilt);
       garageEvents.removeEventListener('garage-props-rebuilt', onPropsRebuilt);
       garageEvents.removeEventListener('garage-reset', onReset);
-      garageEvents.removeEventListener('reveal-skip', onSkip);
       garageEvents.removeEventListener('room-enter', onRoomEnter);
       garageEvents.removeEventListener('room-leave', onRoomLeave);
       garageEvents.removeEventListener('app-flow-stage', onStage);
       garageEvents.removeEventListener('comic-word', onComicWord);
       stopVisibility();
+      stopAudioFrame();
       this.particles?.dispose();
       this.particlesRoot.removeFromParent();
       revealAudio.dispose();
@@ -160,7 +170,6 @@ export class RevealSystem extends createSystem({}) {
         get mode() { return thisSystem.mode; },
         get fallbackStep() { return thisSystem.fallbackStep; },
         get runtime() { return thisSystem.runtime; },
-        skip: () => this.skip(),
         finish: () => this.finishReveal(true),
         start: (mode: RevealMode) => { this.requestedMode = mode; this.startFromBuilder(); },
         leave: () => this.leave(),
@@ -200,6 +209,9 @@ export class RevealSystem extends createSystem({}) {
   private start(mode: RevealMode) {
     const runtime = this.runtime;
     if (!runtime) return;
+    revealAudio.stopSpray();
+    revealAudio.stopRevealSamples();
+    this.setAudioAnchors(runtime);
     this.mode = mode;
     this.timeline = buildRevealTimeline({
       mode,
@@ -215,10 +227,12 @@ export class RevealSystem extends createSystem({}) {
     this.elapsed = 0;
     this.readySpawned = false;
     this.doorSoundStarted = false;
-    this.ceilingSoundStarted = false;
     this.wallSoundStarted = false;
     this.blueprintSoundStarted = false;
     this.sunbeamSoundStarted = false;
+    this.stickerSoundStarted = false;
+    this.tableSoundStarted = false;
+    this.lampActivated = false;
     this.sprayCursor = 0;
     this.sprayStarted = false;
     this.fallbackStep = 0;
@@ -240,6 +254,7 @@ export class RevealSystem extends createSystem({}) {
     }
     const lamp = runtime.props.find(prop => prop.id === 'lamp');
     this.lampGlow = lamp?.object.getObjectByName('Lamp glow') ?? null;
+    if (this.lampGlow?.material) this.lampGlow.material.opacity = 0;
     for (const prop of runtime.props) {
       prop.landed = false;
       prop.object.visible = mode === 'props' ? prop.finalVisible : false;
@@ -277,7 +292,6 @@ export class RevealSystem extends createSystem({}) {
   }
 
   update(delta: number) {
-    if (this.audioVisible) revealAudio.updateListener(this.world.camera);
     if (this.leaving) {
       this.stepLeave(Math.min(delta, 0.1));
       this.particles?.update(Math.min(delta, 0.1));
@@ -292,12 +306,10 @@ export class RevealSystem extends createSystem({}) {
         this.stepReveal();
       }
       if (this.active) this.trackFrame(dt);
-      if (this.active) this.checkInputSkip(dt);
       if (this.active && this.timeline && this.elapsed >= this.timeline.duration) this.finishReveal(false);
     }
     if (this.audioVisible && garageRootsVisible() && (this.finished || this.sunbeamSoundStarted) && this.runtime) {
-      const doorway = this.runtime.door?.group;
-      revealAudio.updateAmbience(true, doorway ? doorway.getWorldPosition(this.doorwayAudio) : null);
+      revealAudio.updateAmbience(true, this.hasDoorwayAudio ? this.doorwayAudio : null, this.roomAudio, this.doorwayOut);
     } else revealAudio.updateAmbience(false, null);
     this.particles?.update(Math.min(delta, 0.1));
     if (location.hostname === 'localhost' && this.active && performance.now() - this.lastDebugAt > 80) {
@@ -312,16 +324,32 @@ export class RevealSystem extends createSystem({}) {
     }
   }
 
+  private setAudioAnchors(runtime: RevealRuntime) {
+    const room = garageState.room;
+    const forward = room?.forward;
+    this.roomAudio.set(runtime.seat.x + (forward?.x ?? 0) * 1.1, runtime.floorY + 0.9, runtime.seat.z + (forward?.z ?? -1) * 1.1);
+    const door = garageState.placements.find(item => item.slotId === 'door');
+    this.hasDoorwayAudio = !!(runtime.door && door);
+    if (!door) return;
+    this.doorwayAudio.set(door.position.x, runtime.floorY + 1.15, door.position.z);
+    const wall = room?.walls.find(item => item.id === door.wallId);
+    if (wall) this.doorwayOut.set(-wall.normal.x, 0, -wall.normal.z);
+    else this.doorwayOut.set(door.position.x - runtime.seat.x, 0, door.position.z - runtime.seat.z);
+    if (!this.doorwayOut.lengthSq()) this.doorwayOut.set(0, 0, -1);
+    this.doorwayOut.normalize();
+  }
+
   private stepReveal() {
     const runtime = this.runtime;
     const timeline = this.timeline;
     if (!runtime || !timeline) return;
-    const stepped = quantize(this.elapsed, timeline.fps);
+    const time = Math.min(this.elapsed, timeline.duration);
+    const inkTime = time >= timeline.duration ? time : quantize(time, timeline.fps);
     if (timeline.mode === 'props') {
       for (const surface of runtime.surfaces) surface.uniforms.uRevealProgress.value = 1.05;
       if (runtime.blueprint) runtime.blueprint.group.visible = false;
       this.setDoorOpacity(1);
-      this.stepProps(stepped, beatOf(timeline, 'props'));
+      this.stepProps(time, beatOf(timeline, 'props'));
       return;
     }
     const floorBeat = beatOf(timeline, 'floor');
@@ -334,146 +362,143 @@ export class RevealSystem extends createSystem({}) {
     const stickersBeat = beatOf(timeline, 'stickers');
     const blueprintBeat = beatOf(timeline, 'blueprint');
     let maxWallProgress = 0;
+    let tableWipeVisible = false;
 
     for (const surface of runtime.surfaces) {
       let beatStart = 0, beatDuration = 0;
       let progress = 0;
       if (surface.beat === 'floor') {
         beatStart = floorBeat?.start ?? 0; beatDuration = floorBeat?.duration ?? 0;
-        progress = beatProgress(floorBeat, stepped);
+        progress = beatProgress(floorBeat, time);
       } else if (surface.beat === 'walls') {
         const base = wallsBeat;
         if (base) {
           const stagger = Math.min(0.16, base.duration * 0.12);
           beatStart = base.start + surface.order * stagger;
           beatDuration = Math.max(0.25, base.duration - stagger * 2.4);
-          progress = clamp((stepped - beatStart) / beatDuration, 0, 1);
+          progress = clamp((time - beatStart) / beatDuration, 0, 1);
           progress = progress * progress * (3 - 2 * progress);
         } else progress = timeline.mode === 'quick' ? 1 : 0;
       } else if (surface.beat === 'ceiling') {
         beatStart = ceilingBeat?.start ?? 0; beatDuration = ceilingBeat?.duration ?? 0;
-        progress = timeline.mode === 'quick' ? 1 : beatProgress(ceilingBeat, stepped);
+        progress = timeline.mode === 'quick' ? 1 : beatProgress(ceilingBeat, time);
       } else if (surface.beat === 'table') {
         beatStart = tableBeat?.start ?? 0; beatDuration = tableBeat?.duration ?? 0;
-        progress = timeline.mode === 'quick' ? 1 : beatProgress(tableBeat, stepped);
+        progress = timeline.mode === 'quick' ? 1 : beatProgress(tableBeat, time);
+        tableWipeVisible = !!tableBeat && progress > 0;
       } else if (surface.beat === 'props') {
         progress = 1;
       }
       surface.start = beatStart;
       surface.duration = beatDuration;
-      surface.uniforms.uRevealTime.value = stepped;
+      surface.uniforms.uRevealTime.value = inkTime;
       surface.uniforms.uRevealProgress.value = 1.05 * progress;
       if (surface.beat === 'walls' && surface.id.startsWith('wall-')) maxWallProgress = Math.max(maxWallProgress, progress);
     }
 
     if (runtime.blueprint) {
-      const progress = beatProgress(blueprintBeat, stepped);
+      const progress = beatProgress(blueprintBeat, time);
       const visible = !!blueprintBeat && this.elapsed < (blueprintBeat.start + blueprintBeat.duration + 0.1);
       runtime.blueprint.group.visible = visible;
       runtime.blueprint.group.scale.setScalar(1 + 0.06 * (1 - progress));
-      if (runtime.blueprint.lineMaterial) (runtime.blueprint.lineMaterial as any).opacity = visible ? 0.55 + 0.35 * Math.sin(progress * Math.PI) : 0;
-      const pulse = 1 + Math.sin(stepped * Math.PI * 4) * 0.08;
+      if (runtime.blueprint.lineMaterial) (runtime.blueprint.lineMaterial as any).opacity = visible ? 0.17 + 0.24 * Math.sin(progress * Math.PI) : 0;
+      const pulse = 1 + Math.sin(time * Math.PI * 4) * 0.04;
       runtime.blueprint.ring.scale.setScalar(pulse);
-      if (runtime.blueprint.ringMaterial) (runtime.blueprint.ringMaterial as any).opacity = visible ? 0.6 + 0.3 * Math.sin(stepped * Math.PI * 4) : 0;
+      if (runtime.blueprint.ringMaterial) (runtime.blueprint.ringMaterial as any).opacity = visible ? 0.28 + 0.12 * Math.sin(time * Math.PI * 4) : 0;
     }
     if (runtime.door) {
       const target = timeline.mode === 'quick'
         ? Math.max(0, Math.min(1, (maxWallProgress - 0.68) / 0.32))
-        : beatProgress(doorBeat, stepped);
+        : beatProgress(doorBeat, time);
       this.setDoorOpacity(target);
     }
 
-    this.stepProps(stepped, propsBeat);
-    this.stepStickers(stepped, stickersBeat);
+    this.stepProps(time, propsBeat);
+    this.stepStickers(inkTime, stickersBeat);
 
-    if (wallsBeat && !this.wallSoundStarted && stepped >= wallsBeat.start) {
+    const soundEnabled = this.canPlayRevealSound();
+    if (wallsBeat && !this.wallSoundStarted && time >= wallsBeat.start) {
       this.wallSoundStarted = true;
-      if (garageState.preferences.revealSound) revealAudio.playWhoosh(false, wallsBeat.duration);
-    }
-    if (ceilingBeat && !this.ceilingSoundStarted && stepped >= ceilingBeat.start + ceilingBeat.duration * 0.75) {
-      this.ceilingSoundStarted = true;
-      if (garageState.preferences.revealSound) {
-        const lamp = runtime.props.find(prop => prop.id === 'lamp');
-        const point = lamp?.basePosition ?? runtime.seat;
-        revealAudio.playNeon({ x: point.x, y: point.y + 0.25, z: point.z }, true);
+      if (soundEnabled) {
+        const surface = runtime.surfaces.find(item => item.id.startsWith('wall-') && item.order === 0);
+        const wall = garageState.room?.walls.find(item => `wall-${item.id}` === surface?.id);
+        const position = wall ? this.cuePosition.set((wall.p0.x + wall.p1.x) / 2, runtime.floorY + 0.95, (wall.p0.z + wall.p1.z) / 2) : this.roomAudio;
+        revealAudio.playWhoosh(false, wallsBeat.start + wallsBeat.duration - time, position);
       }
     }
-    if (doorBeat && !this.doorSoundStarted && stepped >= doorBeat.start + 0.08) {
+    if (tableBeat && tableWipeVisible && !this.tableSoundStarted) {
+      this.tableSoundStarted = true;
+      const table = garageState.room?.table;
+      if (soundEnabled && table?.polygon.length && garageState.preferences.tableView === 'workbench') {
+        const center = this.cuePosition.set(0, table.topY, 0);
+        for (const vertex of table.polygon) {
+          center.x += vertex.x / table.polygon.length;
+          center.z += vertex.z / table.polygon.length;
+        }
+        revealAudio.playWorkbenchRoller(center, tableBeat.start + tableBeat.duration - time);
+      }
+    }
+    if (doorBeat && runtime.door?.group.visible && !this.doorSoundStarted) {
       this.doorSoundStarted = true;
-      if (runtime.door && garageState.preferences.revealSound) {
-        revealAudio.playDoor(runtime.door.group.getWorldPosition(this.doorwayAudio), doorBeat.duration);
+      if (soundEnabled) {
+        revealAudio.playDoor(this.hasDoorwayAudio ? this.doorwayAudio : this.roomAudio, doorBeat.start + doorBeat.duration - time);
       }
     }
-    if (doorBeat && runtime.door && !this.sunbeamSoundStarted && beatProgress(doorBeat, stepped) >= 0.75) {
+    if (doorBeat && runtime.door && !this.sunbeamSoundStarted && beatProgress(doorBeat, time) >= 0.75) {
       this.sunbeamSoundStarted = true;
-      if (garageState.preferences.revealSound) revealAudio.playSunbeam(runtime.door.group.getWorldPosition(this.doorwayAudio));
+      if (soundEnabled) revealAudio.playSunbeam(this.hasDoorwayAudio ? this.doorwayAudio : this.roomAudio);
     }
-    if (blueprintBeat && runtime.blueprint && !this.blueprintSoundStarted && stepped >= blueprintBeat.start) {
+    if (blueprintBeat && runtime.blueprint && !this.blueprintSoundStarted && time >= blueprintBeat.start) {
       this.blueprintSoundStarted = true;
-      if (garageState.preferences.revealSound) revealAudio.playBlueprint(blueprintBeat.duration);
+      if (soundEnabled) revealAudio.playBlueprint(blueprintBeat.start + blueprintBeat.duration - time, runtime.blueprint.ring.getWorldPosition(this.cuePosition));
     }
 
-    if (blueprintBeat && stepped >= blueprintBeat.start && stepped <= blueprintBeat.start + blueprintBeat.duration) {
-      const progress = beatProgress(blueprintBeat, stepped);
-      if (this.sprayCursor++ % 2 === 0) {
-        const seat = runtime.seat;
-        const angle = Math.random() * Math.PI * 2;
-        const radius = (0.15 + progress * (runtime.radius * 0.7));
-        this.particles?.spawnSpray(seat.x + Math.cos(angle) * radius, runtime.floorY + 0.02, seat.z + Math.sin(angle) * radius, 1);
-      }
-    }
-    if (floorBeat && stepped >= floorBeat.start && stepped <= floorBeat.start + floorBeat.duration) {
-      const progress = beatProgress(floorBeat, stepped);
-      if (this.sprayCursor++ % 3 === 0) {
+    if (floorBeat && time >= floorBeat.start && time < floorBeat.start + floorBeat.duration) {
+      const progress = beatProgress(floorBeat, time);
+      if (this.sprayCursor++ % 5 === 0) {
         const seat = runtime.seat;
         const angle = Math.random() * Math.PI * 2;
         const radius = 0.2 + progress * runtime.radius;
         const x = seat.x + Math.cos(angle) * radius;
         const z = seat.z + Math.sin(angle) * radius;
-        this.particles?.spawnSpray(x, runtime.floorY + 0.02, z, 2);
+        this.particles?.spawnSpray(x, runtime.floorY + 0.02, z, 1);
         revealAudio.moveSpray({ x, y: runtime.floorY + 0.05, z });
       }
       if (!this.sprayStarted) {
         this.sprayStarted = true;
-        this.particles?.spawnDust(runtime.seat.x, runtime.floorY + 0.5, runtime.seat.z, 10);
-        const sfx = garageState.preferences.revealSound;
-        if (sfx) revealAudio.startSpray({ x: runtime.seat.x, y: runtime.floorY + 0.1, z: runtime.seat.z });
+        this.particles?.spawnDust(runtime.seat.x, runtime.floorY + 0.5, runtime.seat.z, 4);
+        if (soundEnabled) revealAudio.startSpray({ x: runtime.seat.x, y: runtime.floorY + 0.1, z: runtime.seat.z });
       }
     }
-    if (floorBeat && stepped > floorBeat.start + floorBeat.duration) {
+    if (floorBeat && time >= floorBeat.start + floorBeat.duration) {
       if (this.sprayStarted) { this.sprayStarted = false; revealAudio.stopSpray(); }
     }
-    if (wallsBeat && doorBeat) {
-      const floorProgress = beatProgress(floorBeat, stepped);
-      if (floorProgress > 0.4 && floorProgress < 1) {
-        const progress = beatProgress(wallsBeat, stepped);
-        const angle = Math.random() * Math.PI * 2;
-        this.particles?.spawnSpray(runtime.seat.x + Math.cos(angle) * 1.2, runtime.floorY + 0.1 + progress * (runtime.ceilingY - runtime.floorY), runtime.seat.z + Math.sin(angle) * 1.2, 1);
-      }
-    }
     if (doorBeat) {
-      const progress = beatProgress(doorBeat, stepped);
-      if (progress > 0.05 && progress < 0.95 && this.sprayCursor++ % 4 === 0) {
+      const progress = beatProgress(doorBeat, time);
+      if (progress > 0.05 && progress < 0.95 && this.sprayCursor++ % 8 === 0) {
         const door = runtime.door?.group;
         const center = door ? door.position : runtime.seat;
-        this.particles?.spawnDust(center.x, runtime.floorY + 1.1, center.z, 2);
+        this.particles?.spawnDust(center.x, runtime.floorY + 1.1, center.z, 1);
       }
     }
-    if (finishBeat && !this.readySpawned && stepped >= finishBeat.start) {
+    if (finishBeat && !this.readySpawned && time >= finishBeat.start) {
       this.readySpawned = true;
       this.spawnReady(runtime);
-      if (garageState.preferences.revealSound) revealAudio.playChime({ x: runtime.seat.x, y: runtime.floorY + 1.5, z: runtime.seat.z });
       emit('reveal-ready');
     }
   }
 
+  private canPlayRevealSound() {
+    return this.audioVisible && garageState.preferences.revealSound;
+  }
+
   private stepStickers(stepped: number, beat: ReturnType<typeof beatOf>) {
     const runtime = this.runtime;
-    if (!runtime?.stickers?.length) return;
+    if (!beat || !runtime?.stickers?.length) return;
     const stickers = runtime.stickers;
     const count = stickers.length;
-    const base = beat?.start ?? 0;
-    const spread = beat?.duration ? Math.min(beat.duration * 0.72, 0.045 * count) : 0.8;
+    const base = beat.start;
+    const spread = Math.min(beat.duration * 0.72, 0.045 * count);
     const interval = count > 1 ? spread / (count - 1) : 0;
     for (let index = 0; index < count; index++) {
       const sticker = stickers[index];
@@ -484,7 +509,8 @@ export class RevealSystem extends createSystem({}) {
         continue;
       }
       sticker.object.visible = true;
-      const t = clamp((stepped - start) / sticker.duration, 0, 1);
+      const duration = Math.min(sticker.duration, beat.duration - index * interval);
+      const t = clamp((stepped - start) / duration, 0, 1);
       const eased = easeOutCubic(t);
       const lift = (1 - eased) * 0.045;
       sticker.object.position.copy(sticker.basePosition).addScaledVector(sticker.normal, lift);
@@ -493,6 +519,10 @@ export class RevealSystem extends createSystem({}) {
       sticker.object.rotateZ((1 - eased) * sticker.roll);
       if (!sticker.landed && t >= 0.82) {
         sticker.landed = true;
+        if (!this.stickerSoundStarted) {
+          this.stickerSoundStarted = true;
+          if (this.canPlayRevealSound()) revealAudio.playStickerSnap(sticker.basePosition);
+        }
         if (this.particles && index % 3 === 0) {
           this.particles.spawnPoof(sticker.basePosition.x, sticker.basePosition.y, sticker.basePosition.z, { r: 0.95, g: 0.9, b: 0.75 } as any, 2);
         }
@@ -500,7 +530,7 @@ export class RevealSystem extends createSystem({}) {
     }
   }
 
-  private stepProps(stepped: number, propsBeat: ReturnType<typeof beatOf>) {
+  private stepProps(time: number, propsBeat: ReturnType<typeof beatOf>) {
     const runtime = this.runtime;
     if (!runtime) return;
     const count = Math.max(1, runtime.props.length);
@@ -517,12 +547,14 @@ export class RevealSystem extends createSystem({}) {
         prop.object.scale.copy(prop.baseScale);
         continue;
       }
-      if (stepped < start) {
+      if (time < start) {
         prop.object.visible = false;
         continue;
       }
       prop.object.visible = prop.finalVisible;
-      const t = clamp((stepped - start) / prop.dropDuration, 0, 1);
+      // Reserve part of the prop beat for the lamp flicker before READY.
+      const dropDuration = Math.min(prop.dropDuration, propsBeat.duration * 0.32);
+      const t = clamp((time - start) / dropDuration, 0, 1);
       const eased = easeOutCubic(t);
       prop.object.position.set(
         prop.basePosition.x,
@@ -532,30 +564,37 @@ export class RevealSystem extends createSystem({}) {
       if (!prop.landed && t >= 1) {
         prop.landed = true;
         const scale = prop.baseScale;
-        this.particles?.spawnPoof(prop.basePosition.x, prop.basePosition.y + 0.04, prop.basePosition.z, { r: 1, g: 0.83, b: 0.55 } as any, 7);
-        const word: PopWord = prop.priority === 0 || i % 4 === 0 ? 'THUD!' : 'POP!';
-        this.particles?.spawnPop(word, prop.basePosition.x, prop.basePosition.y + 0.24, prop.basePosition.z, 0.24, { r: 1, g: 0.95, b: 0.8 } as any);
-        if (prop.finalVisible && garageState.preferences.revealSound) {
+        if (prop.finalVisible && prop.priority === 0) {
+          this.particles?.spawnPoof(prop.basePosition.x, prop.basePosition.y + 0.04, prop.basePosition.z, { r: 1, g: 0.83, b: 0.55 } as any, 3);
+        }
+        if (prop.finalVisible && this.canPlayRevealSound()) {
           const material = ['shelf', 'crates', 'pegboard'].includes(prop.id) ? 'wood'
-            : ['trash', 'paint-cans', 'toolbox', 'mini-fridge', 'lamp'].includes(prop.id) ? 'metal' : undefined;
+            : ['trash', 'toolbox', 'mini-fridge', 'lamp'].includes(prop.id) ? 'metal' : undefined;
           if (prop.id === 'neon') revealAudio.playNeon(prop.basePosition);
-          else revealAudio.playThud(prop.basePosition, Math.min(1.2, 0.6 + scale.x * 0.2), material);
+          else if (prop.id !== 'lamp' || !this.lampGlow) {
+            revealAudio.playThud(prop.basePosition, Math.min(1.2, 0.6 + scale.x * 0.2), material);
+          }
         }
       }
-      const landing = clamp((stepped - (start + prop.dropDuration)) / 0.16, 0, 1);
+      const sinceLanding = time - (start + dropDuration);
+      const landing = clamp(sinceLanding / 0.16, 0, 1);
       const squash = t >= 1 ? Math.sin(landing * Math.PI) : 0;
       prop.object.scale.set(
-        prop.baseScale.x * (1 + squash * 0.10),
-        prop.baseScale.y * (1 - squash * 0.18),
-        prop.baseScale.z * (1 + squash * 0.10),
+        prop.baseScale.x * (1 + squash * 0.04),
+        prop.baseScale.y * (1 - squash * 0.07),
+        prop.baseScale.z * (1 + squash * 0.04),
       );
       if (prop.id === 'lamp' && this.lampGlow?.material) {
-        const settle = clamp((stepped - (start + prop.dropDuration)) / 0.42, 0, 1);
-        const on = settle >= 0.28 && (Math.sin((settle - 0.28) * Math.PI * 2) > -0.25 || settle > 0.92);
+        const settle = clamp(sinceLanding / Math.min(0.42, propsBeat.duration * 0.25), 0, 1);
+        const on = prop.finalVisible && settle >= 0.28 && (Math.sin((settle - 0.28) * Math.PI * 2) > -0.25 || settle > 0.92);
         this.lampGlow.material.opacity = on ? 0.86 : 0;
+        if (on && !this.lampActivated) {
+          this.lampActivated = true;
+          if (this.canPlayRevealSound()) revealAudio.playLampSwitch(this.lampGlow.getWorldPosition(this.cuePosition));
+        }
       }
       if (prop.id === 'neon' && t >= 1) {
-        const flicker = clamp((stepped - (start + prop.dropDuration)) / 0.45, 0, 1);
+        const flicker = clamp(sinceLanding / 0.45, 0, 1);
         prop.object.visible = flicker >= 1 ? prop.finalVisible : Math.sin(flicker * Math.PI * 2) > -0.20;
       }
     }
@@ -568,7 +607,7 @@ export class RevealSystem extends createSystem({}) {
     const x = position.x + direction.x * 1.15;
     const z = position.z + direction.z * 1.15;
     this.particles?.spawnPop('READY!', x, position.y + 0.10, z, 0.42, { r: 0.91, g: 1, b: 0.16 } as any);
-    this.particles?.spawnPop('LEFT WRIST', position.x + direction.x * 1.02, position.y - 0.16, position.z + direction.z * 1.02, 0.28, { r: 0.19, g: 0.89, b: 1 } as any);
+    if (this.canPlayRevealSound()) revealAudio.playChime({ x, y: position.y + 0.10, z });
     const neon = runtime.props.find(prop => prop.id === 'neon');
     if (neon) neon.object.visible = true;
     emit('status', 'GARAGE READY');
@@ -643,6 +682,8 @@ export class RevealSystem extends createSystem({}) {
     } else {
       this.dissolveStart = this.elapsed;
       this.dissolveFrom = (this.runtime?.surfaces ?? []).map(surface => surface.uniforms.uRevealProgress.value);
+      revealAudio.stopSpray();
+      revealAudio.stopRevealSamples();
       this.particles?.clear();
       console.info('[reveal] adaptive fallback 3: simple 0.6 s dissolve');
       emit('status', 'Reveal quality: simplified dissolve');
@@ -674,19 +715,6 @@ export class RevealSystem extends createSystem({}) {
     if (progress >= 1) this.finishReveal(false);
   }
 
-  private checkInputSkip(dt: number) {
-    const right = this.input.xr.gamepads.right;
-    if (right?.getButtonPressed(InputComponent.B_Button) || right?.getButtonPressed(InputComponent.A_Button)) {
-      this.bHold += dt;
-      if (this.bHold > 0.6) {
-        this.bHold = 0;
-        this.skip();
-      }
-    } else {
-      this.bHold = 0;
-    }
-  }
-
   leave() {
     const runtime = this.runtime;
     if (!runtime || this.leaving) return;
@@ -696,6 +724,7 @@ export class RevealSystem extends createSystem({}) {
     this.leaveFrom = runtime.surfaces.map(surface => surface.uniforms.uRevealProgress.value);
     if (runtime.blueprint) runtime.blueprint.group.visible = false;
     this.particles?.clear();
+    revealAudio.stopRevealSamples();
     revealAudio.stopGameplaySamples();
     revealAudio.updateAmbience(false, null);
     emit('reveal-leave-started');
@@ -742,10 +771,6 @@ export class RevealSystem extends createSystem({}) {
     }
   }
 
-  skip() {
-    if (this.active) this.finishReveal(true);
-  }
-
   finishReveal(skipped: boolean) {
     if (!this.active || this.finished) return;
     const runtime = this.runtime;
@@ -757,6 +782,7 @@ export class RevealSystem extends createSystem({}) {
       }
       if (runtime.blueprint) runtime.blueprint.group.visible = false;
       this.setDoorOpacity(1);
+      if (this.lampGlow?.material) this.lampGlow.material.opacity = 0.86;
       for (const prop of runtime.props) {
         prop.object.visible = prop.finalVisible;
         prop.object.position.copy(prop.basePosition);

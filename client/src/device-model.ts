@@ -403,12 +403,32 @@ export function rememberDevice(room: RoomModel, device: DeviceRecord): DeviceMem
   return { device: devicesToSeat(frame, [device])[0], reference };
 }
 
-export function restoreDevice(room: RoomModel, memory: DeviceMemory): DeviceRecord | null {
+function matchRoomFrame(room: RoomModel, reference: DeviceReference) {
   const candidates = [0, 1, 2, 3].map(turn => deviceFrame(room, turn))
-    .map(({ frame, reference }) => ({ frame, error: referenceDistance(memory.reference, reference) }))
+    .map(candidate => ({ frame: candidate.frame, error: referenceDistance(reference, candidate.reference) }))
     .sort((a, b) => a.error - b.error);
   if (!Number.isFinite(candidates[0].error) || candidates[1].error - candidates[0].error < 0.10) return null;
-  return devicesFromSeat(candidates[0].frame, [memory.device])[0];
+  return candidates[0].frame;
+}
+
+export function restoreDevice(room: RoomModel, memory: DeviceMemory): DeviceRecord | null {
+  const frame = matchRoomFrame(room, memory.reference);
+  return frame ? devicesFromSeat(frame, [memory.device])[0] : null;
+}
+
+export type RoomPointMemory = { point: Vec3; reference: DeviceReference };
+
+export function rememberRoomPoint(room: RoomModel, point: Vec3): RoomPointMemory {
+  const { frame, reference } = deviceFrame(room);
+  const local = worldToSeat(frame, point, 0).point;
+  return { point: { ...local, y: point.y - room.floor.y }, reference };
+}
+
+export function restoreRoomPoint(room: RoomModel, memory: RoomPointMemory): Vec3 | null {
+  const frame = matchRoomFrame(room, memory.reference);
+  if (!frame) return null;
+  const position = seatToWorld(frame, memory.point, 0).point;
+  return { ...position, y: room.floor.y + memory.point.y };
 }
 
 function readCollection(): DeviceCollection | LegacyDeviceCollection | null {

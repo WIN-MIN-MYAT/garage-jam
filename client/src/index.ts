@@ -12,6 +12,7 @@ import { NudgeSystem } from './systems/nudge-system.js';
 import { WhiteboardSystem } from './systems/whiteboard-system.js';
 import { PresenceSystem } from './systems/presence-system.js';
 import { MonitorManagerSystem } from './systems/monitor-manager-system.js';
+import { PointerOverlaySystem } from './systems/pointer-overlay-system.js';
 import { HudSystem } from './systems/hud-system.js';
 import { SunsetSystem } from './systems/sunset-system.js';
 import { CutoutSpikeSystem } from './systems/cutout-spike-system.js';
@@ -147,6 +148,7 @@ function startApp() {
       world.registerSystem(WhiteboardSystem);
       world.registerSystem(PresenceSystem);
       world.registerSystem(MonitorManagerSystem);
+      world.registerSystem(PointerOverlaySystem);
     } else {
       world.registerSystem(HudSystem);
     }

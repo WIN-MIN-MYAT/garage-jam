@@ -43,12 +43,6 @@
     </div>
   </Panel>
 
-  <Panel id="page-reveal" class="page" style="display: none">
-    <div class="title">PAINTING THE GARAGE</div>
-    <div class="body">Your room is becoming the garage. Hold B for a second to skip.</div>
-    <button id="flow-skip" class="button-cyan">SKIP REVEAL</button>
-  </Panel>
-
   <Panel id="page-mode" class="page" style="display: none">
     <div class="title">HOW DO YOU WANT TO WORK?</div>
     <div class="row">

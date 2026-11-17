@@ -10,7 +10,7 @@ The starred decisions were answered on 2026-11-17 and are implemented. A few imp
 - **Monitor manager.** Added grab/move, monitor selection, width/height resize controls, curve, lock, presets (arc, table, stacked, ultrawide, free), saved layout, and recenter. The **table** preset places the monitors above the measured table. The manager is opened from the wrist Room page.
 - **Focus door trigger.** Wrist start/pause remains the trigger; the procedural shutter and countdown are unchanged.
 - **Top 3 pin interaction.** Releasing a flat paper near the corkboard freezes the paper on the board and pins its task. Pinned tasks spawn on the corkboard next session.
-- **Whiteboard reset.** Added **Clear board** as the bottom-right Settings action.
+- **Whiteboard reset.** Added **Clear board** to the wrist SET grid.
 - **Plugin sign-in from the headset.** The headset no longer navigates away. It shows a pairing code and `/connect`; the phone/laptop claims the code, and the OAuth result is stored against the headset profile and polled back into XR.
 - **Calendar provider naming.** Kept `CALENDAR_*` with the exact callback `/api/plugins/calendar/callback`.
 - **Weather configuration.** Kept Open-Meteo; a plugin connection or `WEATHER_LATITUDE` / `WEATHER_LONGITUDE` supplies the location.

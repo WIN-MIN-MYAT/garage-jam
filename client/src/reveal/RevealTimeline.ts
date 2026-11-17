@@ -23,6 +23,10 @@ export type RevealTimeline = {
 };
 
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
+const fullSfx: Partial<Record<RevealBeatId, string>> = {
+  blueprint: 'draw', floor: 'spray', walls: 'whoosh', door: 'beam',
+  stickers: 'sticker-snap', table: 'workbench-roller', props: 'thud', finish: 'chime',
+};
 
 export function roomScale(roomDiagonal: number) {
   return clamp(roomDiagonal / 6, 0.82, 1.18);
@@ -36,7 +40,7 @@ function scaledFullBeats(scale: number): RevealBeat[] {
     duration: Math.max(0.12, duration * scale),
     targets: [id],
     effect: id === 'blueprint' ? 'blueprint' : id === 'finish' ? 'ready-pop' : id,
-    sfx: id === 'floor' ? 'spray' : id === 'walls' ? 'whoosh' : id === 'ceiling' ? 'roll' : id === 'door' ? 'beam' : id === 'props' ? 'thud' : id === 'finish' ? 'chime' : undefined,
+    sfx: fullSfx[id],
   }));
 }
 
@@ -45,7 +49,7 @@ function quickBeats(scale: number): RevealBeat[] {
     { id: 'welcome', start: 0, duration: 0.18, targets: ['welcome'], effect: 'welcome-pop' },
     { id: 'floor', start: 0.08, duration: 0.62, targets: ['floor'], effect: 'floor', sfx: 'spray' },
     { id: 'walls', start: 0.42, duration: 0.86, targets: ['walls'], effect: 'walls', sfx: 'whoosh' },
-    { id: 'stickers', start: 1.12, duration: 0.58, targets: ['stickers'], effect: 'stickers' },
+    { id: 'stickers', start: 1.12, duration: 0.58, targets: ['stickers'], effect: 'stickers', sfx: fullSfx.stickers },
     { id: 'props', start: 0.92, duration: 1.05, targets: ['props'], effect: 'props', sfx: 'thud' },
     { id: 'finish', start: 2.16, duration: 0.22, targets: ['finish'], effect: 'ready-pop', sfx: 'chime' },
   ];
@@ -72,7 +76,7 @@ export function buildRevealTimeline(options: {
     const duration = config.reducedDuration;
     return {
       mode: 'dissolve', duration, scale, fps, roomDiagonal, reducedMotion: true, revealOff: false,
-      beats: [{ id: 'dissolve', start: 0, duration, targets: ['all'], effect: 'dissolve', sfx: 'whoosh' }],
+      beats: [{ id: 'dissolve', start: 0, duration, targets: ['all'], effect: 'dissolve' }],
     };
   }
   if (options.mode === 'props') {
@@ -82,8 +86,10 @@ export function buildRevealTimeline(options: {
     };
   }
   if (options.mode === 'quick') {
-    const base = quickBeats(scale).map(beat => ({ ...beat, start: beat.start / speed, duration: beat.duration / speed }));
-    const duration = clamp(Math.max(...base.map(beat => beat.start + beat.duration)), 2, 3);
+    const beats = quickBeats(scale);
+    const tempo = Math.max(speed, ...beats.map(beat => (beat.start + beat.duration) / 3));
+    const base = beats.map(beat => ({ ...beat, start: beat.start / tempo, duration: beat.duration / tempo }));
+    const duration = Math.max(2, ...base.map(beat => beat.start + beat.duration));
     return { mode: 'quick', duration, scale, fps, roomDiagonal, reducedMotion: false, revealOff: false, beats: base };
   }
   const baseFull = config.fullDuration * scale;
