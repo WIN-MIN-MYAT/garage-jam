@@ -29,6 +29,13 @@ export class PluginSystem extends createSystem({}) {
   private pollTimer = 0;
   private lastPoll = 0;
   private active = false;
+  private spotifyPlayer: any = null;
+  private spotifyDeviceId?: string;
+  private spotifySdkPromise?: Promise<void>;
+  private spotifyHeadsetStarting = false;
+  private headsetRequested = false;
+  private headsetStatus: 'idle' | 'loading' | 'ready' | 'error' = 'idle';
+  private headsetMessage = '';
 
   init() {
     revealAudio.setMusicVolume(garageState.preferences.musicVolume);
@@ -45,6 +52,7 @@ export class PluginSystem extends createSystem({}) {
     const refresh = () => { void this.refresh(); };
     const connect = (event: Event) => { void this.connect((event as CustomEvent<{ provider: string }>).detail?.provider); };
     const action = (event: Event) => { void this.playerAction((event as CustomEvent).detail); };
+    const headsetEnable = () => { this.headsetRequested = true; void this.ensureHeadsetPlayer(); };
     const musicPlay = () => { void this.playMusic(); };
     const musicStop = () => { void this.stopMusic(); };
     const volume = (event: Event) => {
@@ -54,6 +62,7 @@ export class PluginSystem extends createSystem({}) {
     garageEvents.addEventListener('plugin-refresh', refresh);
     garageEvents.addEventListener('plugin-connect', connect);
     garageEvents.addEventListener('spotify-action', action);
+    garageEvents.addEventListener('spotify-headset-enable', headsetEnable);
     garageEvents.addEventListener('music-play', musicPlay);
     garageEvents.addEventListener('music-stop', musicStop);
     garageEvents.addEventListener('music-volume', volume);
@@ -75,6 +84,8 @@ export class PluginSystem extends createSystem({}) {
         get weather() { return system.weather; },
         get devices() { return system.devices; },
         get playlists() { return system.playlists; },
+        get headset() { return { status: system.headsetStatus, deviceId: system.spotifyDeviceId, message: system.headsetMessage }; },
+        enableHeadset: () => system.ensureHeadsetPlayer(),
         refresh: () => system.refresh(),
         player: (detail: any) => system.playerAction(detail),
       };
@@ -85,9 +96,12 @@ export class PluginSystem extends createSystem({}) {
       garageEvents.removeEventListener('plugin-refresh', refresh);
       garageEvents.removeEventListener('plugin-connect', connect);
       garageEvents.removeEventListener('spotify-action', action);
+      garageEvents.removeEventListener('spotify-headset-enable', headsetEnable);
       garageEvents.removeEventListener('music-play', musicPlay);
       garageEvents.removeEventListener('music-stop', musicStop);
       garageEvents.removeEventListener('music-volume', volume);
+      this.spotifyPlayer?.disconnect?.();
+      this.spotifyPlayer = null;
     });
   }
 
@@ -128,10 +142,105 @@ export class PluginSystem extends createSystem({}) {
       if (!response.ok) return;
       this.statuses = await response.json();
       emit('plugin-status', this.statuses);
+      if (!this.statuses.spotify?.connected) this.resetHeadsetPlayer();
+      else if (this.headsetRequested) void this.ensureHeadsetPlayer();
       if (this.statuses.spotify?.connected) void this.pollSpotify();
       if (this.statuses.calendar?.connected) void this.pollCalendar();
       if (this.statuses.weather?.connected) void this.pollWeather();
     } catch { /* offline is fine */ }
+  }
+
+  private emitHeadset(status: 'idle' | 'loading' | 'ready' | 'error', message: string, deviceId?: string, detail = '') {
+    this.headsetStatus = status;
+    this.headsetMessage = message;
+    if (detail) console.warn('[spotify-headset]', detail);
+    if (status === 'error' && detail) emit('status', detail);
+    emit('spotify-headset', { status, message, deviceId });
+  }
+
+  private resetHeadsetPlayer() {
+    if (this.spotifyPlayer) {
+      try { void this.spotifyPlayer.disconnect?.(); } catch { /* noop */ }
+      this.spotifyPlayer = null;
+    }
+    this.spotifyDeviceId = undefined;
+    this.spotifySdkPromise = undefined;
+    this.spotifyHeadsetStarting = false;
+    this.emitHeadset('idle', '');
+  }
+
+  private loadSpotifySdk() {
+    if ((window as any).Spotify?.Player) return Promise.resolve();
+    if (this.spotifySdkPromise) return this.spotifySdkPromise;
+    this.spotifySdkPromise = new Promise<void>((resolve, reject) => {
+      (window as any).onSpotifyWebPlaybackSDKReady = () => resolve();
+      const script = document.createElement('script');
+      script.src = 'https://sdk.scdn.co/spotify-player.js';
+      script.async = true;
+      script.onerror = () => reject(new Error('Spotify player script failed to load.'));
+      document.head.appendChild(script);
+      window.setTimeout(() => {
+        if ((window as any).Spotify?.Player) resolve();
+        else reject(new Error('Spotify player SDK unavailable in this browser.'));
+      }, 10000);
+    });
+    return this.spotifySdkPromise;
+  }
+
+  private async headsetToken() {
+    const response = await this.api('/api/plugins/spotify/headset-token');
+    if (!response.ok) {
+      const body = await response.json().catch(() => ({}));
+      throw new Error(body.error ?? 'Spotify token unavailable.');
+    }
+    const data = await response.json();
+    if (typeof data.access !== 'string' || !data.access) throw new Error('Spotify token missing.');
+    return data.access;
+  }
+
+  private async ensureHeadsetPlayer() {
+    if (this.spotifyPlayer || this.spotifyHeadsetStarting) return;
+    if (!this.statuses.spotify?.connected) {
+      this.emitHeadset('idle', 'Connect Spotify first.');
+      return;
+    }
+    this.spotifyHeadsetStarting = true;
+    this.emitHeadset('loading', 'Starting headset audio...');
+    try {
+      await this.loadSpotifySdk();
+      const Spotify = (window as any).Spotify;
+      const player = new Spotify.Player({
+        name: 'Garage Jam Headset',
+        volume: 0.8,
+        getOAuthToken: (callback: (token: string) => void) => {
+          void this.headsetToken().then(callback).catch(error => {
+            this.emitHeadset('error', 'Spotify token failed', undefined, `Spotify headset token failed: ${String(error?.message ?? error)}`);
+          });
+        },
+      });
+      this.spotifyPlayer = player;
+      player.addListener('ready', ({ device_id }: { device_id: string }) => {
+        this.spotifyDeviceId = device_id;
+        this.emitHeadset('ready', 'Headset audio ready', device_id);
+        void this.pollSpotifyExtras();
+        void this.playerAction({ action: 'transfer', deviceId: device_id, play: false });
+      });
+      player.addListener('not_ready', () => {
+        this.spotifyDeviceId = undefined;
+        this.emitHeadset('error', 'Headset player offline', undefined, 'Spotify headset player is offline.');
+      });
+      player.addListener('initialization_error', ({ message }: { message: string }) => this.emitHeadset('error', 'Headset audio unavailable', undefined, `Spotify headset audio unavailable: ${message}`));
+      player.addListener('authentication_error', ({ message }: { message: string }) => this.emitHeadset('error', 'Reconnect Spotify', undefined, `Spotify headset authentication failed: ${message}`));
+      player.addListener('account_error', ({ message }: { message: string }) => this.emitHeadset('error', 'Spotify Premium required', undefined, `Spotify headset account error: ${message}`));
+      player.addListener('autoplay_failed', () => this.emitHeadset('error', 'Tap Play again', undefined, 'Spotify headset autoplay was blocked.'));
+      const connected = await player.connect();
+      if (!connected) this.emitHeadset('error', 'Headset player failed', undefined, 'Spotify headset player did not connect.');
+    } catch (error) {
+      this.spotifySdkPromise = undefined;
+      this.emitHeadset('error', 'Headset audio unavailable', undefined, String((error as Error)?.message ?? error));
+    } finally {
+      this.spotifyHeadsetStarting = false;
+    }
   }
 
   private async pollSpotify() {
@@ -177,7 +286,10 @@ export class PluginSystem extends createSystem({}) {
     } catch { /* no weather */ }
   }
 
-  private async playerAction(detail: { action?: string; value?: any; deviceId?: string; contextUri?: string; uris?: string[] }) {
+  private async playerAction(detail: { action?: string; value?: any; deviceId?: string; contextUri?: string; uris?: string[]; play?: boolean }) {
+    if (this.spotifyPlayer) {
+      try { void this.spotifyPlayer.activateElement?.().catch?.(() => { /* autoplay may be blocked */ }); } catch { /* optional */ }
+    }
     if (!this.statuses.spotify?.connected) {
       emit('status', 'Connect Spotify in Plugins first.');
       return;
@@ -200,6 +312,13 @@ export class PluginSystem extends createSystem({}) {
 
   private async playMusic() {
     if (this.statuses.spotify?.connected) {
+      if (this.headsetRequested && this.headsetStatus === 'loading') {
+        emit('status', 'Starting headset audio. Press Play again in a moment.');
+        return;
+      }
+      if (this.headsetRequested && this.headsetStatus !== 'ready' && this.headsetStatus !== 'error') {
+        await this.ensureHeadsetPlayer();
+      }
       await this.playerAction({ action: 'play' });
       return;
     }

@@ -161,16 +161,20 @@ The shared-account path uses one Spotify account (ideally a dedicated Premium de
 
 1. Set `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI=https://garagejam.com/api/plugins/spotify/callback` on the host.
 2. Add `PLUGIN_SHARED_PROFILE` (20–80 letters/numbers/underscores) to the host environment. `render.yaml` sets a default value.
-3. Open `https://garagejam.com/api/plugins/manage` from your browser and connect Spotify once. The token is stored under the shared profile.
-4. Keep a Spotify client open and awake on a laptop or phone and select it as the playback device in the wrist Music page.
-5. Set `PLUGIN_DEMO_LOCK=1` and redeploy. Visitors can still play/pause/next/volume, but cannot replace or disconnect the shared account.
+3. Open `https://garagejam.com/api/plugins/manage` from your browser and connect Spotify once. The token is stored under the shared profile. If you connected before the headset-player update, set `PLUGIN_DEMO_LOCK=0`, disconnect and reconnect Spotify to grant the new streaming scopes, then lock again.
+4. In the headset, open wrist **MUSIC**. The app loads the Spotify Web Playback SDK, creates a **Garage Jam Headset** player, and transfers playback to it. Press **PLAYLIST** or **PLAY**; audio comes out of the headset.
+5. Set `PLUGIN_DEMO_LOCK=1` and redeploy. Visitors can still play/pause/next, but cannot replace or disconnect the shared account.
 
-Judges never log into Spotify and never need to be added to the Spotify app's allowlist. Only the demo account authorizing the app needs to be allowed; as the app owner it normally already is. The refresh token stays on the server; no password or token is exposed to visitors.
+The default scopes now include `streaming user-read-email user-read-private`. Existing Spotify connections created before this change must be disconnected and reconnected to grant the new scopes. If the Spotify app was created without the **Web Playback SDK** API enabled, enable it in the Spotify developer dashboard.
+Judges never log into Spotify and never need to be added to the Spotify app's allowlist. Only the demo account authorizing the app needs to be allowed; as the app owner it normally already is. The refresh token stays on the server; the browser receives a short-lived access token only to run the headset player.
 
 Caveats:
 
-- Judges are controlling the host's playback. Use a dedicated account with a neutral display name and a demo playlist.
-- Spotify Premium and an active playback device are required.
+- The song plays through the SDK player in the visitor's headset browser. A full Spotify Premium account is required; Lite/Mini/mobile-only Premium is not enough.
+- One Spotify account can play on **one device at a time**. If several judges open Music simultaneously, the last player takes over. For simultaneous listeners, use individual accounts or a licensed stream.
+- The SDK requires EME/Widevine support. Quest Browser supports Spotify's web player; verify headset audio on the physical device.
+- The shared browser receives a short-lived host access token. Use a dedicated demo account and do not use a personal account with sensitive playlists.
+- Judges are controlling the shared account's playback. Use a neutral display name and a demo playlist.
 - Spotify's Development Mode user limit still applies if judges try to connect **their own** accounts. That requires their emails or Extended Quota Mode. The shared-account path avoids it.
 - Use music that is available in the host account's market; judges' countries do not change the account's catalog.
 - `PLUGIN_SHARED_PROFILE` shares all plugin tokens (Spotify, Notion OAuth, Calendar, Weather). Use demo calendar/weather data or skip those connectors if you do not want visitors to see personal data.

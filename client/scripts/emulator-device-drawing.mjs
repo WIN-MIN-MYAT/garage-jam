@@ -155,10 +155,13 @@ try {
   assert.equal(setup.passthroughOutline, true);
   await deviceClick('dev-done');
   await page.waitForFunction(() => window.garageBuildDebug.root.visible);
+  await page.waitForFunction(() =>
+    window.garageEmulatorWorld.scene.getObjectByName('Device display Monitor')?.getObjectByName('Low-poly monitor'));
   assert.equal(await page.evaluate(() => {
     const scene = window.garageEmulatorWorld.scene;
     const display = scene.getObjectByName('Device display Monitor');
-    return !display.visible && !display.getObjectByName('Monitor bezel') && scene.getObjectByName('Device occluders Monitor').visible;
+    return display.visible && !display.getObjectByName('Virtual display').visible
+      && scene.getObjectByName('Device occluders Monitor').visible;
   }), true);
   await page.evaluate(() => window.garageEmulatorWorld.getSceneObject('garage-hud')
     .requireElementById('passthrough-button').dispatchEvent({ type: 'click' }));
@@ -197,7 +200,7 @@ try {
   });
   assert.ok(Math.abs(flat.a.y - flat.b.y) < 0.001 && Math.abs(flat.a.y - flat.zoneY) < 0.001, 'desk marks and the saved zone use one surface');
   assert.deepEqual(errors, []);
-  console.log('Independent controller and hand marks, corner undo, UI ownership, desk alignment, passthrough outlines, bezel-free cutout and reload persistence passed.');
+  console.log('Controller and hand marks, UI ownership, desk alignment, fitted monitor and passthrough cutout, and reload persistence passed.');
 } finally {
   await browser.close();
 }

@@ -1,30 +1,50 @@
-import { createSystem, loadUIKitMLAsset, PokeInteractable, RayInteractable, Vector3 } from '@iwsdk/core';
+import { createSystem, loadUIKitMLAsset, PokeInteractable, RayInteractable, Vector3, VisibilityState } from '@iwsdk/core';
 import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
+import { garageState, setPreference } from '../garage-state.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
 import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
 import { StreamSystem } from './stream-system.js';
 
-const presets = ['arc', 'table', 'stacked', 'ultrawide', 'free'] as const;
+type Page = 'layout' | 'connect';
+const streamLabels: Record<string, string> = {
+  off: 'Disabled', live: 'Sharing', connecting: 'Connecting', recovering: 'Reconnecting',
+  degraded: 'Connection interrupted', 'source-paused': 'Sharing paused', failed: 'Check laptop connection',
+};
 
 export class MonitorManagerSystem extends createSystem({}) {
   private panel?: UIKitMLAsset;
   private stream?: StreamSystem;
+  private page: Page = 'layout';
   private open = false;
 
   init() {
     this.stream = this.world.getSystem(StreamSystem) ?? undefined;
-    const onOpen = () => this.show();
-    const onLayout = () => { if (this.open) this.refresh(); };
+    const onOpen = () => this.show('layout');
+    const onConnect = () => this.show('connect');
+    const onChange = () => { if (this.open) this.refresh(); };
+    const onHidden = () => this.hide();
     garageEvents.addEventListener('monitor-manager-open', onOpen);
-    garageEvents.addEventListener('monitor-layout', onLayout);
+    garageEvents.addEventListener('stream-guide-open', onConnect);
+    garageEvents.addEventListener('monitor-layout', onChange);
+    garageEvents.addEventListener('monitor-status', onChange);
+    garageEvents.addEventListener('mode-changed', onChange);
+    garageEvents.addEventListener('room-hidden', onHidden);
+    this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
+      if (state !== VisibilityState.Visible) this.hide();
+    }));
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('monitor-manager-open', onOpen);
-      garageEvents.removeEventListener('monitor-layout', onLayout);
-      this.stream?.setLayoutEditing(false);
+      garageEvents.removeEventListener('stream-guide-open', onConnect);
+      garageEvents.removeEventListener('monitor-layout', onChange);
+      garageEvents.removeEventListener('monitor-status', onChange);
+      garageEvents.removeEventListener('mode-changed', onChange);
+      garageEvents.removeEventListener('room-hidden', onHidden);
+      this.hide();
       this.panel?.dispose();
     });
-    void this.createPanel().catch(error => emit('status', `Monitor panel failed: ${String(error)}`));
+    void this.createPanel().catch(error => emit('status', 'Monitor panel failed: ' + String(error)));
   }
 
   private async createPanel() {
@@ -37,46 +57,43 @@ export class MonitorManagerSystem extends createSystem({}) {
     entity.addComponent(RayInteractable, {});
     entity.addComponent(PokeInteractable, {});
     this.panel = panel;
-    new PanelInput(panel, () => { /* keep open while pressed */ });
+    new PanelInput(panel, () => {});
     const on = (id: string, action: () => void) => bindPress(panel, id, () => { revealAudio.playPress(panel); action(); });
     on('mm-close', () => this.hide());
-    for (let index = 0; index < 3; index++) on(`mm-monitor-${index + 1}`, () => this.emit('monitor-select', { index }));
-    on('mm-preset', () => {
-      const state = this.stream?.managerState();
-      const index = presets.indexOf((state?.preset ?? 'arc') as typeof presets[number]);
-      this.emit('monitor-preset', { preset: presets[(index + 1) % presets.length] });
+    on('mm-sharing', () => this.show('connect'));
+    on('mm-back', () => this.show('layout'));
+    on('mm-layout-desk', () => this.stream?.setPreset('desk'));
+    on('mm-layout-arc', () => this.stream?.setPreset('arc'));
+    on('mm-use-streaming', () => {
+      setPreference('mode', 'streaming');
+      emit('mode-changed', 'streaming');
     });
-    on('mm-curve-down', () => this.emit('monitor-curve', { delta: -0.08 }));
-    on('mm-curve-up', () => this.emit('monitor-curve', { delta: 0.08 }));
-    on('mm-width-down', () => this.emit('monitor-resize', { dw: -0.06, dh: 0 }));
-    on('mm-width-up', () => this.emit('monitor-resize', { dw: 0.06, dh: 0 }));
-    on('mm-height-down', () => this.emit('monitor-resize', { dw: 0, dh: -0.06 }));
-    on('mm-height-up', () => this.emit('monitor-resize', { dw: 0, dh: 0.06 }));
-    on('mm-lock', () => this.emit('monitor-lock'));
-    on('mm-recenter', () => this.emit('monitor-preset', { preset: 'arc' }));
-    on('mm-save', () => { this.emit('monitor-save'); emit('monitor-layout', this.stream?.managerState()); });
-    this.refresh();
-    if (location.hostname === 'localhost') (window as any).garageMonitorDebug = { show: () => this.show(), hide: () => this.hide(), state: () => this.stream?.managerState() };
+    for (let index = 0; index < 3; index++) on('mm-monitor-' + (index + 1), () => this.stream?.toggleMonitor(index));
+    if (this.open) this.show(this.page);
+    if (location.hostname === 'localhost') {
+      (window as any).garageMonitorDebug = {
+        show: () => this.show('layout'), guide: () => this.show('connect'), hide: () => this.hide(),
+        state: () => this.stream?.managerState(),
+      };
+    }
   }
 
-  private emit(type: string, detail?: unknown) {
-    garageEvents.dispatchEvent(new CustomEvent(type, { detail }));
-  }
-
-  private show() {
-    if (!this.panel) return;
+  private show(page: Page) {
     this.open = true;
-    this.stream?.setLayoutEditing(true);
+    this.page = page;
+    if (!this.panel) return;
+    if (!this.panel.visible) {
+      const head = this.world.camera.getWorldPosition(new Vector3());
+      const forward = this.world.camera.getWorldDirection(new Vector3());
+      forward.y = 0;
+      if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
+      forward.normalize();
+      const side = garageState.preferences.dominantHand === 'left' ? 1 : -1;
+      this.panel.position.copy(head).addScaledVector(forward, 1).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.38);
+      this.panel.position.y -= 0.23;
+      this.panel.lookAt(head);
+    }
     this.panel.visible = true;
-    const head = this.world.camera.getWorldPosition(new Vector3());
-    const forward = this.world.camera.getWorldDirection(new Vector3());
-    forward.y = 0;
-    if (forward.lengthSq() < 0.001) forward.set(0, 0, -1);
-    forward.normalize();
-    const side = garageStateSide();
-    this.panel.position.copy(head).addScaledVector(forward, 0.98).addScaledVector(new Vector3(-forward.z, 0, forward.x), side * 0.40);
-    this.panel.position.y -= 0.30;
-    this.panel.lookAt(head);
     this.refresh();
   }
 
@@ -89,22 +106,34 @@ export class MonitorManagerSystem extends createSystem({}) {
   private refresh() {
     if (!this.panel) return;
     const state = this.stream?.managerState();
-    if (!state) return;
+    const editing = this.page === 'layout';
+    const streaming = garageState.preferences.mode === 'streaming';
     const set = (id: string, props: object) => this.panel?.getElementById(id)?.setProperties(props);
+    this.stream?.setLayoutEditing(editing);
+    set('mm-title', { text: editing ? 'Manage monitors' : 'Screen sharing' });
+    set('mm-layout', { display: editing ? 'flex' : 'none' });
+    set('mm-connect', { display: editing ? 'none' : 'flex' });
+    if (!editing) {
+      set('mm-address', { text: streamSenderUrl('') });
+      set('mm-code', { text: getStreamRoom() });
+      return;
+    }
     for (let index = 0; index < 3; index++) {
-      set(`mm-monitor-${index + 1}`, {
-        backgroundColor: state.selected === index ? '#d575a5' : '#39313e',
-        color: state.selected === index ? '#241727' : '#f3e5df',
-        display: index < state.count ? 'flex' : 'none',
+      const monitor = state?.monitors[index];
+      set('mm-monitor-' + (index + 1), {
+        text: monitor?.enabled ? 'On' : 'Off',
+        backgroundColor: monitor?.enabled ? '#ddb396' : '#4c424d',
+        color: monitor?.enabled ? '#29232d' : '#f3e5df',
+        disabled: !monitor,
+      });
+      set('mm-state-' + (index + 1), { text: streamLabels[monitor?.state ?? 'off'] ?? 'Ready to share' });
+    }
+    set('mm-use-streaming', { display: streaming ? 'none' : 'flex' });
+    set('mm-placement-note', { display: streaming ? 'flex' : 'none' });
+    for (const preset of ['desk', 'arc']) {
+      set('mm-layout-' + preset, {
+        backgroundColor: state?.preset === preset ? '#6b4d62' : '#39313e',
       });
     }
-    set('mm-status', { text: `Monitor ${state.selected + 1} / ${String(state.preset).toUpperCase()} / ${state.locked ? 'LOCKED' : 'UNLOCKED'}` });
-    set('mm-preset', { text: `PRESET: ${String(state.preset).toUpperCase()}` });
-    set('mm-lock', { text: `LOCK: ${state.locked ? 'ON' : 'OFF'}` });
   }
-}
-
-function garageStateSide() {
-  try { return JSON.parse(localStorage.getItem('garage-jam-preferences-v1') || '{}').dominantHand === 'left' ? 1 : -1; }
-  catch { return -1; }
 }

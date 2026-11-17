@@ -96,7 +96,7 @@ export function createProviders(env, fetcher) {
   const spotify = oauth('spotify', 'Spotify', 'https://accounts.spotify.com/authorize', 'https://accounts.spotify.com/api/token', 'https://api.spotify.com/v1/me', {
     pkce: true,
     form: true,
-    params: { scope: env.SPOTIFY_SCOPES || 'user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private' },
+    params: { scope: env.SPOTIFY_SCOPES || 'streaming user-read-email user-read-private user-read-playback-state user-modify-playback-state user-read-currently-playing playlist-read-private' },
     profile: profile => profile.display_name || 'Spotify account',
   });
   spotify.api = (connection, pathname, options = {}) => authorized(new URL(`https://api.spotify.com/v1${pathname}`), 'Spotify', connection, options);

@@ -45,13 +45,14 @@ try {
     stage: window.garageFlowDebug.stage,
     status: window.garageFlowDebug.panel?.requireElementById('flow-monitor-status')?.properties.value.text,
     url: window.garageFlowDebug.panel?.requireElementById('flow-pair-url')?.properties.value.text,
+    code: window.garageFlowDebug.panel?.requireElementById('flow-pair-code')?.properties.value.text,
     states: window.garageStreamDebug?.states,
   }));
   assert.equal(pairing.stage, 'S9b');
   assert.ok(pairing.url && pairing.url.includes('/sender'), JSON.stringify(pairing));
-  assert.match(pairing.url, /\/sender\?room=[A-Za-z0-9_-]{4,32}$/, 'S9b must show the room-scoped sender link');
-  const streamRoom = await page.evaluate(() => window.garageStreamDebug?.room);
-  assert.ok(streamRoom && pairing.url.includes(`room=${streamRoom}`), JSON.stringify({ pairing, streamRoom }));
+  assert.equal(new URL(pairing.url).search, '');
+  assert.equal(pairing.code, await page.evaluate(() => window.garageStreamDebug.room));
+  assert.match(pairing.code, /^[A-Za-z0-9_-]{4,32}$/);
   assert.equal(pairing.states.length, 3);
   await click('garageFlowDebug', 'flow-continue-2');
   await waitStage('S10');
@@ -70,7 +71,7 @@ try {
   }));
   assert.equal(before.papers.length, 2);
   assert.equal(before.boards.tasks, 2);
-  assert.deepEqual(before.monitors, [false, true, false], JSON.stringify(before));
+  assert.deepEqual(before.monitors, [true, false, false], JSON.stringify(before));
   assert.equal(before.streams.length, 3);
   assert.ok(!before.placements.includes('paint-cans'), 'spray cans are removed from the room');
   const boombox = await page.evaluate(() => window.garageBuildDebug.placements.find(item => item.slotId === 'boombox') ?? null);
@@ -95,31 +96,39 @@ try {
     const manager = window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel');
     const scene = window.garageEmulatorWorld.scene;
     return {
-      visible: manager?.visible ?? false, hasPreset: !!manager?.requireElementById?.('mm-preset'),
+      visible: manager?.visible ?? false, hasPreset: !!manager?.requireElementById?.('mm-layout-desk'),
       monitors: [1, 2, 3].map(index => scene.getObjectByName(`Monitor ${index}`)?.visible),
-      connectionCard: scene.getObjectByName('Stream connection card')?.visible,
+      model: !!scene.getObjectByName('Monitor 1')?.getObjectByName('Low-poly monitor'),
+      texture: window.garageBuildDebug.root.getObjectByName('Garage walls').children
+        .find(child => child.name.startsWith('Wall '))?.material.map?.image?.width,
     };
   });
   assert.equal(panel.visible, true);
   assert.equal(panel.hasPreset, true);
-  assert.deepEqual(panel.monitors, [true, true, true]);
-  assert.equal(panel.connectionCard, false);
+  assert.deepEqual(panel.monitors, [true, false, false]);
+  assert.equal(panel.model, true);
+  assert.equal(panel.texture, 2048);
   await page.screenshot({ path: 'scripts/monitor-manager.png' });
   const monitor = async id => page.evaluate(id => window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel').requireElementById(id).dispatchEvent({ type: 'click' }), id);
   await monitor('mm-monitor-2');
-  await monitor('mm-preset');
-  await monitor('mm-width-up');
-  await monitor('mm-lock');
+  await monitor('mm-monitor-3');
+  await monitor('mm-monitor-1');
+  await monitor('mm-layout-desk');
   const monitorState = await page.evaluate(() => window.garageMonitorDebug.state());
-  assert.equal(monitorState.selected, 1);
-  assert.equal(monitorState.preset, 'table');
-  assert.ok(monitorState.width > 1);
-  assert.equal(monitorState.locked, true);
-  assert.deepEqual(await page.evaluate(() => [1, 2, 3].map(index =>
-    window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index} frame`).material.color.getHex())),
-  [0x302d35, 0xd575a5, 0x302d35]);
-  await monitor('mm-recenter');
+  assert.equal(monitorState.preset, 'desk');
+  assert.deepEqual(monitorState.monitors.map(item => item.enabled), [false, true, true]);
+  assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('garage-jam-monitor-layout-v2')).monitors.map(item => item.enabled)), [false, true, true]);
+  await monitor('mm-layout-arc');
   assert.equal(await page.evaluate(() => window.garageMonitorDebug.state().preset), 'arc');
+  await page.evaluate(() => window.garageMonitorDebug.hide());
+  await page.evaluate(() => window.garageWristDebug.show('plugins'));
+  await click('garageWristDebug', 'wm-connect-screen');
+  const guide = await page.evaluate(() => {
+    const manager = window.garageEmulatorWorld.scene.getObjectByName('Monitor manager panel');
+    return { visible: manager.visible, code: manager.requireElementById('mm-code').properties.value.text,
+      address: manager.requireElementById('mm-address').properties.value.text };
+  });
+  assert.deepEqual(guide, { visible: true, code: pairing.code, address: pairing.url });
   await page.evaluate(() => window.garageMonitorDebug.hide());
   await page.evaluate(() => window.garagePresenceDebug?.hide());
   await page.waitForTimeout(1400);
@@ -129,6 +138,8 @@ try {
   await page.evaluate(() => window.garagePresenceDebug?.show());
   await page.waitForTimeout(1400);
   assert.equal(await page.evaluate(() => window.garageBuildDebug.root.visible), true);
+  assert.deepEqual(await page.evaluate(() => [1, 2, 3].map(index =>
+    window.garageEmulatorWorld.scene.getObjectByName(`Monitor ${index}`).visible)), [false, true, true]);
 
   await page.evaluate(() => window.garageFocusDebug.start(1));
   await page.waitForFunction(() => window.garageFocusDebug.state.running, null, { timeout: 5000 });

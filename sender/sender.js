@@ -16,10 +16,10 @@ const roomNote = document.getElementById('room-note');
 if (roomCode) {
   roomChip.hidden = false;
   roomChip.textContent = `Room ${roomCode}`;
-  roomChip.title = 'This sender is scoped to the room link from the headset.';
+  roomChip.title = 'This sender is paired with this headset room.';
 } else {
   roomChip.hidden = false;
-  roomChip.textContent = requestedRoom ? 'Invalid room link' : 'No room link';
+  roomChip.textContent = requestedRoom ? 'Invalid room code' : 'Enter room code';
   roomNote.hidden = false;
 }
 const startLabel = 'Start streaming';

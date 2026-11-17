@@ -48,7 +48,10 @@ try {
   assert.equal(lowLatency.content, 'motion');
   assert.equal(lowLatency.auto, false);
 
-  await open('?room=testroom1');
+  await page.locator('#room-code').fill('testroom1');
+  await page.locator('#room-note button').click();
+  await page.waitForURL(/room=testroom1/);
+  await page.waitForFunction(() => document.querySelectorAll('.channel').length === 3);
   const room = await page.evaluate(() => ({
     channel: document.querySelector('.channel').dataset.channel,
     chip: document.getElementById('room-chip').textContent,

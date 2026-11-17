@@ -16,7 +16,7 @@ import { showComicWord } from '../comic-word.js';
 import { bindPress, sendPanelToFront } from '../ui-press.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
-import { streamSenderUrl } from '../stream-room.js';
+import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
 
 type PanelPage = 'scan' | 'mode' | 'devices' | 'pairing' | 'ready';
 
@@ -87,8 +87,11 @@ export class AppFlowSystem extends createSystem({}) {
       }
     };
     const onStreams = (event: Event) => {
-      const detail = (event as CustomEvent<string>).detail;
-      this.panel?.getElementById('flow-monitor-status')?.setProperties({ text: `Monitors: ${detail || 'waiting for sender'}` });
+      const { monitors } = (event as CustomEvent<{ monitors: { enabled: boolean; state: string }[] }>).detail;
+      const enabled = monitors.filter(monitor => monitor.enabled);
+      const sharing = enabled.filter(monitor => monitor.state === 'live').length;
+      const text = enabled.length ? `${sharing} sharing · ${enabled.length} enabled` : 'Enable a monitor from the Room menu.';
+      this.panel?.getElementById('flow-monitor-status')?.setProperties({ text });
     };
     garageEvents.addEventListener('garage-built', onBuilt);
     garageEvents.addEventListener('garage-revealed', onRevealed);
@@ -104,7 +107,7 @@ export class AppFlowSystem extends createSystem({}) {
     garageEvents.addEventListener('reveal-finished', onRevealFinished);
     garageEvents.addEventListener('device-marking-done', onDevicesDone);
     garageEvents.addEventListener('device-marking-cancelled', onDevicesCancelled);
-    garageEvents.addEventListener('streams', onStreams);
+    garageEvents.addEventListener('monitor-status', onStreams);
     const stopVisibility = this.world.visibilityState.subscribe(state => {
       const visible = state === VisibilityState.Visible || state === VisibilityState.VisibleBlurred;
       if (visible && !this.sessionWasVisible) {
@@ -130,7 +133,7 @@ export class AppFlowSystem extends createSystem({}) {
       garageEvents.removeEventListener('reveal-finished', onRevealFinished);
       garageEvents.removeEventListener('device-marking-done', onDevicesDone);
       garageEvents.removeEventListener('device-marking-cancelled', onDevicesCancelled);
-      garageEvents.removeEventListener('streams', onStreams);
+      garageEvents.removeEventListener('monitor-status', onStreams);
       stopVisibility();
       if (this.enterTimeout != null) window.clearTimeout(this.enterTimeout);
       this.panel?.dispose();
@@ -429,7 +432,8 @@ export class AppFlowSystem extends createSystem({}) {
     const pages: PanelPage[] = ['scan', 'mode', 'devices', 'pairing', 'ready'];
     for (const name of pages) this.panel.getElementById(`page-${name}`)?.setProperties({ display: name === page ? 'flex' : 'none' });
     if (page === 'pairing') {
-      this.panel.getElementById('flow-pair-url')?.setProperties({ text: streamSenderUrl() });
+      this.panel.getElementById('flow-pair-url')?.setProperties({ text: streamSenderUrl('') });
+      this.panel.getElementById('flow-pair-code')?.setProperties({ text: getStreamRoom() });
       emit('stream-refresh');
     }
     const opening = !this.panel.visible && this.sessionWasVisible;
@@ -488,8 +492,6 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-mode-streaming', () => this.chooseMode('streaming'));
       on('flow-continue', () => this.goLive());
       on('flow-continue-2', () => this.goLive());
-      on('flow-refresh-streams', () => emit('stream-refresh'));
-      on('flow-forget-streams', () => emit('stream-forget'));
       on('flow-mark-devices', () => {
         this.hidePanel();
         emit('device-marking-open');

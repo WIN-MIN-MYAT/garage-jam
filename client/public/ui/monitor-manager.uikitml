@@ -1,43 +1,52 @@
 <style>
-  .card { width: 400px; flex-direction: column; gap: 8px; padding: 18px; border-radius: 18px; background-color: #272431; border-width: 1px; border-color: #5a4857; }
-  .top { flex-direction: row; align-items: center; justify-content: space-between; }
-  .title { color: #f8e7d6; font-size: 26px; font-weight: 800; }
-  .status { color: #d5bac4; font-size: 15px; font-weight: 700; }
-  .row { flex-direction: row; gap: 7px; }
-  .button { flex-grow: 1; height: 38px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 15px; font-weight: 700; }
-  .active { background-color: #d575a5; color: #241727; }
-  .small { font-size: 13px; }
-  .note { color: #c5b5bd; font-size: 14px; }
-  .close { width: 42px; height: 36px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 14px; font-weight: 700; }
+  .card { width: 390px; flex-direction: column; gap: 12px; padding: 20px; border-radius: 18px; background-color: #272431; border-width: 1px; border-color: #5a4857; }
+  .header { flex-direction: row; align-items: center; justify-content: space-between; }
+  .title { color: #f8e7d6; font-size: 27px; font-weight: 800; }
+  .page { flex-direction: column; gap: 10px; }
+  .row { flex-direction: row; align-items: center; gap: 8px; }
+  .screen { flex-direction: row; align-items: center; justify-content: space-between; background-color: #342d3a; padding: 8px; border-radius: 9px; }
+  .screenText { flex-direction: column; gap: 2px; }
+  .label { color: #f3e5df; font-size: 16px; font-weight: 800; }
+  .note { color: #d4c1c7; font-size: 15px; }
+  .button { flex-grow: 1; height: 40px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 15px; font-weight: 700; }
+  .toggle { width: 74px; height: 38px; border-radius: 8px; background-color: #4c424d; color: #f3e5df; font-size: 15px; font-weight: 800; }
+  .action { height: 42px; border-radius: 8px; background-color: #e3b394; color: #2c232e; font-size: 16px; font-weight: 800; }
+  .close { width: 42px; height: 36px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 16px; font-weight: 700; }
+  .address { color: #f2c3a6; font-size: 16px; font-weight: 700; }
+  .codeRow { flex-direction: row; align-items: center; justify-content: space-between; background-color: #382e3d; padding: 10px; border-radius: 9px; }
+  .code { color: #f8e7d6; font-size: 22px; font-weight: 800; }
 </style>
 <Panel id="mm-card" class="card">
-  <div class="top">
-    <div class="title">Monitor layout</div>
+  <div class="header">
+    <div id="mm-title" class="title">Manage monitors</div>
     <button id="mm-close" class="close">X</button>
   </div>
-  <div id="mm-status" class="status">Monitor 1 / ARC / flat</div>
-  <div class="row">
-    <button id="mm-monitor-1" class="button active">1</button>
-    <button id="mm-monitor-2" class="button">2</button>
-    <button id="mm-monitor-3" class="button">3</button>
+  <div id="mm-layout" class="page">
+    <div class="screen">
+      <div class="screenText"><div class="label">Monitor 1</div><div id="mm-state-1" class="note">Ready to share</div></div>
+      <button id="mm-monitor-1" class="toggle">On</button>
+    </div>
+    <div class="screen">
+      <div class="screenText"><div class="label">Monitor 2</div><div id="mm-state-2" class="note">Disabled</div></div>
+      <button id="mm-monitor-2" class="toggle">Off</button>
+    </div>
+    <div class="screen">
+      <div class="screenText"><div class="label">Monitor 3</div><div id="mm-state-3" class="note">Disabled</div></div>
+      <button id="mm-monitor-3" class="toggle">Off</button>
+    </div>
+    <div class="row">
+      <button id="mm-layout-desk" class="button">Desk row</button>
+      <button id="mm-layout-arc" class="button">Centered arc</button>
+    </div>
+    <div id="mm-placement-note" class="note">Grab a monitor to move it. Positions save automatically.</div>
+    <button id="mm-use-streaming" class="action" style="display:none">Show streamed monitors</button>
+    <button id="mm-sharing" class="button">Screen sharing setup</button>
   </div>
-  <div class="row">
-    <button id="mm-preset" class="button">PRESET: ARC</button>
-    <button id="mm-lock" class="button">LOCK: OFF</button>
+  <div id="mm-connect" class="page" style="display:none">
+    <div class="note">Open this address in Chrome on your laptop.</div>
+    <div id="mm-address" class="address">/sender</div>
+    <div class="codeRow"><div class="label">Room code</div><div id="mm-code" class="code">...</div></div>
+    <div class="note">Enter the room code on the laptop. Then start sharing on an enabled monitor and pick a window or tab.</div>
+    <button id="mm-back" class="action">Manage monitors</button>
   </div>
-  <div class="row">
-    <button id="mm-curve-down" class="button small">CURVE -</button>
-    <button id="mm-curve-up" class="button small">CURVE +</button>
-  </div>
-  <div class="row">
-    <button id="mm-width-down" class="button small">WIDTH -</button>
-    <button id="mm-width-up" class="button small">WIDTH +</button>
-    <button id="mm-height-down" class="button small">HEIGHT -</button>
-    <button id="mm-height-up" class="button small">HEIGHT +</button>
-  </div>
-  <div class="row">
-    <button id="mm-recenter" class="button small">RECENTER</button>
-    <button id="mm-save" class="button small">SAVE LAYOUT</button>
-  </div>
-  <div class="note">Grab an unlocked monitor to move it.</div>
 </Panel>

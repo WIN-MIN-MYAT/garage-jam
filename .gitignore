@@ -8,3 +8,4 @@ server/data/
 server/.env
 *.pem
 *.key
+scripts/*.png

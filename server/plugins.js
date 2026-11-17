@@ -153,6 +153,14 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     }
   }
 
+  router.get('/spotify/headset-token', run(async (req, res) => {
+    const token = await withConnection(req.pluginSession, 'spotify', async connection => {
+      await providers.spotify.api(connection, '/me');
+      return { access: connection.access };
+    });
+    res.json(token);
+  }));
+
   router.get('/spotify/state', run(async (req, res) => {
     const state = await withConnection(req.pluginSession, 'spotify', connection => providers.spotify.api(connection, '/me/player'));
     if (!state) return res.json({ active: false, connected: true });
@@ -173,7 +181,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
   }));
 
   router.post('/spotify/player', run(async (req, res) => {
-    const { action, value, deviceId, contextUri, uris } = req.body ?? {};
+    const { action, value, deviceId, contextUri, uris, play } = req.body ?? {};
     await withConnection(req.pluginSession, 'spotify', async connection => {
       const query = deviceId ? `?device_id=${encodeURIComponent(deviceId)}` : '';
       const json = body => ({ method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -191,7 +199,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
         }
         case 'transfer': {
           if (!deviceId) throw new PluginError(400, 'Choose a playback device first.');
-          return providers.spotify.api(connection, '/me/player', json({ device_ids: [deviceId], play: true }));
+          return providers.spotify.api(connection, '/me/player', json({ device_ids: [deviceId], play: play !== false }));
         }
         default: throw new PluginError(400, 'Unknown player action.');
       }

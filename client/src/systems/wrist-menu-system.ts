@@ -73,6 +73,7 @@ export class WristMenuSystem extends createSystem({}) {
   private focus: any = { running: false, paused: false, remaining: 0, duration: 0, phase: 'focus' };
   private devices: any[] = [];
   private playlists: any[] = [];
+  private headsetMessage = '';
   private deviceIndex = 0;
   private playlistIndex = 0;
   private localMusic = false;
@@ -102,6 +103,7 @@ export class WristMenuSystem extends createSystem({}) {
     const onPlugins = (event: Event) => { this.pluginStatus = (event as CustomEvent<Record<string, any>>).detail ?? {}; this.refresh(); };
     const onPairing = (event: Event) => { this.pluginPairing = (event as CustomEvent<any>).detail ?? null; this.showPage('plugins'); this.openPanel(); this.refresh(); };
     const onSpotify = (event: Event) => { this.spotify = (event as CustomEvent<any>).detail ?? { active: false }; this.refresh(); };
+    const onHeadset = (event: Event) => { this.headsetMessage = String((event as CustomEvent<any>).detail?.message ?? ''); this.refresh(); };
     const onCalendar = (event: Event) => { this.calendar = (event as CustomEvent<any[]>).detail ?? []; this.refresh(); };
     const onWeather = (event: Event) => { this.weather = (event as CustomEvent<any>).detail; this.refresh(); };
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<any>).detail ?? this.focus; this.refresh(); };
@@ -120,6 +122,7 @@ export class WristMenuSystem extends createSystem({}) {
     garageEvents.addEventListener('plugin-status', onPlugins);
     garageEvents.addEventListener('plugin-pairing', onPairing);
     garageEvents.addEventListener('spotify-state', onSpotify);
+    garageEvents.addEventListener('spotify-headset', onHeadset);
     garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('weather-current', onWeather);
     garageEvents.addEventListener('focus-state', onFocus);
@@ -139,6 +142,7 @@ export class WristMenuSystem extends createSystem({}) {
       garageEvents.removeEventListener('plugin-status', onPlugins);
       garageEvents.removeEventListener('plugin-pairing', onPairing);
       garageEvents.removeEventListener('spotify-state', onSpotify);
+      garageEvents.removeEventListener('spotify-headset', onHeadset);
       garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('weather-current', onWeather);
       garageEvents.removeEventListener('focus-state', onFocus);
@@ -175,9 +179,10 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-close', () => this.close(true));
     on('wm-tab-home', () => this.showPage('home'));
     on('wm-tab-room', () => this.showPage('room'));
-    on('wm-tab-music', () => { this.showPage('music'); emit('plugin-refresh'); });
+    on('wm-tab-music', () => { this.showPage('music'); emit('spotify-headset-enable'); emit('plugin-refresh'); });
     on('wm-tab-settings', () => this.showPage('settings'));
     on('wm-tab-plugins', () => { this.showPage('plugins'); emit('plugin-refresh'); });
+    on('wm-connect-screen', () => { this.close(true); emit('stream-guide-open'); });
     for (const provider of ['notion', 'spotify', 'calendar', 'weather']) {
       on(`wm-connect-${provider}`, () => emit('plugin-connect', { provider }));
     }
@@ -194,7 +199,7 @@ export class WristMenuSystem extends createSystem({}) {
       emit('status', mode === 'streaming' ? 'Streaming mode: virtual monitors' : 'Passthrough mode: real devices');
       this.refresh();
     });
-    on('wm-monitors', () => emit('monitor-manager-open'));
+    on('wm-monitors', () => { this.close(true); emit('monitor-manager-open'); });
     on('wm-music-prev', () => emit('spotify-action', { action: 'previous' }));
     on('wm-music-next', () => emit('spotify-action', { action: 'next' }));
     on('wm-music-play', () => {
@@ -218,7 +223,7 @@ export class WristMenuSystem extends createSystem({}) {
       if (!this.playlists.length) { emit('plugin-refresh'); emit('status', 'No Spotify playlists loaded.'); return; }
       this.playlistIndex = (this.playlistIndex + 1) % this.playlists.length;
       const playlist = this.playlists[this.playlistIndex];
-      emit('spotify-action', { action: 'play', contextUri: playlist.uri, deviceId: this.spotify.device?.id });
+      emit('spotify-action', { action: 'play', contextUri: playlist.uri });
       this.refresh();
     });
     on('wm-place', () => {
@@ -453,7 +458,7 @@ export class WristMenuSystem extends createSystem({}) {
     set('wm-music-play', this.spotify.playing ? 'PAUSE' : 'PLAY');
     set('wm-music-device-value', this.devices[this.deviceIndex]?.name ?? this.spotify.device?.name ?? 'NONE');
     set('wm-music-playlist-value', this.playlists[this.playlistIndex]?.name ?? 'NONE');
-    set('wm-music-note', this.weather ? `${Math.round(this.weather.temperature)}${this.weather.unit} / ${this.weather.location ?? 'weather'}` : 'Local fallback available');
+    set('wm-music-note', this.headsetMessage || (this.weather ? `${Math.round(this.weather.temperature)}${this.weather.unit} / ${this.weather.location ?? 'weather'}` : 'Local fallback available'));
     for (const provider of ['notion', 'spotify', 'calendar', 'weather'] as const) {
       const status = this.pluginStatus[provider];
       set(`wm-plugin-${provider}`, status?.connected ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');

@@ -4,6 +4,7 @@ import {
   type Entity, type UIKitMLAsset,
 } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
+import { createMonitorModel } from '../monitor-model.js';
 import { garageState, setPreference } from '../garage-state.js';
 import { garageRootsVisible } from '../garage-visibility.js';
 import { outlineBounds, type Vec3 } from '../room-model.js';
@@ -92,6 +93,7 @@ export class DeviceSystem extends createSystem({}) {
       'device-marking-cancel': () => this.cancel(),
       'device-marking-done': () => this.done(),
       'garage-cutouts-changed': () => { this.applyVisibility(); this.refresh(); },
+      'mode-changed': () => this.applyVisibility(),
       'room-manual-active': event => { if ((event as CustomEvent<boolean>).detail) this.closePanel(); },
       'table-confirm-visibility': event => { if ((event as CustomEvent<boolean>).detail) this.closePanel(); },
       'garage-reset': () => this.resetRoom(),
@@ -596,7 +598,10 @@ export class DeviceSystem extends createSystem({}) {
     this.root.visible = this.loaded;
     for (const { device, occluder, display, outline } of this.visuals) {
       occluder.visible = device.enabled && garage && cutouts;
-      display.visible = device.enabled && garage && !cutouts;
+      const virtualBody = display.getObjectByName('Low-poly monitor');
+      const face = display.getObjectByName('Virtual display');
+      display.visible = device.enabled && garage && garageState.preferences.mode === 'passthrough' && (!!virtualBody || !cutouts);
+      if (face) face.visible = !cutouts;
       outline.visible = device.enabled && !garage;
     }
   }
@@ -687,6 +692,16 @@ export class DeviceSystem extends createSystem({}) {
         face.name = 'Virtual display';
         this.place(face, part);
         display.add(face);
+        void createMonitorModel(w + 0.006, h + 0.006, { hideStand: device.template === 'laptop' })
+          .then(({ mount, display: glass }) => {
+            if (display.parent !== this.root) return;
+            this.place(mount, part);
+            glass.name = 'Virtual display';
+            face.removeFromParent();
+            face.geometry.dispose();
+            display.add(mount);
+            this.applyVisibility();
+          }).catch(error => console.warn('[device] Monitor model could not load', error));
       }
       this.root.add(occluder, display, outline);
       this.visuals.push({ device, occluder, display, outline });
@@ -695,6 +710,7 @@ export class DeviceSystem extends createSystem({}) {
   }
 
   private clearGroup(group: Group) {
+    group.getObjectByName('Low-poly monitor')?.removeFromParent();
     group.traverse(child => { if (child instanceof Mesh || child instanceof Line) child.geometry.dispose(); });
     group.clear();
   }

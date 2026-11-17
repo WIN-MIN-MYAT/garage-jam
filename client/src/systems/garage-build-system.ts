@@ -1,9 +1,9 @@
 import {
   AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
   LineBasicMaterial, LineDashedMaterial, LineLoop, Mesh, MeshBasicMaterial, PhysicsBody, PhysicsShape, PhysicsShapeType, PhysicsState,
-  PlaneGeometry, Points, PointsMaterial, Quaternion, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, Vector3,
+  PlaneGeometry, Points, PointsMaterial, Quaternion, RepeatWrapping, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, TextureLoader, Vector3,
 } from '@iwsdk/core';
-import type { Entity } from '@iwsdk/core';
+import type { Entity, Texture } from '@iwsdk/core';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { addOutline, comicMaterial } from '../comic-style.js';
@@ -160,6 +160,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private tableGroup?: Group;
   private propGroup?: Group;
   private tableMaterial?: any;
+  private wallTexture?: Texture;
   private tableCollider?: Entity;
   private tableOccluder?: Mesh;
   private tableEditToken = 0;
@@ -226,6 +227,7 @@ export class GarageBuildSystem extends createSystem({}) {
       this.scanLabels.clear();
       unregisterGarageRoot(this.root);
       this.disposeGroup(this.root);
+      this.wallTexture?.dispose();
     });
   }
 
@@ -696,7 +698,13 @@ export class GarageBuildSystem extends createSystem({}) {
     this.doorRuntime = null;
     this.modelLoads = [];
     const floorMaterial = comicMaterial(0x49414b);
-    const wallMaterial = comicMaterial(0x625766);
+    if (!this.wallTexture) {
+      this.wallTexture = new TextureLoader().load('/assets/textures/garage-wall-painted-concrete-2k.webp');
+      this.wallTexture.colorSpace = SRGBColorSpace;
+      this.wallTexture.wrapS = this.wallTexture.wrapT = RepeatWrapping;
+      this.wallTexture.anisotropy = 4;
+    }
+    const wallMaterial = comicMaterial(0xc9bdcb, this.wallTexture);
     const ceilingMaterial = comicMaterial(0x51495b);
     const tableMaterial = comicMaterial(0xa06e51);
     this.tableMaterial = tableMaterial;
@@ -1130,7 +1138,14 @@ export class GarageBuildSystem extends createSystem({}) {
         const segment = end - start;
         if (segment <= 0.02 || y1 - y0 <= 0.02) return;
         const centre = (start + end) / 2;
-        const mesh = new Mesh(new BoxGeometry(segment, y1 - y0, wallThickness), material);
+        const geometry = new BoxGeometry(segment, y1 - y0, wallThickness);
+        const vertices = geometry.getAttribute('position');
+        const uv = geometry.getAttribute('uv');
+        const tileMeters = 2.4;
+        for (let i = 0; i < vertices.count; i++) {
+          uv.setXY(i, (vertices.getX(i) + centre) / tileMeters, (vertices.getY(i) + (y0 + y1) / 2 - floorY) / tileMeters);
+        }
+        const mesh = new Mesh(geometry, material);
         mesh.name = `Wall ${wall.id} ${start.toFixed(2)}-${end.toFixed(2)}`;
         const point = wallPoint(wall, centre);
         // Place the inside face on the scanned wall plane.

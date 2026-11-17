@@ -50,6 +50,9 @@
     .chip.soft::before { background: var(--muted); box-shadow: none; }
     .room-note { margin: 12px 0 0; padding: 10px 12px; border: 1px solid #5a4518; border-radius: 10px; background: #241e0e; color: var(--orange); font-size: 11px; line-height: 1.4; }
     .room-note[hidden] { display: none; }
+    .room-form { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 8px; }
+    .room-form input { width: 145px; padding: 8px; border: 1px solid #6c5871; border-radius: 6px; background: #181522; color: #fff; font: inherit; }
+    .room-form button { padding: 8px 12px; border: 0; border-radius: 6px; background: #e3b394; color: #231927; font-weight: 800; cursor: pointer; }
     .guide { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin: 22px 0 26px; }
     .step { display: flex; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-soft); border-radius: 14px; background: linear-gradient(180deg, rgba(20, 25, 34, 0.9), rgba(13, 18, 25, 0.9)); }
     .step-num { color: var(--cyan); font: 900 10px/1.4 ui-monospace, SFMono-Regular, Menlo, monospace; letter-spacing: 0.08em; }
@@ -120,7 +123,14 @@
           <p class="eyebrow">Garage Jam / Window Sender</p>
           <h1>Send windows to your VR monitors</h1>
           <p class="subhead">Start a channel below, then pick the app window or tab you want in the headset. Capture stays local to this laptop.</p>
-          <p id="room-note" class="room-note" hidden>Open the exact sender link shown in your headset. It includes a room code and is required for this laptop to pair with that headset.</p>
+          <form id="room-note" class="room-note" action="/sender" method="get" hidden>
+            Find your room code under <strong>Connect → Screen sharing</strong> in the headset.
+            <div class="room-form">
+              <label for="room-code">Room code</label>
+              <input id="room-code" name="room" pattern="[A-Za-z0-9_\-]{4,32}" required spellcheck="false" autocomplete="off">
+              <button type="submit">Join room</button>
+            </div>
+          </form>
         </div>
       </div>
       <div class="hero-meta">
@@ -134,7 +144,7 @@
 
     <section class="guide" aria-label="How it works">
       <div class="step"><div class="step-num">01</div><div><strong>Open Garage Jam on Quest</strong><span>Enter the garage and choose Stream my laptop.</span></div></div>
-      <div class="step"><div class="step-num">02</div><div><strong>Start a monitor</strong><span>Use Monitor 1, 2, or 3 below. Each channel is independent.</span></div></div>
+      <div class="step"><div class="step-num">02</div><div><strong>Start a monitor</strong><span>Use any monitor enabled in the headset.</span></div></div>
       <div class="step"><div class="step-num">03</div><div><strong>Pick a window or tab</strong><span>Whole-screen capture is blocked by default. Use Advanced only if needed.</span></div></div>
     </section>
 

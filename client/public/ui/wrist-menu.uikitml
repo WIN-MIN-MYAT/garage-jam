@@ -81,7 +81,7 @@
     </div>
     <div class="row">
       <button id="wm-mode" class="half"><div class="label">Mode</div><div id="wm-mode-value" class="value">PASS</div></button>
-      <button id="wm-monitors" class="half">Monitor controls</button>
+      <button id="wm-monitors" class="half">Manage monitors</button>
     </div>
     <button id="wm-forget" class="wide danger">Forget room</button>
     <div class="foot"><div class="hint">Table, props and room</div><div class="hint">ROOM</div></div>
@@ -133,10 +133,15 @@
   </Panel>
 
   <Panel id="page-plugins" class="page" style="display: none">
-    <button id="wm-connect-notion" class="action"><div class="label">Notion</div><div id="wm-plugin-notion" class="value">OPEN</div></button>
-    <button id="wm-connect-spotify" class="action"><div class="label">Spotify</div><div id="wm-plugin-spotify" class="value">OPEN</div></button>
-    <button id="wm-connect-calendar" class="action"><div class="label">Calendar</div><div id="wm-plugin-calendar" class="value">OPEN</div></button>
-    <button id="wm-connect-weather" class="action"><div class="label">Weather</div><div id="wm-plugin-weather" class="value">OPEN</div></button>
+    <button id="wm-connect-screen" class="action primary"><div class="label primary-label">Screen sharing</div><div class="value primary-value">SETUP</div></button>
+    <div class="row">
+      <button id="wm-connect-notion" class="half"><div class="label">Notion</div><div id="wm-plugin-notion" class="value">OPEN</div></button>
+      <button id="wm-connect-spotify" class="half"><div class="label">Spotify</div><div id="wm-plugin-spotify" class="value">OPEN</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-connect-calendar" class="half"><div class="label">Calendar</div><div id="wm-plugin-calendar" class="value">OPEN</div></button>
+      <button id="wm-connect-weather" class="half"><div class="label">Weather</div><div id="wm-plugin-weather" class="value">OPEN</div></button>
+    </div>
     <div class="foot"><div id="wm-plugin-note" class="hint">Continue in browser</div><div class="hint">CONNECT</div></div>
   </Panel>
 </Panel>

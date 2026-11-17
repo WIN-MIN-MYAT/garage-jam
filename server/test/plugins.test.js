@@ -166,6 +166,7 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.equal(spotifyState.title, 'Garage Loop');
   assert.equal(spotifyState.playing, true);
   assert.equal(spotifyState.device.name, 'Quest');
+  assert.match((await (await get('/spotify/headset-token')).json()).access, /^spotify-(access|replacement)$/);
   assert.equal((await (await get('/spotify/devices')).json())[0].id, 'device-1');
   assert.equal((await (await get('/spotify/playlists')).json())[0].name, 'Focus');
   assert.equal((await post('/spotify/player', { action: 'next' })).status, 200);
