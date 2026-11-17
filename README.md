@@ -140,6 +140,10 @@ The **boombox** is a code-built retro prop in a floor corner, not on the workben
 
 For an immersive VR session instead of the default immersive AR session, change `client/iwsdk.config.json` → `world.xr.mode` from `ar` to `vr` and restart the client. The app hides the passthrough button in that mode and points to the Quest system shortcut.
 
+## Table model
+
+The room-driven build uses the provided `assets/models/optimized/wooden-workbench.glb` in scan, manual and demo rooms. It is scaled to the measured tabletop extents, its flat worktop face is anchored at the measured table height, and it is turned toward the seat. The procedural brown top/legs remain only as a load-failure fallback.
+
 ## Replacing a placeholder
 
 Put an untouched Tripo GLB in `assets/models/raw/`. Optimize it from the root, for example:

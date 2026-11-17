@@ -8,6 +8,7 @@ import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { makeManualRoom, manualRoomStorageKey, polygonArea, validateCalibrationCorners, withMarkedTable, type Vec3 } from '../room-model.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { showComicWord } from '../comic-word.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
 
@@ -206,6 +207,7 @@ export class ManualCalibrationSystem extends createSystem({}) {
     points.push({ x: point.x, y: point.y, z: point.z });
     if (fromInput) this.nextPointAt = now + 420;
     revealAudio.playTick(point);
+    showComicWord('TUP.', point);
     this.rebuildMarkers();
     this.refresh();
   }
@@ -246,6 +248,8 @@ export class ManualCalibrationSystem extends createSystem({}) {
       }
     } catch (error) {
       this.issue = (error as Error).message;
+      revealAudio.playGameplay('ui_action_blocked');
+      showComicWord('TOK.');
       this.refresh();
     }
   }

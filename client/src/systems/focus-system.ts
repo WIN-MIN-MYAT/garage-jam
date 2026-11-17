@@ -5,6 +5,7 @@ import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.j
 import { addFocusMinutes, loadProgress } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { slotRules } from '../slot-rules.js';
+import { showComicWord } from '../comic-word.js';
 
 type Phase = 'focus' | 'break';
 const demo = new URLSearchParams(location.search).get('focusDemo') === '1';
@@ -138,7 +139,7 @@ export class FocusSystem extends createSystem({}) {
     this.lastSeconds = -1;
     this.root.visible = true;
     if (this.shutter) this.shutter.visible = true;
-    revealAudio.playFocus(true);
+    revealAudio.setShutterClosed(true);
     emit('focus-state', this.state());
     emit('music-play');
     emit('status', `Focus started: ${Math.round(this.focusSeconds / 60)} minutes`);
@@ -165,7 +166,7 @@ export class FocusSystem extends createSystem({}) {
     emit('focus-cancel');
     emit('focus-state', this.state());
     emit('status', 'Focus cancelled');
-    revealAudio.playFocus(false);
+    revealAudio.setShutterClosed(false);
     emit('music-stop');
   }
 
@@ -179,7 +180,8 @@ export class FocusSystem extends createSystem({}) {
       this.duration = this.breakSeconds;
       this.applyDim(0.55);
       emit('status', `Focus complete. Take a ${Math.max(1, Math.round(this.breakSeconds / 60))}-minute break.`);
-      revealAudio.playChime();
+      if (!revealAudio.playGameplay('focus_break_start')) revealAudio.playChime();
+      showComicWord('DING-DONG.');
       this.drawSign();
       emit('focus-state', this.state());
     } else {
@@ -260,9 +262,17 @@ export class FocusSystem extends createSystem({}) {
     if (!this.paused) {
       this.remaining = Math.max(0, this.remaining - delta);
       const targetClosed = this.phase === 'focus' ? 1 : 0.42;
+      const previousClosed = this.closed;
       this.closed = Math.min(targetClosed, this.closed + delta * 0.35);
       const open = this.doorTopOpen(), closed = this.doorTopClosed();
       this.shutter.position.y = open + (closed - open) * Math.min(1, this.closed / targetClosed);
+      // The final roll-and-latch cue lasts about half a second.
+      if (this.phase === 'focus' && previousClosed < 0.84 && this.closed >= 0.84) {
+        const { x, z } = this.shutter.position;
+        const position = { x, y: (closed + (garageState.room?.floor.y ?? 0)) / 2, z };
+        revealAudio.playFocusClose(position);
+        showComicWord('R-R-R-CHUNK.', position);
+      }
       this.applyDim(Math.min(1, this.closed / Math.max(0.01, targetClosed)) * (this.phase === 'focus' ? 0.95 : 0.55));
       if (Math.floor(this.remaining) !== this.lastSeconds) {
         this.lastSeconds = Math.floor(this.remaining);

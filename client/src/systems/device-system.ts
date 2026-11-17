@@ -12,6 +12,7 @@ import {
   minScreenDepth, minZoneHeight, saveDeviceCollection, screenDragCorners, screenVolume, type DeviceRecord, type DeviceTemplate, type DeviceVolume,
 } from '../device-model.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { showComicWord } from '../comic-word.js';
 import { bindPress, PanelInput, sendPanelToFront } from '../ui-press.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 
@@ -285,6 +286,7 @@ export class DeviceSystem extends createSystem({}) {
     }
     this.issue = '';
     revealAudio.playTick(corner);
+    showComicWord('TUP.', corner);
     this.rebuildPreview();
     this.refresh();
   }
@@ -374,6 +376,8 @@ export class DeviceSystem extends createSystem({}) {
     this.saveDevices();
     this.rebuildVisuals();
     emit('device-marked', { device, count: this.devices.length });
+    revealAudio.playGameplay('setup_lock', device.parts[0]?.center);
+    showComicWord('KLIK.', device.parts[0]?.center);
     this.refresh();
   }
 

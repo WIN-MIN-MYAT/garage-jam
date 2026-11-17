@@ -12,7 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const assetRoot = path.resolve(import.meta.dirname, '../assets');
-const assetMimeTypes: Record<string, string> = { '.json': 'application/json', '.glb': 'model/gltf-binary', '.ogg': 'audio/ogg' };
+const assetMimeTypes: Record<string, string> = { '.json': 'application/json', '.glb': 'model/gltf-binary', '.ogg': 'audio/ogg', '.ttf': 'font/ttf' };
 const assetsPlugin = {
   name: 'garage-assets',
   configureServer(server: any) {

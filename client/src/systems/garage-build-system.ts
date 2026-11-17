@@ -12,7 +12,7 @@ import { emit } from '../events.js';
 import { garageState, saveLastRoom, savePreferences, setPreference, type TableView } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
 import { isProductEntry } from '../app-flow/app-flow.js';
-import { manualRoomStorageKey, outlineBounds, pointInPolygon, polygonArea, roomFingerprint, type RoomModel, type Vec2 } from '../room-model.js';
+import { manualRoomStorageKey, outlineBounds, pointInPolygon, roomFingerprint, type RoomModel, type Vec2 } from '../room-model.js';
 import { readPlaneSnapshots, readRoomFromFrame, type PlaneSnapshot, type ScanInfo } from '../room-scan.js';
 import { solve, wallThickness, type Obstacle, type SlotPlacement, type SlotRule, type SlotType } from '../placement-solver.js';
 import { slotRules } from '../slot-rules.js';
@@ -1343,7 +1343,7 @@ export class GarageBuildSystem extends createSystem({}) {
     const { center, width, depth, yaw } = tableFrame(table.polygon);
     const height = table.topY - this.room.floor.y;
     const workbench = config['SLOT_Workbench'];
-    if (this.room.source === 'mock' && workbench?.model && Math.abs(width * depth - polygonArea(table.polygon)) < width * depth * 0.01) {
+    if (workbench?.model) {
       const root = new Group();
       root.name = 'Workbench model root';
       root.position.set(center.x, this.room.floor.y, center.z);

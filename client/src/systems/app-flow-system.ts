@@ -12,6 +12,7 @@ import {
   showLanding, showLandingError,
 } from '../app-flow/landing-page.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { showComicWord } from '../comic-word.js';
 import { bindPress, sendPanelToFront } from '../ui-press.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
@@ -33,6 +34,7 @@ export class AppFlowSystem extends createSystem({}) {
   private live = false;
   private panelReady = false;
   private lastScanProgress = 0;
+  private showedScanLock = false;
   private scanMissing = false;
   private revealHandled = false;
   private markTableAfterBuild = false;
@@ -198,6 +200,7 @@ export class AppFlowSystem extends createSystem({}) {
     setLandingBusy(false);
     void revealAudio.unlock().catch(() => { /* audio is optional */ });
     this.lastScanProgress = 0;
+    this.showedScanLock = false;
     this.scanMissing = false;
     this.revealHandled = false;
     this.markTableAfterBuild = false;
@@ -298,6 +301,11 @@ export class AppFlowSystem extends createSystem({}) {
     } else if ((detail.progress ?? 0) >= 2) {
       this.scanTitle('ROOM LOCKED');
       this.scanBody('Hold still for a moment while the garage is measured.');
+      if (!this.showedScanLock) {
+        revealAudio.playGameplay('setup_lock');
+        showComicWord('KLIK.');
+      }
+      this.showedScanLock = true;
     }
   }
 
@@ -331,6 +339,7 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private rescan(realign = false) {
+    this.showedScanLock = false;
     this.resumeDirectToLive = this.stage === 'S10' || this.resumeDirectToLive;
     this.resume = realign && this.resumeDirectToLive;
     this.revealHandled = false;

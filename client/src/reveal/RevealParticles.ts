@@ -2,6 +2,7 @@ import {
   BufferAttribute, CanvasTexture, Color, DoubleSide, DynamicDrawUsage, Group,
   InstancedBufferAttribute, InstancedBufferGeometry, Mesh, NormalBlending, ShaderMaterial, SRGBColorSpace, Vector2,
 } from '@iwsdk/core';
+import { comicWords, type ComicWord } from '../comic-word.js';
 
 type SpawnOptions = {
   x: number; y: number; z: number;
@@ -13,6 +14,7 @@ type SpawnOptions = {
   spin?: number;
   color?: Color;
   uvOffset?: number;
+  uvOffsetY?: number;
 };
 
 const vertexShader = `
@@ -70,7 +72,7 @@ class BillboardPool {
   private cursor = 0;
   private budget: number;
 
-  constructor(parent: Group, texture: CanvasTexture, max: number, uvScale: number) {
+  constructor(parent: Group, texture: CanvasTexture, max: number, uvScaleX: number, uvScaleY = 1) {
     this.max = max;
     this.budget = max;
     this.centers = new Float32Array(max * 3);
@@ -104,7 +106,7 @@ class BillboardPool {
     this.geometry = geometry;
 
     const material = new ShaderMaterial({
-      uniforms: { uMap: { value: texture }, uUvScale: { value: new Vector2(uvScale, 1) } },
+      uniforms: { uMap: { value: texture }, uUvScale: { value: new Vector2(uvScaleX, uvScaleY) } },
       vertexShader,
       fragmentShader,
       transparent: true,
@@ -143,7 +145,7 @@ class BillboardPool {
     this.colors[i3] = color.r; this.colors[i3 + 1] = color.g; this.colors[i3 + 2] = color.b;
     this.alphas[index] = 1;
     this.uvOffsets[i2] = options.uvOffset ?? 0;
-    this.uvOffsets[i2 + 1] = 0;
+    this.uvOffsets[i2 + 1] = options.uvOffsetY ?? 0;
     this.touch();
   }
 
@@ -182,7 +184,9 @@ class BillboardPool {
   dispose() {
     this.mesh.removeFromParent();
     this.geometry.dispose();
-    (this.mesh.material as ShaderMaterial).dispose();
+    const material = this.mesh.material as ShaderMaterial;
+    (material.uniforms.uMap.value as CanvasTexture).dispose();
+    material.dispose();
   }
 }
 
@@ -214,30 +218,54 @@ function makeParticleTexture() {
 
 export const popWords = ['THUD!', 'READY!', 'WELCOME BACK', 'POP!', 'LEFT WRIST'] as const;
 export type PopWord = typeof popWords[number];
+const atlasWords = [...popWords, ...Object.keys(comicWords) as ComicWord[]];
+const atlasColumns = 6;
+const atlasRows = Math.ceil(atlasWords.length / atlasColumns);
+const atlasCell = 256;
 const sprayColors = [new Color(0xff2d95), new Color(0x19e3ff), new Color(0xe8ff2a)];
 const dustColor = new Color(0xffe5b0);
 const whiteColor = new Color(0xffffff);
 
-function makePopAtlas() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 1280; canvas.height = 256;
+function paintPopAtlas(canvas: HTMLCanvasElement) {
   const ctx = canvas.getContext('2d')!;
-  ctx.clearRect(0, 0, 1280, 256);
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   ctx.lineJoin = 'round';
-  ctx.lineWidth = 16;
-  ctx.strokeStyle = '#0b0b0e';
-  popWords.forEach((word, index) => {
+  atlasWords.forEach((word, index) => {
+    const comic = index >= popWords.length;
     const size = word.length > 8 ? 60 : 82;
-    ctx.font = `900 ${size}px Anton, Impact, sans-serif`;
-    const x = 128 + index * 256;
-    ctx.strokeText(word, x, 132, 224);
-    ctx.fillStyle = '#ffffff';
-    ctx.fillText(word, x, 132, 224);
+    ctx.font = comic ? `${size}px GarageComic, Impact, sans-serif` : `900 ${size}px GarageDisplay, Impact, sans-serif`;
+    const x = (index % atlasColumns) * atlasCell + 128;
+    const y = Math.floor(index / atlasColumns) * atlasCell + 128;
+    ctx.lineWidth = comic ? 12 : 16;
+    ctx.strokeStyle = '#141017';
+    if (comic) {
+      ctx.strokeText(word, x + 5, y + 7, 215);
+      ctx.fillStyle = '#714055';
+      ctx.fillText(word, x + 5, y + 7, 215);
+    }
+    ctx.strokeText(word, x, y, 215);
+    const face = ctx.createLinearGradient(x, y - size * 0.33, x, y + size * 0.32);
+    face.addColorStop(0, '#ffffff');
+    face.addColorStop(0.58, '#ffffff');
+    face.addColorStop(1, '#b7a397');
+    ctx.fillStyle = comic ? face : '#ffffff';
+    ctx.fillText(word, x, y, 215);
   });
+}
+
+function makePopAtlas() {
+  const canvas = document.createElement('canvas');
+  canvas.width = atlasColumns * atlasCell;
+  canvas.height = atlasRows * atlasCell;
+  paintPopAtlas(canvas);
   const texture = new CanvasTexture(canvas);
   texture.colorSpace = SRGBColorSpace;
+  void Promise.allSettled([document.fonts.load('82px GarageComic'), document.fonts.load('900 82px GarageDisplay')]).then(() => {
+    paintPopAtlas(canvas);
+    texture.needsUpdate = true;
+  });
   return texture;
 }
 
@@ -247,14 +275,13 @@ export class RevealParticles {
   private readonly pops: BillboardPool;
   private budget = 200;
   private popBudget = 8;
-  private popCursor = 0;
 
   constructor(parent: Group) {
     this.parent = parent;
     const particleTexture = makeParticleTexture();
     const popTexture = makePopAtlas();
     this.dust = new BillboardPool(parent, particleTexture, 200, 1);
-    this.pops = new BillboardPool(parent, popTexture, 8, 0.2);
+    this.pops = new BillboardPool(parent, popTexture, 8, 1 / atlasColumns, 1 / atlasRows);
     this.dust.mesh.name = 'Reveal dust pool';
     this.pops.mesh.name = 'Reveal pop pool';
     this.setBudget(200);
@@ -310,17 +337,16 @@ export class RevealParticles {
     }
   }
 
-  spawnPop(word: PopWord, x: number, y: number, z: number, scale = 0.34, color = whiteColor) {
-    const index = popWords.indexOf(word);
+  spawnPop(word: PopWord | ComicWord, x: number, y: number, z: number, scale = 0.34, color = whiteColor) {
+    const index = atlasWords.indexOf(word);
     if (index < 0) return;
-    // The atlas is one row; each word gets a 0.25 slice.
     this.pops.spawn({
       x, y, z, vx: 0, vy: 0.12, vz: 0,
       life: 0.86, startScale: scale * 0.55, endScale: scale,
       rotation: (Math.random() - 0.5) * 0.10, spin: (Math.random() - 0.5) * 0.22,
-      color, uvOffset: index * 0.2,
+      color, uvOffset: (index % atlasColumns) / atlasColumns,
+      uvOffsetY: (atlasRows - 1 - Math.floor(index / atlasColumns)) / atlasRows,
     });
-    this.popCursor = (this.popCursor + 1) % popWords.length;
   }
 
   update(dt: number) {
@@ -330,6 +356,10 @@ export class RevealParticles {
 
   clear() {
     this.dust.clear();
+    this.clearPops();
+  }
+
+  clearPops() {
     this.pops.clear();
   }
 

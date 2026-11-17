@@ -1,5 +1,22 @@
 # Garage Jam — SFX Production Plan
 
+## Comic gameplay pack · 2026-11-17
+
+ElevenLabs Sound Effects v2 generated these 15 shipped clips. They add about 371 KB of 48 kHz Ogg Opus. The one-shots use close, dry comic foley and play alongside the matching Bangers lettering. The inventory below reflects the current gameplay pack.
+
+| Assets | Playback |
+|---|---|
+| `paper_pickup`, `paper_toss`, `paper_pin` | Paper pickup, fast release, and pinning to Today / Top 3 |
+| `paper_crumple_01`, `paper_crumple_02` | Alternating crunches at the paper, alongside the haptic pulse |
+| `paper_bin_catch`, `task_done` | Bin contact on arrival and a dry stamp once the app accepts completion |
+| `amb_garage_interior`, `amb_dusk_doorway` | Quiet stereo interior and spatial dusk air at the opening. Focus lowers the doorway layer. Both fade out as the garage leaves view. |
+| `focus_shutter_close`, `focus_break_start` | The shutter's final roll and latch, then a separate two-note break cue |
+| `setup_point_mark`, `setup_lock` | Accepted marks, room and device confirmation, and explicit monitor layout saves |
+| `stream_first_picture` | First visible video from a paired sender |
+| `ui_action_blocked` | Rejected calibration, failed task write-back, or failed monitor layout save |
+
+The sections below record the initial reveal pack and its original production notes.
+
 Checked against the current code and assets on 2026-11-16.
 
 ## Implemented pack

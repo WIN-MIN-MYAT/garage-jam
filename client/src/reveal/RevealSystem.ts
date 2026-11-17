@@ -1,4 +1,4 @@
-import { createSystem, Group, InputComponent, Vector3, VisibilityState } from '@iwsdk/core';
+import { Color, createSystem, Group, InputComponent, Vector3, VisibilityState } from '@iwsdk/core';
 import config from './reveal.config.json';
 import { buildRevealTimeline, beatOf, beatProgress, quantize, type RevealTimeline } from './RevealTimeline.js';
 import { RevealParticles, type PopWord } from './RevealParticles.js';
@@ -9,6 +9,8 @@ import { revealModeFor, revealSpeed } from '../app-flow/app-flow.js';
 import { garageState } from '../garage-state.js';
 import { emit, garageEvents } from '../events.js';
 import { GarageBuildSystem } from '../systems/garage-build-system.js';
+import { comicWords, type ComicWordCue } from '../comic-word.js';
+import { garageRootsVisible } from '../garage-visibility.js';
 
 const query = new URLSearchParams(location.search);
 const clamp = (value: number, low: number, high: number) => Math.max(low, Math.min(high, value));
@@ -81,11 +83,35 @@ export class RevealSystem extends createSystem({}) {
       this.particles?.clear();
       revealAudio.stopSpray();
       revealAudio.stopRevealSamples();
+      revealAudio.stopGameplaySamples();
       revealAudio.updateAmbience(false, null);
     };
     const onStage = (event: Event) => {
       const stage = (event as CustomEvent<{ stage?: string }>).detail?.stage;
       if (stage === 'S11') this.requestedMode = 'quick';
+    };
+    const lastComicWord = new Map<ComicWordCue['word'], number>();
+    const wordPoint = new Vector3();
+    const head = new Vector3();
+    const forward = new Vector3();
+    const onComicWord = (event: Event) => {
+      if (!this.audioVisible || this.leaving || !garageRootsVisible() || garageState.preferences.reducedMotion) return;
+      const { word, position } = (event as CustomEvent<ComicWordCue>).detail;
+      const now = performance.now();
+      if (now - (lastComicWord.get(word) ?? -Infinity) < (word === 'PIP.' ? 1800 : 400)) return;
+      lastComicWord.set(word, now);
+      const camera = this.world.camera;
+      camera.getWorldPosition(head);
+      if (position) {
+        wordPoint.set(position.x, position.y + 0.12, position.z);
+        forward.copy(wordPoint).sub(head);
+        if (forward.lengthSq() < 0.49) wordPoint.copy(head).addScaledVector(forward.normalize(), 0.7);
+      } else {
+        wordPoint.copy(head).addScaledVector(camera.getWorldDirection(forward), 1.15);
+        wordPoint.y -= 0.24;
+      }
+      const style = comicWords[word];
+      this.particles?.spawnPop(word, wordPoint.x, wordPoint.y, wordPoint.z, style.scale, new Color(style.tint));
     };
     garageEvents.addEventListener('reveal-request', onRequest);
     garageEvents.addEventListener('garage-built', onBuilt);
@@ -95,11 +121,15 @@ export class RevealSystem extends createSystem({}) {
     garageEvents.addEventListener('room-enter', onRoomEnter);
     garageEvents.addEventListener('room-leave', onRoomLeave);
     garageEvents.addEventListener('app-flow-stage', onStage);
+    garageEvents.addEventListener('comic-word', onComicWord);
     const stopVisibility = this.world.visibilityState.subscribe(state => {
       this.audioVisible = state === VisibilityState.Visible;
       if (!this.audioVisible) {
+        lastComicWord.clear();
+        this.particles?.clearPops();
         revealAudio.updateAmbience(false, null);
         revealAudio.stopRevealSamples();
+        revealAudio.stopGameplaySamples();
       }
       if (state === VisibilityState.Hidden || state === VisibilityState.NonImmersive) {
         if (this.active) this.finishReveal(true);
@@ -114,6 +144,7 @@ export class RevealSystem extends createSystem({}) {
       garageEvents.removeEventListener('room-enter', onRoomEnter);
       garageEvents.removeEventListener('room-leave', onRoomLeave);
       garageEvents.removeEventListener('app-flow-stage', onStage);
+      garageEvents.removeEventListener('comic-word', onComicWord);
       stopVisibility();
       this.particles?.dispose();
       this.particlesRoot.removeFromParent();
@@ -264,10 +295,10 @@ export class RevealSystem extends createSystem({}) {
       if (this.active) this.checkInputSkip(dt);
       if (this.active && this.timeline && this.elapsed >= this.timeline.duration) this.finishReveal(false);
     }
-    if (this.audioVisible && (this.finished || this.sunbeamSoundStarted) && this.runtime) {
+    if (this.audioVisible && garageRootsVisible() && (this.finished || this.sunbeamSoundStarted) && this.runtime) {
       const doorway = this.runtime.door?.group;
       revealAudio.updateAmbience(true, doorway ? doorway.getWorldPosition(this.doorwayAudio) : null);
-    }
+    } else revealAudio.updateAmbience(false, null);
     this.particles?.update(Math.min(delta, 0.1));
     if (location.hostname === 'localhost' && this.active && performance.now() - this.lastDebugAt > 80) {
       this.lastDebugAt = performance.now();
@@ -665,6 +696,8 @@ export class RevealSystem extends createSystem({}) {
     this.leaveFrom = runtime.surfaces.map(surface => surface.uniforms.uRevealProgress.value);
     if (runtime.blueprint) runtime.blueprint.group.visible = false;
     this.particles?.clear();
+    revealAudio.stopGameplaySamples();
+    revealAudio.updateAmbience(false, null);
     emit('reveal-leave-started');
   }
 

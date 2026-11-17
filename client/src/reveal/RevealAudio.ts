@@ -3,7 +3,27 @@ import type { Camera } from '@iwsdk/core';
 
 type Point = { x: number; y: number; z: number };
 
+const gameplayGain = {
+  paper_pickup: 0.27,
+  paper_crumple_01: 0.42,
+  paper_crumple_02: 0.42,
+  paper_toss: 0.30,
+  paper_bin_catch: 0.39,
+  task_done: 0.41,
+  paper_pin: 0.29,
+  focus_shutter_close: 0.43,
+  focus_break_start: 0.39,
+  setup_point_mark: 0.28,
+  setup_lock: 0.32,
+  stream_first_picture: 0.30,
+  ui_action_blocked: 0.32,
+};
+
+const ambienceGain = { amb_garage_interior: 0.18, amb_dusk_doorway: 0.25 };
+
 const sampleGain = {
+  ...gameplayGain,
+  ...ambienceGain,
   rev_blueprint_draw: 0.42,
   rev_floor_spray_loop: 0.25,
   rev_wall_wipe_01: 0.40,
@@ -20,6 +40,8 @@ const sampleGain = {
 };
 
 type SampleId = keyof typeof sampleGain;
+type GameplayId = keyof typeof gameplayGain;
+type AmbienceId = keyof typeof ambienceGain;
 type SampleVoice = { source: AudioBufferSourceNode; gain: GainNode; panner: PannerNode | null };
 
 export class RevealAudio {
@@ -34,7 +56,11 @@ export class RevealAudio {
   private sampleLoad?: Promise<void>;
   private samples = new Map<SampleId, AudioBuffer>();
   private revealVoices = new Set<SampleVoice>();
-  private ambience = new Map<SampleId, SampleVoice>();
+  private gameplayVoices = new Set<SampleVoice>();
+  private ambience = new Map<AmbienceId, SampleVoice>();
+  private lastGameplay = new Map<GameplayId, number>();
+  private crumpleVariant = false;
+  private shutterClosed = false;
   private lastPress = -Infinity;
   private lastProp = -Infinity;
   private lastPanel = -Infinity;
@@ -71,7 +97,7 @@ export class RevealAudio {
     })).then(() => undefined);
   }
 
-  private startSample(id: SampleId, position?: Point, loop = false, rate = 1, level = sampleGain[id], attack = 0.008) {
+  private startSample(id: SampleId, position?: Point, loop = false, rate = 1, level = sampleGain[id], attack = 0.008, delay = 0) {
     const context = this.context;
     const master = this.master;
     const buffer = this.samples.get(id);
@@ -82,7 +108,7 @@ export class RevealAudio {
     source.playbackRate.value = rate;
     const gain = context.createGain();
     const panner = position ? this.panner(position) : null;
-    const now = context.currentTime;
+    const now = context.currentTime + delay;
     gain.gain.setValueAtTime(0, now);
     gain.gain.linearRampToValueAtTime(level, now + attack);
     source.connect(gain);
@@ -91,6 +117,7 @@ export class RevealAudio {
     const voice = { source, gain, panner };
     source.onended = () => {
       this.revealVoices.delete(voice);
+      this.gameplayVoices.delete(voice);
       source.disconnect();
       gain.disconnect();
       panner?.disconnect();
@@ -118,11 +145,60 @@ export class RevealAudio {
     this.revealVoices.clear();
   }
 
-  updateAmbience(_active: boolean, _exterior: Point | null) {
-    // The original room-tone and golden-hour exterior loops were removed.
-    // Keep any loaded ambience silent until replacement recordings are added.
-    for (const voice of this.ambience.values()) this.fadeOut(voice, 0.45);
-    this.ambience.clear();
+  updateAmbience(active: boolean, exterior: Point | null) {
+    if (!active) {
+      for (const voice of this.ambience.values()) this.fadeOut(voice, 0.45);
+      this.ambience.clear();
+      return;
+    }
+    this.ensureAmbience('amb_garage_interior', undefined, ambienceGain.amb_garage_interior);
+    if (exterior) this.ensureAmbience('amb_dusk_doorway', exterior, this.doorwayGain());
+    else {
+      const voice = this.ambience.get('amb_dusk_doorway');
+      if (voice) this.fadeOut(voice, 0.45);
+      this.ambience.delete('amb_dusk_doorway');
+    }
+  }
+
+  private ensureAmbience(id: AmbienceId, position: Point | undefined, level: number) {
+    const current = this.ambience.get(id);
+    if (current) {
+      if (position && current.panner) this.setPannerPosition(current.panner, position);
+      return;
+    }
+    const voice = this.startSample(id, position, true, 1, level, 1.15);
+    if (voice) this.ambience.set(id, voice);
+  }
+
+  private doorwayGain() {
+    return ambienceGain.amb_dusk_doorway * (this.shutterClosed ? 0.22 : 1);
+  }
+
+  setShutterClosed(closed: boolean) {
+    if (this.shutterClosed === closed) return;
+    this.shutterClosed = closed;
+    const exterior = this.ambience.get('amb_dusk_doorway');
+    if (!exterior || !this.context) return;
+    const now = this.context.currentTime;
+    exterior.gain.gain.cancelAndHoldAtTime(now);
+    exterior.gain.gain.setTargetAtTime(this.doorwayGain(), now, 0.3);
+  }
+
+  playGameplay(id: GameplayId, position?: Point, { rate = 1, delay = 0 } = {}) {
+    if (!this.context) return false;
+    const now = this.context.currentTime;
+    if (now - (this.lastGameplay.get(id) ?? -Infinity) < 0.075 || this.gameplayVoices.size >= 8) return true;
+    const voice = this.startSample(id, position, false, rate, gameplayGain[id], 0.006, delay);
+    if (!voice) return false;
+    this.lastGameplay.set(id, now);
+    this.gameplayVoices.add(voice);
+    return true;
+  }
+
+  stopGameplaySamples() {
+    for (const voice of this.gameplayVoices) this.fadeOut(voice, 0.04);
+    this.gameplayVoices.clear();
+    this.lastGameplay.clear();
   }
 
   playPress() {
@@ -358,6 +434,7 @@ export class RevealAudio {
 
   playTick(position: Point) {
     if (!this.unlocked || !this.context) return;
+    if (this.playGameplay('setup_point_mark', position, { rate: 0.97 + Math.random() * 0.06 })) return;
     const now = this.context.currentTime;
     const output = this.panner(position);
     const gain = this.context.createGain();
@@ -393,45 +470,41 @@ export class RevealAudio {
 
   playPaperGrab(position?: Point) {
     if (!this.unlocked || !this.context) return;
+    if (this.playGameplay('paper_pickup', position)) return;
     this.noiseBurst(this.context.currentTime, 0.11, 0.05, 'highpass', 2200, position);
   }
 
   playPaperCrumple(position?: Point) {
     if (!this.unlocked || !this.context) return;
+    this.crumpleVariant = !this.crumpleVariant;
+    if (this.playGameplay(this.crumpleVariant ? 'paper_crumple_01' : 'paper_crumple_02', position)) return;
     const now = this.context.currentTime;
     this.noiseBurst(now, 0.16, 0.075, 'bandpass', 1800, position);
     this.noiseBurst(now + 0.11, 0.2, 0.06, 'bandpass', 1200, position);
     this.noiseBurst(now + 0.23, 0.18, 0.04, 'highpass', 2600, position);
   }
 
-  playPaperThrow(position?: Point) {
+  playPaperThrow(position: Point, speed: number) {
     if (!this.unlocked || !this.context) return;
+    if (this.playGameplay('paper_toss', position, { rate: Math.min(1.18, 0.9 + speed * 0.06) })) return;
     this.noiseBurst(this.context.currentTime, 0.26, 0.055, 'bandpass', 900, position);
   }
 
   playTrash(position?: Point) {
     if (!this.unlocked || !this.context) return;
+    if (this.playGameplay('paper_bin_catch', position)) return;
     const now = this.context.currentTime;
     this.playThud(position ?? { x: 0, y: 1, z: 0 }, 0.65, 'metal');
     this.noiseBurst(now + 0.04, 0.22, 0.05, 'bandpass', 1500, position);
   }
 
-  playTaskDone(position?: Point) {
+  playTaskDone() {
     if (!this.unlocked || !this.context) return;
-    this.playChime(position);
-    this.noiseBurst(this.context.currentTime + 0.12, 0.2, 0.035, 'bandpass', 2100, position);
+    if (!this.playGameplay('task_done', undefined, { delay: 0.12 })) this.playChime();
   }
 
-  playFocus(start: boolean) {
-    if (!this.unlocked || !this.context) return;
-    this.playDoor({ x: 0, y: 1.4, z: -1.2 }, start ? 0.8 : 0.55);
-    if (!start) this.playChime();
-  }
-
-  playStreamCue(ok: boolean) {
-    if (!this.unlocked || !this.context) return;
-    if (ok) this.playChime();
-    else this.playTick({ x: 0, y: 1.3, z: -1 });
+  playFocusClose(position: Point) {
+    if (!this.playGameplay('focus_shutter_close', position)) this.playDoor(position, 0.8);
   }
 
   playNudge() {
@@ -524,6 +597,7 @@ export class RevealAudio {
     this.stopLoFi();
     this.stopSpray();
     this.stopRevealSamples();
+    this.stopGameplaySamples();
     this.updateAmbience(false, null);
     this.context?.close().catch(() => { /* noop */ });
     this.context = null;
@@ -531,6 +605,7 @@ export class RevealAudio {
     this.unlocked = false;
     this.sampleLoad = undefined;
     this.samples.clear();
+    this.shutterClosed = false;
     this.lastPress = this.lastProp = this.lastPanel = -Infinity;
   }
 }

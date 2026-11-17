@@ -9,6 +9,7 @@ import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { addCompletion, loadProgress, setPinned } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { showComicWord } from '../comic-word.js';
 import { outlineBounds } from '../room-model.js';
 
 type Task = { id: string; title: string; priority?: string | null; due?: string | null; source?: string; starter?: boolean };
@@ -69,6 +70,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private demo = new URLSearchParams(location.search).get('demo') === '1';
   private started = false;
   private previous = new Map<number, Vector3>();
+  private trashContacts = new Set<number>();
   private motion = new Map<number, { samples: Float32Array; next: number; count: number }>();
   private trash = new Vector3(roomConfig.trash[0], 0.55, roomConfig.trash[2]);
   private position = new Vector3();
@@ -106,7 +108,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
         (entity.object3D as Mesh)?.userData.paperTexture?.dispose?.();
         entity.dispose();
       }
-      this.previous.clear(); this.motion.clear(); this.tasks.clear();
+      this.previous.clear(); this.trashContacts.clear(); this.motion.clear(); this.tasks.clear();
     };
     const onRoomHidden = () => { this.roomHidden = true; for (const entity of this.queries.papers.entities) entity.object3D?.visible && (entity.object3D.visible = false); };
     const onRoomShown = () => { this.roomHidden = false; for (const entity of this.queries.papers.entities) entity.object3D && (entity.object3D.visible = true); };
@@ -146,6 +148,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
           entity.dispose();
         }
         this.previous.clear();
+        this.trashContacts.clear();
         this.motion.clear();
         this.tasks.clear();
       }
@@ -173,28 +176,39 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
           });
           emit('progress-updated', progress);
           emit('status', 'Pinned to Today / Top 3');
+          revealAudio.playGameplay('paper_pin', position);
+          showComicWord('TIK!', position);
           return;
         }
       }
-      const samples = this.motion.get(entity.index);
-      if (!samples || samples.count < 2) return;
-      const newest = (samples.next + 4) % 5;
-      const oldest = samples.count === 5 ? samples.next : 0;
-      const a = oldest * 4, b = newest * 4;
-      const dt = (samples.samples[b + 3] - samples.samples[a + 3]) / 1000;
-      if (dt < 0.01) return;
-      const vx = Math.max(-8, Math.min(8, (samples.samples[b] - samples.samples[a]) / dt));
-      const vy = Math.max(-8, Math.min(8, (samples.samples[b + 1] - samples.samples[a + 1]) / dt));
-      const vz = Math.max(-8, Math.min(8, (samples.samples[b + 2] - samples.samples[a + 2]) / dt));
       const current = entity.getVectorView(PhysicsBody, '_linearVelocity');
-      if (vx * vx + vy * vy + vz * vz > 0.25 && current[0] ** 2 + current[1] ** 2 + current[2] ** 2 < 0.25) {
-        entity.addComponent(PhysicsManipulation, { linearVelocity: [vx, vy, vz] });
-        revealAudio.playPaperThrow({ x: this.position.x, y: this.position.y, z: this.position.z });
+      let speed = Math.hypot(current[0], current[1], current[2]);
+      const samples = this.motion.get(entity.index);
+      if (samples && samples.count >= 2 && speed < 0.5) {
+        const newest = ((samples.next + 4) % 5) * 4;
+        const oldest = (samples.count === 5 ? samples.next : 0) * 4;
+        const dt = (samples.samples[newest + 3] - samples.samples[oldest + 3]) / 1000;
+        if (dt >= 0.01) {
+          const axis = (offset: number) => Math.max(-8, Math.min(8, (samples.samples[newest + offset] - samples.samples[oldest + offset]) / dt));
+          const velocity: [number, number, number] = [axis(0), axis(1), axis(2)];
+          speed = Math.hypot(...velocity);
+          if (speed > 0.5) entity.addComponent(PhysicsManipulation, { linearVelocity: velocity });
+        }
       }
-      samples.count = 0;
+      if (speed > 0.5 && entity.object3D) {
+        const position = entity.object3D.getWorldPosition(this.position);
+        revealAudio.playPaperThrow(position, speed);
+        showComicWord('FWHIP!', position);
+      }
+      if (samples) samples.count = 0;
     };
     this.cleanupFuncs.push(this.queries.held.subscribe('disqualify', onRelease));
-    this.cleanupFuncs.push(this.queries.held.subscribe('qualify', () => revealAudio.playPaperGrab()));
+    this.cleanupFuncs.push(this.queries.held.subscribe('qualify', entity => {
+      this.trashContacts.delete(entity.index);
+      const position = entity.object3D?.getWorldPosition(this.position);
+      revealAudio.playPaperGrab(position);
+      if (position) showComicWord('FWIP!', position);
+    }));
   }
 
   private layoutFromRoom() {
@@ -316,7 +330,9 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     dimensions[0] = 0.045; dimensions[1] = 0; dimensions[2] = 0;
     emit('status', 'CRUNCH! Throw it in the trash');
     emit('paper-crumpled', { id: entity.getValue(PaperTask, 'taskId') });
-    revealAudio.playPaperCrumple({ x: this.position.x, y: this.position.y, z: this.position.z });
+    const position = mesh.getWorldPosition(this.position);
+    revealAudio.playPaperCrumple(position);
+    showComicWord('KRRUNCH!', position);
     this.pulse(0.32, 45);
   }
 
@@ -346,7 +362,8 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     } catch (error) {
       entity.setValue(PaperTask, 'completed', false);
       emit('status', `Write-back failed: ${(error as Error).message}`);
-      revealAudio.playStreamCue(false);
+      if (!this.roomHidden && this.world.session) revealAudio.playGameplay('ui_action_blocked');
+      showComicWord('TOK.');
     }
   }
 
@@ -358,10 +375,11 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     addCompletion(progress);
     emit('progress-updated', progress);
     this.previous.delete(entity.index);
+    this.trashContacts.delete(entity.index);
     this.motion.delete(entity.index);
     entity.dispose();
-    revealAudio.playTrash({ x: this.trash.x, y: this.trash.y, z: this.trash.z });
-    revealAudio.playTaskDone({ x: this.trash.x, y: this.trash.y, z: this.trash.z });
+    if (!this.roomHidden && this.world.session) revealAudio.playTaskDone();
+    showComicWord('KA-CHAK!');
     this.pulse(0.45, 55);
   }
 
@@ -384,7 +402,17 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
         const length2 = dx * dx + dy * dy + dz * dz;
         const t = Math.max(0, Math.min(1, length2 ? ((this.trash.x - last.x) * dx + (this.trash.y - last.y) * dy + (this.trash.z - last.z) * dz) / length2 : 0));
         const x = last.x + t * dx - this.trash.x, y = last.y + t * dy - this.trash.y, z = last.z + t * dz - this.trash.z;
-        if (x * x + y * y + z * z < 0.032 && this.position.y < this.trash.y + 0.28 && this.position.y > this.trash.y - 0.22) void this.complete(entity);
+        const hit = x * x + y * y + z * z < 0.032 && this.position.y < this.trash.y + 0.28 && this.position.y > this.trash.y - 0.22;
+        if (hit) {
+          if (!this.trashContacts.has(entity.index)) {
+            this.trashContacts.add(entity.index);
+            revealAudio.playTrash(this.trash);
+            showComicWord('P’LUNK!', this.trash);
+            void this.complete(entity);
+          }
+        } else {
+          this.trashContacts.delete(entity.index);
+        }
       }
       last?.copy(this.position);
     }

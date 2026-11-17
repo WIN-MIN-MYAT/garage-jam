@@ -1,4 +1,4 @@
-import { CanvasTexture, createSystem, DoubleSide, Grabbed, Group, LinearFilter, Mesh, MeshBasicMaterial, OneHandGrabbable, PlaneGeometry, RayInteractable, SRGBColorSpace, VideoTexture, VisibilityState } from '@iwsdk/core';
+import { CanvasTexture, createSystem, DoubleSide, Grabbed, Group, LinearFilter, Mesh, MeshBasicMaterial, OneHandGrabbable, PlaneGeometry, RayInteractable, SRGBColorSpace, Vector3, VideoTexture, VisibilityState } from '@iwsdk/core';
 import type { Entity } from '@iwsdk/core';
 import { roomConfig } from '../room-config.js';
 import { emit, garageEvents } from '../events.js';
@@ -11,6 +11,8 @@ import { SignalingClient } from '../stream-shared/SignalingClient.js';
 import { collectStats, show } from '../stream-shared/StreamStats.js';
 import { latencySample, percentile } from '../stream-shared/LatencyProbe.js';
 import { isUdpCandidate, udpOnlyDescription } from '../stream-shared/IcePolicy.js';
+import { showComicWord } from '../comic-word.js';
+import { revealAudio } from '../reveal/RevealAudio.js';
 
 type Channel = {
   name: string; root: Group; screen: Mesh; video: HTMLVideoElement; placeholder: CanvasTexture;
@@ -40,6 +42,7 @@ function placeholder(index: number) {
 export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
   private channels: Channel[] = [];
   private active = true;
+  private announcedPicture = false;
   private diagnosticsVisible = true;
   private preset: 'arc' | 'table' | 'stacked' | 'ultrawide' | 'free' = 'arc';
   private selected = 0;
@@ -90,7 +93,15 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const onResize = (event: Event) => this.resize(Number((event as CustomEvent).detail?.dw) || 0, Number((event as CustomEvent).detail?.dh) || 0);
     const onLock = () => this.toggleLock();
     const onSelect = (event: Event) => this.selectMonitor(Number((event as CustomEvent).detail?.index) || 0);
-    const onSave = () => this.saveLayout();
+    const onSave = () => {
+      if (this.saveLayout()) {
+        revealAudio.playGameplay('setup_lock');
+        showComicWord('KLIK.');
+      } else {
+        revealAudio.playGameplay('ui_action_blocked');
+        showComicWord('TOK.');
+      }
+    };
     garageEvents.addEventListener('garage-revealed', onLayout);
     garageEvents.addEventListener('stream-refresh', onRefresh);
     garageEvents.addEventListener('stream-forget', onForget);
@@ -170,6 +181,9 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     }
     this.channels.forEach(channel => {
       channel.root.visible = garageState.preferences.mode === 'streaming' && garageRootsVisible();
+      if (channel.texture && channel.video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && !channel.video.paused) {
+        this.announcePicture(channel);
+      }
     });
   }
 
@@ -222,14 +236,19 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private saveLayout() {
-    if (!garageState.room) return;
+    if (!garageState.room) return false;
     const data = this.channels.map(channel => ({
       x: channel.root.position.x, y: channel.root.position.y, z: channel.root.position.z,
       scaleX: channel.root.scale.x, scaleY: channel.root.scale.y,
       curve: channel.curve, locked: channel.locked,
     }));
-    try { localStorage.setItem(this.layoutKey, JSON.stringify({ preset: this.preset, selected: this.selected, monitors: data })); } catch { /* private mode */ }
+    let saved = false;
+    try {
+      localStorage.setItem(this.layoutKey, JSON.stringify({ preset: this.preset, selected: this.selected, monitors: data }));
+      saved = true;
+    } catch { /* private mode */ }
     emit('monitor-layout', this.managerState());
+    return saved;
   }
 
   private recenter() {
@@ -295,6 +314,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private forget() {
+    this.announcedPicture = false;
     for (const channel of this.channels) {
       this.resetPeer(channel, 'forget');
       channel.machine.set('pairing', 'forget');
@@ -354,6 +374,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         else { const pending = channel.pendingCandidates.get(msg.generation) || []; pending.push(msg.candidate); channel.pendingCandidates.set(msg.generation, pending); }
       } else if (msg.type === 'leave' && msg.role === 'sender' && msg.sessionId === channel.remoteSession) {
         this.resetPeer(channel, 'sender-left'); channel.machine.set('pairing', 'sender-left'); channel.remoteSession = undefined;
+        if (this.channels.every(item => !item.remoteSession)) this.announcedPicture = false;
       } else if (msg.type === 'peer-ready' && msg.role === 'sender') {
         channel.pairingStart = Date.now();
         if (channel.remoteSession && channel.remoteSession !== msg.sessionId) { this.resetPeer(channel, 'new-sender'); channel.generation = -1; }
@@ -401,12 +422,25 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         const updateAspect = () => { if (channel.video.videoWidth) channel.screen.scale.x = (channel.video.videoWidth / channel.video.videoHeight) / (16 / 9); };
         channel.video.addEventListener('loadedmetadata', updateAspect, { once: true }); updateAspect();
         this.watchFrames(channel);
+        if ('requestVideoFrameCallback' in channel.video) {
+          channel.video.requestVideoFrameCallback(() => {
+            if (channel.peer === peer) this.announcePicture(channel);
+          });
+        } else this.announcePicture(channel);
         this.checkHealth(channel, 'video-playing');
       }).catch(error => { channel.log.add('video-play-error', { message: String(error) }); channel.machine.set('failed', 'video-play-error'); });
     };
     channel.statsTimer = streamConfig.diagnostics ? window.setInterval(() => void this.updateStats(channel), streamConfig.statsMs) : undefined;
     channel.probeTimer = streamConfig.probe ? window.setInterval(() => this.updateProbe(channel), 250) : undefined;
     channel.machine.set('connecting', reason);
+  }
+
+  private announcePicture(channel: Channel) {
+    if (this.announcedPicture || !this.world.session || !this.active || !channel.root.visible || !garageRootsVisible()) return;
+    this.announcedPicture = true;
+    const position = channel.screen.getWorldPosition(new Vector3());
+    revealAudio.playGameplay('stream_first_picture', position);
+    showComicWord('PIP.', position);
   }
   private watchFrames(channel: Channel) {
     if (!streamConfig.diagnostics && !streamConfig.probe && !streamConfig.logging) return;

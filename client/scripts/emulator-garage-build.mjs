@@ -83,15 +83,20 @@ async function read(page) {
       if (object.name?.endsWith(' model')) modelNodes.push({ name: object.name, parent: object.parent?.name ?? null });
     });
     const facing = [];
-    const worktop = debug.root.getObjectByName('Workbench top');
+    const worktop = debug.root.getObjectByName('Workbench top') ?? debug.root.getObjectByName('Workbench model root');
     const worktopVertices = [];
     if (worktop) {
-      const position = worktop.geometry.attributes.position;
-      const vertex = worktop.position.clone();
-      for (let i = 0; i < position.count; i++) {
-        worktop.localToWorld(vertex.fromBufferAttribute(position, i));
-        if (Math.abs(vertex.y - debug.room.table.topY) < 0.001) worktopVertices.push({ x: vertex.x, z: vertex.z });
-      }
+      worktop.updateMatrixWorld(true);
+      worktop.traverse((mesh) => {
+        if (!mesh.isMesh || mesh.name?.endsWith('ink outline')) return;
+        const position = mesh.geometry?.attributes?.position;
+        if (!position) return;
+        const vertex = worktop.position.clone();
+        for (let i = 0; i < position.count; i++) {
+          mesh.localToWorld(vertex.fromBufferAttribute(position, i));
+          if (Math.abs(vertex.y - debug.room.table.topY) < 0.02) worktopVertices.push({ x: vertex.x, z: vertex.z });
+        }
+      });
     }
     const propOverflows = [];
     const wallOffsets = [];
@@ -197,9 +202,19 @@ if (doorWall) {
 const close = (a, b, tolerance = 0.01) => Math.abs(a - b) <= tolerance;
 function assertWorktopMatches(result) {
   assert.ok(result.worktopVertices.length > 0, 'expected visible worktop vertices at the measured height');
-  for (const corner of result.tablePolygon) {
-    assert.ok(result.worktopVertices.some(point => close(point.x, corner.x, 0.001) && close(point.z, corner.z, 0.001)), 'worktop must match the measured tabletop corners');
-  }
+  const bounds = result.tablePolygon.reduce((box, point) => ({
+    minX: Math.min(box.minX, point.x), maxX: Math.max(box.maxX, point.x),
+    minZ: Math.min(box.minZ, point.z), maxZ: Math.max(box.maxZ, point.z),
+  }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
+  const actual = result.worktopVertices.reduce((box, point) => ({
+    minX: Math.min(box.minX, point.x), maxX: Math.max(box.maxX, point.x),
+    minZ: Math.min(box.minZ, point.z), maxZ: Math.max(box.maxZ, point.z),
+  }), { minX: Infinity, maxX: -Infinity, minZ: Infinity, maxZ: -Infinity });
+  assert.ok(
+    close(actual.minX, bounds.minX, 0.12) && close(actual.maxX, bounds.maxX, 0.12) &&
+    close(actual.minZ, bounds.minZ, 0.12) && close(actual.maxZ, bounds.maxZ, 0.12),
+    `worktop must match the measured tabletop extents: ${JSON.stringify({ actual, bounds })}`,
+  );
 }
 assert.equal(scanResult.presenting, true);
 assert.equal(scanResult.source, 'SCAN');
