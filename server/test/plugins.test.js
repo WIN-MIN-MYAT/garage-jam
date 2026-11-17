@@ -190,3 +190,30 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.equal(disconnected.status, 204);
   assert.equal((await (await get('/status')).json()).spotify.connected, false);
 });
+
+test('shared demo profile keeps provider changes locked while status remains readable', async t => {
+  const directory = await mkdtemp(join(tmpdir(), 'garage-plugins-shared-'));
+  const app = express();
+  app.use(express.json());
+  app.use('/api/plugins', createPluginRouter({
+    directory,
+    env: { PLUGIN_SHARED_PROFILE: 'garage-demo-shared-profile-2026', PLUGIN_DEMO_LOCK: '1' },
+    fetcher: async () => Response.json({}),
+  }));
+  const server = app.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(async () => {
+    await new Promise(resolve => server.close(resolve));
+    await rm(directory, { recursive: true, force: true });
+  });
+  const origin = `http://127.0.0.1:${server.address().port}`;
+  const status = await fetch(`${origin}/api/plugins/status`, { headers: { 'X-Garage-Profile': 'different-browser-profile-1234' } });
+  assert.equal(status.status, 200);
+  assert.equal((await status.json()).spotify.configured, false);
+  const pair = await fetch(`${origin}/api/plugins/spotify/pair`, {
+    method: 'POST', headers: { origin, 'Content-Type': 'application/json' }, body: '{}',
+  });
+  assert.equal(pair.status, 403);
+  const disconnect = await fetch(`${origin}/api/plugins/spotify`, { method: 'DELETE', headers: { origin } });
+  assert.equal(disconnect.status, 403);
+});

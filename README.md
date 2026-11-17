@@ -32,6 +32,8 @@ Garage Jam needs a Node process, a WebSocket `/signal` endpoint, the `/sender` p
 
 The repository includes a production `Dockerfile` and a Render blueprint (`render.yaml`). The server serves the built client from `client/dist`, so `https://garagejam.com/`, `https://garagejam.com/sender?room=...`, `/api` and `/signal` share one origin. See [docs/deployment.md](docs/deployment.md) for Render, custom-domain/DNS, Docker/VPS and same-Wi-Fi verification steps.
 
+For judges in other countries, use a shared host account instead of adding their emails to Spotify: set `PLUGIN_SHARED_PROFILE`, connect Spotify once, set `PLUGIN_DEMO_LOCK=1`, and keep a Premium playback device online. Notion works without judge logins via `NOTION_TOKEN` and `NOTION_DATABASE_ID`. Full steps and caveats are in the deployment guide.
+
 ## Notion setup
 
 Create a Notion database with these exact properties:

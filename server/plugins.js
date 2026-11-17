@@ -18,6 +18,9 @@ const hash = (purpose, session) => createHash('sha256').update(`${purpose}:${ses
 export function createPluginRouter({ env = process.env, fetcher = fetch, directory = join(dataDir, 'plugins') } = {}) {
   const providers = createProviders(env, fetcher);
   const router = express.Router();
+  const sharedProfile = typeof env.PLUGIN_SHARED_PROFILE === 'string' && profilePattern.test(env.PLUGIN_SHARED_PROFILE)
+    ? env.PLUGIN_SHARED_PROFILE : '';
+  const demoLocked = env.PLUGIN_DEMO_LOCK === '1';
   const pending = new Map();
   const pendingByState = new Map();
   const pairingCodes = new Map();
@@ -68,6 +71,10 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
       connected: !!connection, account: connection?.account, verifiedAt: connection?.verifiedAt, sample: connection?.sample };
   }
 
+  function assertConnectionsOpen() {
+    if (demoLocked) throw new PluginError(403, 'This demo uses a shared host connection; provider changes are locked.');
+  }
+
   const assets = join(import.meta.dirname, 'plugin-manager');
   const run = handler => (req, res, next) => Promise.resolve().then(() => handler(req, res)).catch(next);
   router.use((req, res, next) => {
@@ -98,7 +105,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     const name = secure ? '__Host-garage-plugins' : 'garage-plugins-local';
     const cookie = req.get('cookie')?.match(new RegExp(`(?:^|;\\s*)${name}=([A-Za-z0-9_-]{43})(?:;|$)`))?.[1];
     const supplied = req.get('x-garage-profile') || (typeof req.query.profile === 'string' ? req.query.profile : undefined);
-    req.pluginSession = supplied && profilePattern.test(supplied) ? supplied : cookie;
+    req.pluginSession = sharedProfile || (supplied && profilePattern.test(supplied) ? supplied : cookie);
     if (!req.pluginSession && req.path === '/status' && req.method === 'GET') {
       req.pluginSession = random();
     }
@@ -121,6 +128,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
   }));
 
   router.post('/:id/pair', run(async (req, res) => {
+    assertConnectionsOpen();
     const provider = req.plugin;
     if (!provider.configured) throw new PluginError(503, `${provider.label} setup is incomplete on the server.`);
     for (const [key, value] of pairingCodes) if (value.expires <= Date.now()) pairingCodes.delete(key);
@@ -256,6 +264,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
   }));
 
   router.post('/:id/authorize', run(async (req, res) => {
+    assertConnectionsOpen();
     const provider = req.plugin;
     if (!provider.authorize || !provider.configured) throw new PluginError(503, `${provider.label} setup is incomplete on the server.`);
     if (provider.origin !== req.pluginOrigin) throw new PluginError(409, `Open Plugins at ${provider.origin} to connect ${provider.label}.`);
@@ -305,6 +314,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     res.json(await providers.weather.search(name));
   }));
   router.post('/weather/connect', run(async (req, res) => {
+    assertConnectionsOpen();
     const { name, latitude, longitude } = req.body ?? {};
     if (typeof name !== 'string' || !name.trim() || name.length > 240 ||
         !Number.isFinite(latitude) || Math.abs(latitude) > 90 || !Number.isFinite(longitude) || Math.abs(longitude) > 180) {
@@ -348,6 +358,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     res.json(publicStatus(provider, updated));
   }));
   router.delete('/:id', run(async (req, res) => {
+    assertConnectionsOpen();
     const { id } = req.params;
     const session = req.pluginSession;
     pending.delete(`${session}:${id}`);

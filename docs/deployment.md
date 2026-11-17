@@ -96,6 +96,44 @@ Open the **exact** link from the headset. A bare `/sender` shows a warning and u
 
 The room code is a bearer secret, not user authentication. For a public multi-user service, add accounts and an authorization check before joining a room.
 
+## Share the host's Spotify and Notion with judges
+
+For a hackathon demo, judges should not need their own Spotify allowlist slots or Notion OAuth. Use one **demo host account** and server-side tokens. `render.yaml` sets `PLUGIN_SHARED_PROFILE`; remove it if you want each visitor to connect their own providers instead.
+
+### Spotify
+
+The shared-account path uses one Spotify account (ideally a dedicated Premium demo account, not your personal one):
+
+1. Set `SPOTIFY_CLIENT_ID`, `SPOTIFY_CLIENT_SECRET`, and `SPOTIFY_REDIRECT_URI=https://garagejam.com/api/plugins/spotify/callback` on the host.
+2. Add `PLUGIN_SHARED_PROFILE` (20–80 letters/numbers/underscores) to the host environment. `render.yaml` sets a default value.
+3. Open `https://garagejam.com/api/plugins/manage` from your browser and connect Spotify once. The token is stored under the shared profile.
+4. Keep a Spotify client open and awake on a laptop or phone and select it as the playback device in the wrist Music page.
+5. Set `PLUGIN_DEMO_LOCK=1` and redeploy. Visitors can still play/pause/next/volume, but cannot replace or disconnect the shared account.
+
+Judges never log into Spotify and never need to be added to the Spotify app's allowlist. Only the demo account authorizing the app needs to be allowed; as the app owner it normally already is. The refresh token stays on the server; no password or token is exposed to visitors.
+
+Caveats:
+
+- Judges are controlling the host's playback. Use a dedicated account with a neutral display name and a demo playlist.
+- Spotify Premium and an active playback device are required.
+- Spotify's Development Mode user limit still applies if judges try to connect **their own** accounts. That requires their emails or Extended Quota Mode. The shared-account path avoids it.
+- Use music that is available in the host account's market; judges' countries do not change the account's catalog.
+- `PLUGIN_SHARED_PROFILE` shares all plugin tokens (Spotify, Notion OAuth, Calendar, Weather). Use demo calendar/weather data or skip those connectors if you do not want visitors to see personal data.
+
+### Notion
+
+Notion does not need judge logins if the server has an internal integration token:
+
+1. Create a **separate demo database**, not your personal notes.
+2. Create a Notion internal integration and share the database with it.
+3. Set `NOTION_TOKEN` and `NOTION_DATABASE_ID` on the host, plus `TASKS_SEND_TO=notion` (the default).
+4. Restart the service. Every visitor now sees the same demo tasks and can add/complete them through the app.
+5. Reset the database before judging if needed.
+
+The optional OAuth connector can still be used for a judge's own workspace, but it is not required for the shared demo. The task board uses `NOTION_TOKEN` directly, so the wrist CONNECT badge may remain OPTIONAL/OFF even while tasks work. With `PLUGIN_DEMO_LOCK=1`, visitors cannot replace the shared connection.
+
+Because the demo is public, anyone can control the host Spotify playback or modify the demo Notion database. Use a separate demo account/database and reset them between judging sessions.
+
 ## OAuth callbacks
 
 After the custom domain is live, update provider redirect URIs to the production origin, for example:
