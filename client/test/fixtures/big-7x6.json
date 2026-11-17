@@ -1,0 +1,16 @@
+{
+  "id": "big-7x6",
+  "description": "7 x 6 m room; zone must clamp to 6 x 6 m.",
+  "floorPolygon": [{ "x": -3.5, "z": -3 }, { "x": 3.5, "z": -3 }, { "x": 3.5, "z": 3 }, { "x": -3.5, "z": 3 }],
+  "ceilingY": 2.9,
+  "table": { "topY": 0.76, "polygon": [{ "x": -0.7, "z": -1.9 }, { "x": 0.7, "z": -1.9 }, { "x": 0.7, "z": -1.1 }, { "x": -0.7, "z": -1.1 }] },
+  "furniture": [{ "center": { "x": 2.4, "y": 0.45, "z": 1.8 }, "size": { "x": 1.2, "y": 0.9, "z": 0.8 }, "yaw": 0, "label": "cabinet", "confidence": 0.8 }],
+  "openings": [
+    { "type": "window", "wallId": "wall-0", "sillY": 0.9, "topY": 2.2, "center": 3.5, "width": 2.0 },
+    { "type": "door", "wallId": "wall-3", "sillY": 0, "topY": 2.1, "center": 3.0, "width": 1.0 }
+  ],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.9,
+  "source": "mock"
+}

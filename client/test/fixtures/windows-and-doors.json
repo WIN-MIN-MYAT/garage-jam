@@ -1,0 +1,18 @@
+{
+  "id": "windows-and-doors",
+  "description": "Room with two doors and two windows; wall props must avoid the openings.",
+  "floorPolygon": [{ "x": -2, "z": -2 }, { "x": 2, "z": -2 }, { "x": 2, "z": 1.5 }, { "x": -2, "z": 1.5 }],
+  "ceilingY": 2.8,
+  "table": { "topY": 0.74, "polygon": [{ "x": -0.7, "z": -1.3 }, { "x": 0.7, "z": -1.3 }, { "x": 0.7, "z": -0.5 }, { "x": -0.7, "z": -0.5 }] },
+  "furniture": [],
+  "openings": [
+    { "type": "window", "wallId": "wall-0", "sillY": 0.8, "topY": 2.2, "center": 2.0, "width": 1.6 },
+    { "type": "door", "wallId": "wall-1", "sillY": 0, "topY": 2.1, "center": 1.6, "width": 0.9 },
+    { "type": "window", "wallId": "wall-2", "sillY": 0.9, "topY": 2.2, "center": 1.2, "width": 1.2 },
+    { "type": "door", "wallId": "wall-3", "sillY": 0, "topY": 2.1, "center": 1.2, "width": 0.9 }
+  ],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.9,
+  "source": "mock"
+}

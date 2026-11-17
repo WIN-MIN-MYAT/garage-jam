@@ -1,0 +1,13 @@
+{
+  "name": "garage-jam-workspace",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node scripts/dev.mjs && concurrently -k -n server,client \"npm --prefix server run dev\" \"npm --prefix client run dev:runtime\"",
+    "build": "npm --prefix client run build",
+    "typecheck": "npm --prefix client run typecheck",
+    "test": "npm --prefix server test && npm --prefix client run test:placement && npm --prefix client run test:devices",
+    "model:optimize": "gltf-transform optimize"
+  },
+  "devDependencies": { "@gltf-transform/cli": "^4.5.1", "concurrently": "^9.2.1", "qrcode-terminal": "^0.12.0" }
+}

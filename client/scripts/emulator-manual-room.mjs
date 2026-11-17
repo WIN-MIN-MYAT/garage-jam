@@ -1,0 +1,32 @@
+import assert from 'node:assert/strict';
+import { chromium } from 'playwright';
+
+const browser = await chromium.launch({ headless: true, executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe' });
+const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1280, height: 800 } });
+const page = await context.newPage();
+await page.goto('https://localhost:8091/?roomSpike=1&v=1', { waitUntil: 'domcontentloaded' });
+await page.waitForFunction(() => !!window.garageEmulatorWorld && !!window.garageManualDebug);
+await page.locator('#garage-test-badge').click();
+await page.waitForTimeout(2500);
+const result = await page.evaluate(() => {
+  const manual = window.garageManualDebug;
+  manual.start();
+  for (const point of [[-2, 0, -2], [2, 0, -2], [2, 0, 1], [-2, 0, 1]]) manual.addPoint(...point);
+  manual.use();
+  for (const point of [[-0.6, 0.75, -1.2], [0.6, 0.75, -1.2], [0.6, 0.75, -0.6], [-0.6, 0.75, -0.6]]) manual.addPoint(...point);
+  manual.use();
+  const room = window.garageManualRoom;
+  const hud = window.garageEmulatorWorld.getSceneObject('garage-hud');
+  return { xrPresenting: window.garageEmulatorWorld.renderer.xr.isPresenting, phase: manual.phase, room, status: hud.getElementById('status').properties.value.text, measurements: hud.getElementById('room-measurements').properties.value.text };
+});
+assert.equal(result.xrPresenting, true);
+assert.equal(result.phase, 'done');
+assert.equal(result.room.source, 'manual');
+assert.equal(result.room.walls.length, 4);
+assert.equal(result.room.table.topY, 0.75);
+assert.ok(result.measurements.includes('12 m²'));
+await page.waitForTimeout(350);
+await page.screenshot({ path: 'scripts/manual-room-emulator.png' });
+console.log(JSON.stringify({ phase: result.phase, source: result.room.source, floorArea: 12, tableTop: result.room.table.topY, status: result.status, measurements: result.measurements }, null, 2));
+if (process.env.HOLD_EMULATOR === '1') await page.waitForTimeout(60000);
+await browser.close();

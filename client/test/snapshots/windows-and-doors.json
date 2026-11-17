@@ -1,0 +1,176 @@
+{
+  "zone": "normal",
+  "cautious": false,
+  "placements": [
+    {
+      "slotId": "calendar-board",
+      "position": [
+        -1.942,
+        1.3,
+        -0.75
+      ],
+      "yaw": 1.571,
+      "scale": 1,
+      "wallId": "wall-3"
+    },
+    {
+      "slotId": "corkboard",
+      "position": [
+        1.942,
+        1.2,
+        0.9
+      ],
+      "yaw": -1.571,
+      "scale": 1,
+      "wallId": "wall-1"
+    },
+    {
+      "slotId": "crates",
+      "position": [
+        1.6,
+        0,
+        -0.9
+      ],
+      "yaw": -1.058,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "door",
+      "position": [
+        0.1,
+        0,
+        -1.92
+      ],
+      "yaw": 0,
+      "scale": 1,
+      "wallId": "wall-0"
+    },
+    {
+      "slotId": "lamp",
+      "position": [
+        0,
+        2.68,
+        -0.25
+      ],
+      "yaw": 0,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "mini-fridge",
+      "position": [
+        -1.6,
+        0,
+        -0.7
+      ],
+      "yaw": 1.158,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "neon",
+      "position": [
+        -0.4,
+        1.65,
+        1.442
+      ],
+      "yaw": -3.142,
+      "scale": 1,
+      "wallId": "wall-2"
+    },
+    {
+      "slotId": "paint-cans",
+      "position": [
+        -0.32,
+        0.74,
+        -0.77
+      ],
+      "yaw": 0.394,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "paper-zone",
+      "position": [
+        0.28,
+        0.74,
+        -0.82
+      ],
+      "yaw": -0.329,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "patch-bay",
+      "position": [
+        -1.45,
+        1.2,
+        1.442
+      ],
+      "yaw": -3.142,
+      "scale": 1,
+      "wallId": "wall-2"
+    },
+    {
+      "slotId": "shelf",
+      "position": [
+        0.1,
+        0,
+        1.2
+      ],
+      "yaw": -3.058,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "toolbox",
+      "position": [
+        -1.3,
+        0,
+        -1.7
+      ],
+      "yaw": 0.653,
+      "scale": 1,
+      "wallId": null
+    },
+    {
+      "slotId": "trash",
+      "position": [
+        -0.8,
+        0,
+        -0.1
+      ],
+      "yaw": 1.446,
+      "scale": 1,
+      "wallId": null
+    }
+  ],
+  "unplaced": [
+    {
+      "slotId": "graffiti",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "pegboard",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "shutter",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "stats-board",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "tires",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "whiteboard",
+      "reason": "no valid candidate after gap/scale fallback"
+    }
+  ],
+  "p0Unplaced": []
+}

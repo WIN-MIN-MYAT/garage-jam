@@ -1,0 +1,30 @@
+{
+  "fullDuration": 7.0,
+  "quickDuration": 2.6,
+  "reducedDuration": 0.6,
+  "minDuration": 4.0,
+  "maxDuration": 8.0,
+  "quantizeFps": 12,
+  "edgeWidth": 0.042,
+  "edgeColor": [1.0, 0.29, 0.64],
+  "particleBudget": 200,
+  "popBudget": 8,
+  "adaptive": {
+    "enabled": true,
+    "window": 20,
+    "budgetMs": 13.9,
+    "headroom": 1.08,
+    "questOnly": true
+  },
+  "beats": {
+    "blueprint": [0.0, 1.0],
+    "floor": [1.0, 1.0],
+    "walls": [2.0, 1.5],
+    "stickers": [4.35, 1.25],
+    "ceiling": [3.5, 0.7],
+    "door": [4.2, 0.8],
+    "table": [4.5, 1.3],
+    "props": [5.0, 1.5],
+    "finish": [6.5, 0.5]
+  }
+}

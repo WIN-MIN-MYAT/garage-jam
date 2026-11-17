@@ -1,0 +1,16 @@
+{
+  "id": "l-shape",
+  "description": "L-shaped open-plan room.",
+  "floorPolygon": [{ "x": -3, "z": -3 }, { "x": 3, "z": -3 }, { "x": 3, "z": 0 }, { "x": 0, "z": 0 }, { "x": 0, "z": 3 }, { "x": -3, "z": 3 }],
+  "ceilingY": 2.7,
+  "table": { "topY": 0.75, "polygon": [{ "x": -0.6, "z": -1.8 }, { "x": 0.6, "z": -1.8 }, { "x": 0.6, "z": -1.0 }, { "x": -0.6, "z": -1.0 }] },
+  "furniture": [],
+  "openings": [
+    { "type": "door", "wallId": "wall-5", "sillY": 0, "topY": 2.1, "center": 3.0, "width": 0.9 },
+    { "type": "window", "wallId": "wall-2", "sillY": 0.8, "topY": 2.1, "center": 1.5, "width": 1.0 }
+  ],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.85,
+  "source": "mock"
+}

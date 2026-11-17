@@ -1,0 +1,73 @@
+{
+  "zone": "normal",
+  "cautious": true,
+  "placements": [
+    {
+      "slotId": "door",
+      "position": [
+        0.1,
+        0,
+        -2.42
+      ],
+      "yaw": 0,
+      "scale": 1,
+      "wallId": "wall-0"
+    },
+    {
+      "slotId": "trash",
+      "position": [
+        0.5,
+        0,
+        -0.7
+      ],
+      "yaw": -0.62,
+      "scale": 1,
+      "wallId": null
+    }
+  ],
+  "unplaced": [
+    {
+      "slotId": "calendar-board",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "corkboard",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "neon",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "paint-cans",
+      "reason": "no table; side-tray fallback required"
+    },
+    {
+      "slotId": "paper-zone",
+      "reason": "no table; side-tray fallback required"
+    },
+    {
+      "slotId": "patch-bay",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "pegboard",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "shelf",
+      "reason": "removed to make room for P0 paper-zone"
+    },
+    {
+      "slotId": "stats-board",
+      "reason": "no valid candidate after gap/scale fallback"
+    },
+    {
+      "slotId": "whiteboard",
+      "reason": "no valid candidate after gap/scale fallback"
+    }
+  ],
+  "p0Unplaced": [
+    "paper-zone"
+  ]
+}

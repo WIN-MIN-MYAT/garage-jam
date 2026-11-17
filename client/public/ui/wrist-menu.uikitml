@@ -1,0 +1,130 @@
+<style>
+  .card { width: 208px; height: 264px; flex-direction: column; padding: 10px; gap: 7px; background-color: #121419; border-color: #2a2f39; border-width: 1px; border-radius: 14px; }
+  .head { flex-direction: row; align-items: center; justify-content: space-between; height: 20px; }
+  .brand { flex-direction: row; align-items: center; gap: 6px; }
+  .dot { width: 6px; height: 6px; border-radius: 3px; background-color: #e8ff70; }
+  .name { color: #f1eadc; font-size: 10px; font-weight: 800; letter-spacing: 1.4px; }
+  .tools { flex-direction: row; align-items: center; gap: 4px; }
+  .pin { height: 18px; padding: 2px; border-radius: 6px; background-color: #22262e; color: #c9c4b8; font-size: 8px; font-weight: 800; letter-spacing: 0.6px; }
+  .pin-on { background-color: #e8ff70; color: #14161c; }
+  .close { width: 20px; height: 20px; border-radius: 6px; background-color: #22262e; color: #c9c4b8; font-size: 11px; font-weight: 800; }
+  .tabs { flex-direction: row; padding: 2px; gap: 2px; background-color: #191c23; border-radius: 8px; }
+  .tab { flex-grow: 1; height: 22px; border-radius: 6px; background-color: #191c23; color: #7f848f; font-size: 8px; font-weight: 800; letter-spacing: 0.3px; }
+  .tab-active { background-color: #2a303a; color: #e8ff70; }
+  .rule { height: 1px; background-color: #242832; }
+  .page { height: 176px; flex-direction: column; gap: 6px; }
+  .action { height: 34px; padding: 8px; border-radius: 8px; background-color: #1d2129; color: #f1eadc; font-size: 11px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
+  .primary { background-color: #e8ff70; color: #14161c; }
+  .primary-label { color: #14161c; }
+  .primary-value { color: #14161c; }
+  .row { flex-direction: row; gap: 6px; }
+  .half { flex-grow: 1; height: 30px; padding: 6px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; flex-direction: row; align-items: center; justify-content: space-between; }
+  .third { flex-grow: 1; height: 30px; padding: 4px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; flex-direction: row; align-items: center; justify-content: center; }
+  .label { font-size: 10.5px; font-weight: 700; color: #e8e2d6; }
+  .value { font-size: 9px; font-weight: 800; color: #9de6ef; letter-spacing: 0.4px; }
+  .danger { color: #ff9a9a; }
+  .foot { flex-direction: row; align-items: center; justify-content: space-between; height: 12px; }
+  .hint { color: #6f747f; font-size: 8px; letter-spacing: 0.2px; }
+  .track { flex-direction: column; gap: 1px; justify-content: center; }
+  .song { color: #f1eadc; font-size: 12px; font-weight: 800; }
+  .artist { color: #9de6ef; font-size: 9px; font-weight: 700; }
+  .wide { flex-grow: 1; height: 30px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 10px; font-weight: 700; }
+</style>
+<Panel id="wm-card" class="card">
+  <div class="head">
+    <div class="brand"><div class="dot"></div><div class="name">GARAGE JAM</div></div>
+    <div class="tools">
+      <button id="wm-pin" class="pin">PIN</button>
+      <button id="wm-close" class="close">X</button>
+    </div>
+  </div>
+  <div class="tabs">
+    <button id="wm-tab-home" class="tab tab-active">HOME</button>
+    <button id="wm-tab-room" class="tab">ROOM</button>
+    <button id="wm-tab-music" class="tab">MUSIC</button>
+    <button id="wm-tab-plugins" class="tab">CONNECT</button>
+    <button id="wm-tab-settings" class="tab">SETTINGS</button>
+  </div>
+  <div class="rule"></div>
+  <Panel id="page-home" class="page">
+    <button id="wm-passthrough" class="action primary"><div id="wm-passthrough-label" class="label primary-label">Show passthrough</div><div class="value primary-value">VIEW</div></button>
+    <div class="row">
+      <button id="wm-table-view" class="half"><div class="label">Table</div><div id="wm-table-view-value" class="value">REAL</div></button>
+      <button id="wm-cutouts" class="half"><div class="label">Cutouts</div><div id="wm-cutouts-value" class="value">ON</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-mark-devices" class="half">Mark devices</button>
+      <button id="wm-place" class="half">Center panel</button>
+    </div>
+    <div class="row">
+      <button id="wm-focus" class="half"><div class="label">Focus</div><div id="wm-focus-value" class="value">START</div></button>
+      <button id="wm-voice" class="half">Voice task</button>
+    </div>
+    <div class="foot"><div id="wm-next-event" class="hint">No events today</div><div id="wm-page-label" class="hint">HOME</div></div>
+  </Panel>
+  <Panel id="page-room" class="page" style="display: none">
+    <button id="wm-mark-table" class="action primary"><div class="label">Mark table corners</div><div class="value">TOUCH</div></button>
+    <div class="row">
+      <button id="wm-edit-table" class="half">Adjust height</button>
+      <button id="wm-rearrange" class="half">Rearrange</button>
+    </div>
+    <div class="row">
+      <button id="wm-rescan" class="half">Rescan room</button>
+      <button id="wm-debug" class="half"><div class="label">Debug</div><div id="wm-debug-value" class="value">OFF</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-mode" class="half"><div class="label">Mode</div><div id="wm-mode-value" class="value">PASS</div></button>
+      <button id="wm-monitors" class="half">Recenter monitors</button>
+    </div>
+    <div class="foot"><div class="hint">Table, props and room</div><div class="hint">ROOM</div></div>
+  </Panel>
+  <Panel id="page-music" class="page" style="display: none">
+    <div class="track">
+      <div id="wm-music-title" class="song">Not connected</div>
+      <div id="wm-music-artist" class="artist">Open CONNECT to link Spotify</div>
+    </div>
+    <div class="row">
+      <button id="wm-music-prev" class="third">PREV</button>
+      <button id="wm-music-play" class="third">PLAY</button>
+      <button id="wm-music-next" class="third">NEXT</button>
+    </div>
+    <div class="row">
+      <button id="wm-music-vol-down" class="half">Volume -</button>
+      <button id="wm-music-vol-up" class="half">Volume +</button>
+    </div>
+    <div class="row">
+      <button id="wm-music-device" class="half"><div class="label">Device</div><div id="wm-music-device-value" class="value">NONE</div></button>
+      <button id="wm-music-playlist" class="half"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">NONE</div></button>
+    </div>
+    <div class="foot"><div id="wm-music-note" class="hint">Local fallback available</div><div class="hint">MUSIC</div></div>
+  </Panel>
+  <Panel id="page-settings" class="page" style="display: none">
+    <div class="row">
+      <button id="wm-units" class="half"><div class="label">Units</div><div id="wm-units-value" class="value">CM</div></button>
+      <button id="wm-hand" class="half"><div class="label">Hand</div><div id="wm-hand-value" class="value">RIGHT</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-motion" class="half"><div class="label">Motion</div><div id="wm-motion-value" class="value">FULL</div></button>
+      <button id="wm-reveal" class="half"><div class="label">Reveal</div><div id="wm-reveal-value" class="value">ON</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-sound" class="half"><div class="label">Sound</div><div id="wm-sound-value" class="value">ON</div></button>
+      <button id="wm-sky" class="half"><div class="label">Sky</div><div id="wm-sky-value" class="value">GOLD</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-outlines" class="half"><div class="label">Outlines</div><div id="wm-outlines-value" class="value">ON</div></button>
+      <button id="wm-focus-length" class="half"><div class="label">Focus</div><div id="wm-focus-length-value" class="value">25M</div></button>
+    </div>
+    <div class="row">
+      <button id="wm-reset" class="half">Reset prefs</button>
+      <button id="wm-forget" class="half danger">Forget room</button>
+    </div>
+  </Panel>
+  <Panel id="page-plugins" class="page" style="display: none">
+    <button id="wm-connect-notion" class="action"><div class="label">Notion</div><div id="wm-plugin-notion" class="value">OPEN</div></button>
+    <button id="wm-connect-spotify" class="action"><div class="label">Spotify</div><div id="wm-plugin-spotify" class="value">OPEN</div></button>
+    <button id="wm-connect-calendar" class="action"><div class="label">Calendar</div><div id="wm-plugin-calendar" class="value">OPEN</div></button>
+    <button id="wm-connect-weather" class="action"><div class="label">Weather</div><div id="wm-plugin-weather" class="value">OPEN</div></button>
+    <div class="foot"><div id="wm-plugin-note" class="hint">Continue in browser</div><div class="hint">PLUGINS</div></div>
+  </Panel>
+</Panel>

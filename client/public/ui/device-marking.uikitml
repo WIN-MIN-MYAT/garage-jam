@@ -1,0 +1,84 @@
+<style>
+  .card { width: 415px; flex-direction: column; gap: 12px; padding: 20px; border-radius: 20px; border-width: 1px; border-color: #3a4656; background-color: #141923; }
+  .top { flex-direction: row; justify-content: space-between; align-items: center; }
+  .eyebrow { font-size: 14px; font-weight: 800; color: #a7e9ea; }
+  .count { font-size: 14px; font-weight: 700; color: #b7c4d4; }
+  .title { font-size: 29px; font-weight: 800; color: #f5f8fc; }
+  .body { font-size: 18px; line-height: 1.35; color: #d1deee; }
+  .note { font-size: 16px; color: #ffcc9d; }
+  .stack { flex-direction: column; gap: 8px; }
+  .row { flex-direction: row; align-items: center; gap: 7px; }
+  .template { flex-grow: 1; padding: 12px; height: 47px; border-radius: 9px; font-size: 17px; font-weight: 700; color: #ebf3fe; background-color: #263243; }
+  .primary { flex-grow: 1; padding: 11px; height: 44px; border-radius: 8px; font-size: 17px; font-weight: 800; color: #161a22; background-color: #e8ff70; }
+  .secondary { padding: 10px; height: 42px; border-radius: 8px; font-size: 15px; font-weight: 700; color: #e8f0fc; background-color: #263243; }
+  .small { padding: 8px; height: 33px; border-radius: 7px; font-size: 14px; font-weight: 700; color: #c5ecf0; background-color: #263243; }
+  .remove { color: #ffb6b6; }
+  .saved { padding-top: 5px; padding-bottom: 5px; }
+  .name { flex-grow: 1; font-size: 15px; color: #e5edf9; }
+</style>
+<Panel id="dev-card" class="card">
+  <div class="top">
+    <div id="dev-step" class="eyebrow">PASSTHROUGH</div>
+    <div id="dev-count" class="count">0 SAVED</div>
+  </div>
+  <div id="dev-title" class="title">Mark your setup</div>
+  <div id="dev-instruction" class="body">Choose an object to outline in your real room.</div>
+  <div id="dev-dimensions" class="eyebrow" style="display: none"></div>
+  <div id="dev-tip" class="note" style="display: none"></div>
+  <div id="dev-templates" class="stack">
+    <div class="row">
+      <button id="dev-template-laptop" class="template">Laptop</button>
+      <button id="dev-template-monitor" class="template">Monitor only</button>
+    </div>
+    <div class="row">
+      <button id="dev-template-desktop" class="template">Desktop setup</button>
+      <button id="dev-template-extra" class="template">Extra zone</button>
+    </div>
+  </div>
+  <button id="dev-use" class="primary" style="display: none">Save</button>
+  <div id="dev-angle" class="row" style="display: none">
+    <button id="dev-angle-left" class="small">Rotate left</button>
+    <button id="dev-angle-right" class="small">Rotate right</button>
+  </div>
+  <div class="row">
+    <button id="dev-undo" class="secondary" style="display: none">Undo corner</button>
+    <button id="dev-skip-keyboard" class="secondary" style="display: none">Skip keyboard</button>
+    <button id="dev-cancel" class="secondary">Cancel</button>
+    <button id="dev-done" class="primary">Done</button>
+  </div>
+  <div id="dev-saved-controls" class="stack">
+    <div class="row">
+      <button id="dev-cutouts" class="small">Cutouts on</button>
+      <button id="dev-remark" class="small" style="display: none">Re-mark device</button>
+    </div>
+    <div id="dev-depth-row" class="row" style="display: none">
+      <div id="dev-depth" class="name">Depth</div>
+      <button id="dev-depth-down" class="small">Thinner</button>
+      <button id="dev-depth-up" class="small">Thicker</button>
+    </div>
+    <div class="row">
+      <button id="dev-prev" class="small" style="display: none">Previous</button>
+      <button id="dev-next" class="small" style="display: none">More devices</button>
+    </div>
+    <div id="dev-row-1" class="row saved" style="display: none">
+      <div id="dev-name-1" class="name">Display</div>
+      <button id="dev-toggle-1" class="small">On</button>
+      <button id="dev-delete-1" class="small remove">Remove</button>
+    </div>
+    <div id="dev-row-2" class="row saved" style="display: none">
+      <div id="dev-name-2" class="name">Display</div>
+      <button id="dev-toggle-2" class="small">On</button>
+      <button id="dev-delete-2" class="small remove">Remove</button>
+    </div>
+    <div id="dev-row-3" class="row saved" style="display: none">
+      <div id="dev-name-3" class="name">Display</div>
+      <button id="dev-toggle-3" class="small">On</button>
+      <button id="dev-delete-3" class="small remove">Remove</button>
+    </div>
+    <div id="dev-row-4" class="row saved" style="display: none">
+      <div id="dev-name-4" class="name">Display</div>
+      <button id="dev-toggle-4" class="small">On</button>
+      <button id="dev-delete-4" class="small remove">Remove</button>
+    </div>
+  </div>
+</Panel>

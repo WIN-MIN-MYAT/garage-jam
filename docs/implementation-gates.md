@@ -1,0 +1,170 @@
+# Garage Jam implementation gates
+
+Updated 2026-11-16 (Asia/Singapore). This tracks the new mixed-reality workflow pasted by the user. A gate requires the stated evidence; compiling or running in the desktop emulator does not substitute for an on-headset check.
+
+| Gate | Required evidence | Current result |
+| --- | --- | --- |
+| 1. Scaffold and MR session | Quest 3 enters immersive AR, passthrough is visible, debug HUD works | **Passed by user observation, 2026-11-16.** User opened `https://172.20.10.5:8091/?demo=1` in Quest Browser, pressed ENTER GARAGE, and reported “Garage opens with passthrough and HUD.” No ADB logs or performance measurements were available. |
+| 2. Selective device cutout spike | Eight-angle Quest silhouette test or documented fallback | **Rendering technique passed by user observation, 2026-11-16:** the `CUTOUT TEST v2` badge and cutout appeared on Quest 3. From some oblique angles the small pink test panel left the field of view; the user considered that a panel-size limitation, not a cutout failure. This spike did not align a volume to a real laptop; the physical silhouette and 2 cm padding rule remain for device marking (gate 7). |
+| 3. Room data spike | Real Quest scan or manual calibration, dimensions within about 5 cm | **Fallback path chosen:** automatic Quest scan returns geometry (user saw 1 floor, 9 walls, 1 table, 12 planes, 4 meshes), but physical 5 cm accuracy is unverified. The manual S3 room setup is now the primary calibration path: controller target-ray points mark four floor and four table corners, with local persistence and visible markers. IWSDK emulator trigger input matched known floor/table coordinates within 2 cm. Real-headset touch accuracy remains to be checked. |
+| 4. Placement engine on mock fixtures | All fixtures pass the validator, solver time under 50 ms, results deterministic | **Passed, 2026-11-16.** Twelve fixtures (standard, big, tiny, L-shape, window/door, sofa, no table, no scan, low confidence, table-at-wall, low ceiling) solve valid layouts, repeat deterministically, and stay under 50 ms. P0 slots are placed or logged with a reason. `npm test` now runs the fixture suite; `node --test test/placement.test.mjs` is the focused command. The solver is wired into the room-driven build (Gate 5) and remains a pure, independently tested module. |
+| 5. Garage build, reveal and comic style test | 72 Hz with the style test scene | **Implementation present, headset performance gate pending.** `?roomBuild=1` now prefers the live WebXR plane scan: the IWSDK sample room produced a 5.0 × 5.8 m floor, a 0.74 m table at the scanned table position, a 2.7 m ceiling, and two mapped openings. It then falls back to the saved manual room and finally the 4 × 3 m demo room. The build uses the scanned floor polygon for the shell, the scanned table polygon for the workbench top, and the scanned openings for the garage door. A 40 × 24 × 40 inward-facing sky enclosure and a dark framed opening close the sunset-view gaps. The reveal is now the Room Build Reveal: an alpha-clip shell shader with a blueprint/floor-plan beat, seat-centred floor spray, staggered wall wipes with drips, ceiling roll, door/sun-beam/dust beat, table roller, prop drops with squash and comic pops, lamp/neon flicker and a `READY!` pop. The full timeline is 6.2–8 s by room size, the resume version is 2.2–3 s, reduced motion is a 0.6 s dissolve, and reveal-off is instant. Skip, reveal-off and reduced-motion produced the same final surface/prop/door state as the played animation in the emulator. The adaptive fallback was forced with `?revealStress=1` and logged all three steps (half particles, drips/noise off, 0.6 s dissolve). Leaving XR mid-reveal completes the room instantly. Emulator run: 12–17 placed props, ~19–20k total render triangles, 55–60 FPS on the desktop runtime, and all P0 slots placed. Emulator FPS is not a Quest 72 Hz claim. Furniture blockers from scan labels remain; device volumes now feed the solver as fixed obstacles (Gate 7). |
+| 6. Table confirm UI and wrist menu skeleton | Editing table height updates the table skin, collider and dependent slots live | **Implementation present, headset gate pending.** A world-space `THIS YOUR TABLE?` panel now shows table height, table size and room size; supports ±0.5 cm steps, controller-tip `TOUCH TABLE`, warning below 55 cm/above 120 cm, `YEP!`, table-view toggle and a one-time clear-table tip. Edits re-solve only table slots, rebuild the workbench visual and replace the table collider; the preference survives reload. The wrist menu is now a compact 0.198 × 0.226 m panel at 0.43 m (static direct-touch range) with 2 cm+ targets, a `PIN`/close header, and Home/Room/Settings pages. It opens from a 140 ms left-wrist glance or a palm-up thumb/index pinch, supports hand poke via `PokeInteractable`, ray click, X/A toggle, a “Center panel” action and 1.5 s look-away dismissal that is suppressed while pinned or touching. Emulator checks passed: touch-set 72.0 cm, ± set 70.0 cm, collider height changed 0.75 → 0.52 m, warning appeared at 52 cm, YEP hid/stored the panel, real-table view enabled the depth-only slab, reload restored 70.0 cm and real view, and the wrist pages switched. Quest input/haptics and 72 Hz remain unverified. |
+| 7. Device marking, persistence and anchors | Devices re-appear correctly after a restart, and the 8-angle silhouette test passes | **Core implementation present, headset gate pending.** S9a now opens a dedicated `MARK YOUR SETUP` panel; laptop, monitor + keyboard and extra-zone templates build padded screen/base/stand/keyboard/typing volumes from marked corners. Volumes render as depth-only occluders (`colorWrite=false`, `depthWrite=true`, renderOrder -1000) and feed the placement solver as fixed obstacles. DEVICE GHOST outlines show when cutouts are off or a device is disabled/uncertain. Device records persist in the seat frame and reload after restart; `FORGET ROOM` clears them. `npm run test:devices` covers geometry, typing margin, seat-frame round-trip, ghost/state transitions and solver obstacles. The persisted-anchor API path, physical 8-angle silhouette/padding test, live device tracking loss, real-hand typing-volume masking and 72 Hz remain for the headset. |
+| 8. Tasks and papers | A thrown crumpled paper marks the task done locally and in Notion | **Implementation present, physical gate pending.** Papers now spawn on the real paper zone in the room-driven build, use the solver trash can for the rim sensor, cap at 25, and provide two starter papers when no connector is configured. Crumple, throw, trash, completion, audio/haptics, local task storage, Notion done queue, stats, and mural events are wired. The emulator completes a crushed-paper task into the measured trash and records completion. Real release velocity, hand crumple feel, and a live Notion database remain for the headset. |
+| 9. Plugins | Each connector connects through a pairing flow, shows status, and fails independently | **Spotify, Google Calendar, and Open-Meteo endpoints implemented and unit-tested; Notion already existed.** Wrist CONNECT opens the provider manager. Calendar and weather status cards were added. Spotify state/control, devices, playlists, calendar today and weather current are exposed by the server with refresh-on-401. Physical OAuth, Spotify Premium/device behavior, Google app verification, and real weather rendering remain for the headset. |
+| 10. Streaming mode | 30-minute soak, no spurious reconnecting flips, measured latency | **Room-aware integration present; soak pending.** StreamSystem now registers in the product build, places the three-monitor arc in front of the seat, hides monitors in passthrough mode, and exposes S9b live monitor states plus recenter/forget. The existing hysteresis, sender-offerer, UDP-only, and diagnostics path is unchanged. A 30-minute physical soak and latency measurements remain. |
+| 11. P1 features | Focus door, music, mural, stats, break nudges, voice capture, calendar board, Top 3 corkboard, whiteboard | **Implemented at code level, headset validation pending.** Focus shutter/countdown/dimming/music, stats/calendar/cork/whiteboard boards, persistent mural splats, Top 3 pinning on flat-paper release near the corkboard, Web Speech task capture, break nudges, Spotify wrist controls, local lo-fi fallback, and controller/hand whiteboard strokes are present. Real typing-free focus feel, voice support in Quest Browser, and visual legibility remain. |
+| 12. Polish, performance, assets | 72 Hz, Tripo swap, README, store readiness | **Ongoing.** Build and typecheck pass; the style/performance claim remains a headset measurement. The boombox table placeholder was removed; P2 props (graveyard mode, stems, interactive spray can, personality props) remain optional. |
+
+## Gate 1 readiness
+
+- `client/iwsdk.config.json` sets XR mode to `ar`; `HudSystem` uses `world.launchXR()`, local-floor reference space, a passthrough button, and an FPS/frame-time display.
+- The README describes successful desktop emulator entry, but explicitly says Quest 3 performance and device interaction have not been validated.
+- The headset was not connected over ADB (`metavr device list` returned `[]`), so the result above is based on the user's direct Quest Browser observation.
+
+## Gate 4 placement fixtures
+
+`client/test/fixtures/` holds the JSON room definitions. `client/test/placement.test.mjs` builds each `RoomModel`, runs the pure solver twice with seed 413, validates the result independently, checks P0 logging, asserts the 50 ms budget, and compares a rounded per-fixture snapshot in `client/test/snapshots/`. The shared slot catalogue is `client/src/slot-rules.ts`; the solver is `client/src/placement-solver.ts`.
+
+The fallback fixtures deliberately log unplaced required slots: `no-table` logs `paper-zone` (side-tray fallback required) and `no-scan` uses the 5 x 5 m default room. Low-confidence rooms enable cautious mode (double gaps, P2 props skipped). A relaxed placement records its `gapScale` so independent validation uses the same clearance that was accepted.
+
+## Gate 5 room-driven build
+
+`node scripts/emulator-garage-build.mjs` opens `?roomBuild=1` in the IWSDK Quest 3 emulator with the provided `sunlit_living_room` fixture, enters immersive AR, waits for the live plane scan, and checks that the built room/table match the scanned planes. It then checks the forced demo room (table near the window) and the manual fallback. It writes `client/scripts/garage-build-emulator.png` and a framed sunset-view check in `client/scripts/garage-build-sunset.png`. The build uses the solver placements for every non-shell prop, a garage-door opening with a 9 x 6 m golden-hour backdrop and a large inward-facing sky enclosure, a table-polygon workbench top and paper-zone marker, and the shared placeholder factory from `client/src/slot-manager.ts`. The sky enclosure and dark door frame close the oblique gaps that previously let passthrough through around the opening. The workbench stays at the scanned table position; only the demo fallback table is near its window. The reveal runs through `client/src/reveal/` (see the Step 3 section); all skin and prop materials are precreated and precompiled with `compileAsync` before the first beat. Ink wall trim and a procedural graffiti decal finish the comic shell.
+
+The scan path reads `XRFrame.detectedPlanes`, transforms each plane polygon into the local-floor frame, picks the largest labelled floor, scores table candidates by height/area/nearby/window distance, uses the ceiling plane when present, and maps door/window planes onto the nearest floor-polygon wall. A height epsilon prevents a tiny floating-point floor offset from rejecting tall wall props such as the garage door.
+
+The workbench model is aligned to the table's oriented outline (`outlineBounds`): long side to long side, yaw toward the seat, and the detected flat worktop face centered/scaled to the table instead of the model bounding box. A rotated manual table fixture produced center `(0, -1.0)`, size `1.2 x 0.8 m`, matching the scanned oriented table frame; the workbench root used the same center/yaw.
+
+## Wall stickers and garage dressing
+
+The supplied `sticker_pack_1_41_stickers.glb` (77 MB, 41 photo patches, 33 × 2048 px textures) is optimized to `assets/models/optimized/stickers.glb` at **2.16 MB** with 512 px textures, metal-rough materials, pruned/deduped data. The game loads it once and builds **42 sticker instances** from the 30 usable photo patches, so duplicates are allowed and the walls do not repeat in a regular grid.
+
+Placement is now scattered rather than clustered: each wall gets a quota based on its length, stickers are sampled at mixed heights from about 0.85–1.9 m with jittered spacing, and openings, wall props, the pegboard, and the shelf sightline are reserved. Sizes vary from roughly 0.12–0.38 m, depth is layered 6–13 mm off the wall to avoid z-fighting and allow overlap, and rotations mix about 70% small tilts with occasional stronger tilts, a few upside-down, and 13% peeled off the wall.
+
+The reveal adds a **stickers beat** after the wall wipe (full reveal ≈4.35–5.6 s, quick reveal ≈1.12–1.7 s). Each patch peels in from a small offset, scales/settles onto the wall, twists slightly, and drops a tiny dust poof on selected landings. Stickers avoid the garage opening and remain clear of the pegboard, boards, shelf, and wall trim. Evidence: `scripts/stickers-wall.png`, `scripts/stickers-scatter.png`, `scripts/garage-shelf-corner.png`.
+
+Garage dressing changes:
+
+- The storage shelf is anchored against the **wall behind the seat**, tucked into a room corner and turned to face the room instead of the seat. It is no longer a centered or random floor placement.
+- The trash can is anchored about **0.6 m beside the seat** on the dominant-hand side, with a fallback around the seat and an exit-corridor check.
+- The paint/spray cans are now a **P1 workbench prop** at 0.32 × 0.26 m, so they are visible on the table instead of being skipped as an optional floor prop.
+- The pegboard/tool board is reduced from 1.5 × 1.0 m to **0.8 × 0.55 m** and promoted to P1.
+
+Still headset-only: the 42 additional draw calls and 512px textures need a Quest 72 Hz check; screenshot evidence is from the desktop emulator.
+
+## Gate 6 checks
+
+- `scripts/table-confirm-panel.png` — table panel after reveal.
+- `scripts/table-panel-scaled.png` — scaled panel beside the table.
+- `scripts/table-height-touch.png` — controller-tip height set to 72.0 cm.
+- `scripts/table-real-view.png` — real-table depth slab; virtual workbench hidden.
+- `scripts/wrist-compact-home.png`, `scripts/wrist-compact-room.png`, `scripts/wrist-compact-settings.png` — current compact direct-touch wrist pages.
+- `scripts/wrist-hand-pinch-open.png` — palm-up thumb/index pinch opening the menu in simulated hand tracking.
+- `scripts/wrist-poke-touch.png` — hand poke committing the primary action.
+- `scripts/stickers-wall.png`, `scripts/stickers-scatter.png` — scattered 42-patch wall dressing with mixed heights, tilts and sizes.
+- `scripts/garage-shelf-corner.png` — shelf anchored in the back corner behind the seat; `scripts/garage-paint-cans.png` — spray cans on the workbench; `scripts/garage-trash-seat.png` — trash beside the seat.
+- `scripts/flow-scan-overlay.png` — S2 neon plane outlines and labels.
+- `scripts/flow-s8-mode.png`, `scripts/flow-s10-ready.png` — S8 mode choice and S10 ready page.
+- `scripts/reveal-b1-blueprint.png` … `scripts/reveal-b5-end.png`, `scripts/reveal-pop-fixed.png` — reveal beats and pop text.
+
+The table panel, flow panel and wrist menu are loaded from `client/public/ui/table-confirm.uikitml`, `app-flow.uikitml` and `wrist-menu.uikitml` through `loadUIKitMLAsset`. The panels are ordinary world-space UIKit assets with `RayInteractable`; the wrist, flow and table panels also have `PokeInteractable`. Poke taps use `client/src/ui-press.ts`, which commits a button action on touch pointer down/up even when the fingertip lands on the label mesh instead of the button background. The wrist panel is placed once at 0.43 m in front of the head, 0.10 m below eye level and 0.07 m to the left, then stays static in world space. It shows on a 140 ms left-wrist glance or a 180 ms palm-up thumb/index pinch; it closes on look-away after 1.5 s, X/A, or Close, and stays while PIN or a hover/press is active.
+
+## Gate 7 device marking
+
+- `client/src/device-model.ts` is pure geometry, persistence and state logic. A laptop screen is fitted from four ordered corners (top-left, top-right, bottom-right, bottom-left); the base sits on the table at the hinge and the typing margin is 9 cm to each side and 12 cm tall. Monitor + keyboard adds a 8 × 5 cm neck and 20 × 20 cm stand base, and fits the keyboard to the table yaw from two opposite corners. Extra zones are two corners with a 6 cm height.
+- `client/src/systems/device-system.ts` owns the S9a marking panel, controller-trigger and hand-pinch point capture, marker/preview outlines, depth-only occluder volumes, ghost outlines, per-device on/off and delete, depth ±, re-mark, and the `garageDeviceDebug` probe. Marking is drag-to-draw: the first pinch plants a corner, the live outline follows that hand while it stays pinched, and release completes the opposite corner (a second pinch still works for taps). After the first corner the input source is locked, so the pinch detector no longer alternates between the left and right hands. The live preview reuses one plane and one line geometry instead of rebuilding meshes per frame. Extra zones are capped at four.
+- The occluders use the Gate 2 technique: `colorWrite=false`, `depthWrite=true`, `renderOrder=-1000`, so garage fragments behind a device volume do not draw and passthrough shows the real device. Virtual objects nearer than the volume still draw; a virtual hand inside the typing volume is masked and the real hand shows.
+- `GarageBuildSystem.setDeviceObstacles()` feeds each enabled device volume into the solver. Finishing, toggling or deleting a device re-solves the non-table layout with the current device obstacles and keeps table/door placements locked.
+- Device records are saved to `garage-jam-devices-v1` in the room seat frame (translation, yaw and the room fingerprint). On reload they are converted back into the current room frame; a fingerprint mismatch marks them `uncertain` and shows the ghost outline. Table-height confirmation rebases the saved device volumes to the new table top. `FORGET ROOM` clears the device collection with the room and preferences.
+- Emulator evidence: `scripts/device-panel-open.png`, `scripts/device-drag-preview.png` (live drag outline), `scripts/device-laptop-marked.png`, `scripts/device-cutouts-off.png`, `scripts/device-persisted.png`, `scripts/panel-overlay.png` (panel text over the room) and `scripts/garage-table-clean.png` (workbench without the boombox box). The laptop was marked from four corners, a second extra zone was added, the depth-only occluders reported `colorWrite=false` / `depthWrite=true` / renderOrder -1000, and two devices reloaded after a page refresh with the same parts and obstacles.
+- Automated evidence: `npm run test:devices` (9 tests) covers screen fit, laptop base/typing, monitor stand + keyboard, yaw-aligned keyboard/extra zones, padding, typing containment, seat-frame round-trip, state transitions and solver obstacles. The full product emulator flow now marks a laptop during S9a before entering S10, verifies the props remain visible after the device re-solve, tests depth ±, toggles cutouts and opens device marking from the wrist, and verifies the saved laptop base follows a +0.5 cm table-height edit. `node scripts/emulator-device-drawing.mjs` adds drag-release drawing, geometry reuse while dragging, the first-hand lock (the other hand cannot finish the outline), UI ownership over the card, desk alignment, passthrough outlines, bezel rebuild and reload persistence.
+- Menu and guide panels now call `sendPanelToFront()` in `client/src/ui-press.ts`, which sets `depthTest=false`, `depthWrite=false` and `renderOrder=1000` on the UIKit root so text and buttons render above the workbench, props and devices. Manual corner stamps and their outline also draw above props. Emulator inspection confirmed every visible panel instance layer uses those values.
+- The boombox slot was removed. It had no model, so the solver placed its dark `PH_SLOT_Boombox` placeholder box on the workbench; that was the black box on the table. Removing the slot also removes the dead asset config and solver entry.
+- Still requires the headset: persistent-anchor creation/restoration (`requestPersistentHandle`/`restorePersistentAnchor`) and its relocalization behaviour, the physical 8-angle silhouette and 2 cm padding check, real device tracking loss, typing-volume hand masking, drag feel under real hand tracking, and Quest 72 Hz. Free edge-nudge handles are a later edit affordance; depth ±, re-mark, delete and per-device on/off are present.
+
+## Gate 8 papers and tasks
+
+- `client/src/systems/paper-system.ts` is registered in the room build and uses `garageState.placements` for the paper zone and trash rim. Paper spawn is capped at 25; two starter papers are synthesized when there are no tasks, and demo papers never call Notion.
+- Local tasks are stored server-side in `server/data/tasks-local.json` and merged with Notion tasks. New tasks default to local; `TASKS_SEND_TO=notion` sends them to Notion. `server/tasks.js` is unit-tested, including the 100-task cap.
+- Completion emits `task-done`, adds a splat through `TaskBoardSystem`, records completed-by-day/focus minutes in `client/src/progress-store.ts` and `/api/state`, and calls the Notion done endpoint with the existing retry/outbox path.
+- The crumple/throw path keeps the five-sample release velocity estimate, adds procedural paper/crunch/trash sounds and haptic pulses, and uses a segment-to-rim test so a fast throw cannot tunnel past the sensor.
+- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-papers.png`, `scripts/rest-boards.png`. Physical release velocity and hand crumple feel remain.
+
+## Gate 9 connectors
+
+- `server/plugin-providers.js` now includes Notion, Spotify (PKCE, refresh), Google Calendar (OAuth + refresh), and Open-Meteo weather. `server/plugins.js` exposes Spotify state/control/devices/playlists/image, calendar today, and weather current; a 401 refreshes the token once and retries.
+- `client/src/systems/plugin-system.ts` polls status/state/calendar/weather only while XR is visible, emits `plugin-status`, `spotify-state`, `calendar-events`, and `weather-current`, and exposes a debug probe.
+- The wrist menu adds HOME next event, MUSIC, CONNECT and Settings sky/focus rows. Spotify actions cover play/pause, next/previous, volume, device transfer and playlist play. The emulator validates the panel pages and server unit tests validate the endpoints.
+- Physical OAuth consent, Spotify Premium/active-device behavior, Google app verification, and weather visuals remain.
+
+## Gate 10 streaming integration
+
+- `StreamSystem` registers in the room build; the three monitors are placed on an arc in front of the seat at about 1.75 m and table-derived height, hidden in passthrough mode and re-centered by the wrist Room action.
+- S9b now shows the sender URL, live monitor state, CHECK STREAMS and FORGET; continuation goes to S10. `stream-status` is emitted on every state change.
+- The 30-minute soak and measured latency targets remain physical checks; the existing diagnostics and sender fault tests are unchanged.
+
+## Gate 11 P1 features
+
+- `FocusSystem` builds a procedural roll-down shutter over the chosen door, dims the `Golden hour sky`/sun beam/dust, shows a countdown sign and drives focus/break phases. Focus minutes persist through `progress-store`.
+- `TaskBoardSystem` draws the stats, calendar, Top 3 and whiteboard boards from live tasks/calendar/focus data, and paints persistent offset-layer mural splats on the largest non-door wall.
+- `PaperSystem` pins a task to Top 3 when a flat paper is released within 65 cm of the corkboard. `WhiteboardSystem` renders controller/hand strokes up to 40 strokes, persisted in `garage-jam-whiteboard-v1`.
+- `VoiceSystem` uses the Web Speech API and local task creation when available. `NudgeSystem` flashes break messages. `RevealAudio` adds paper, trash, task, focus, nudge, stream cues and a procedural lo-fi fallback.
+- Evidence: `scripts/emulator-rest-features.mjs`, `scripts/rest-focus.png`, `scripts/rest-boards.png`. Physical feel, legibility and voice availability remain.
+
+## Verification handoff
+
+`docs/user-verification.md` is the physical Quest checklist. `docs/user-questions.md` lists the open product decisions (boombox, pairing code, monitor manager depth, focus handle, Top 3 freeze, whiteboard reset, provider naming and local-music defaults).
+
+
+## Step 3 single-entry flow and Room Build Reveal
+
+`/` is now the product entry and runs the explicit S0–S11 flow. `/?test=1` remains only the developer hub; `?roomBuild=1`, `?roomSpike=1`, `?cutoutSpike=1` and `?demo=1` remain direct probes. `AppFlowSystem` (`client/src/systems/app-flow-system.ts`) owns the stage machine and persisted last-completed stage in `garage-jam-flow-v1`.
+
+- **S0** renders the comic-panel landing page from `client/src/app-flow/landing-page.ts`: hero, three setup tips, `ENTER THE GARAGE` / `RESUME THE GARAGE`, capability rows for WebXR, immersive-ar, room data, WebRTC, spatial audio and Quest 3/3S/browser version, plus a no-account note. The Enter button waits for a capability pass.
+- **S1** starts the audio gesture, shows `ENTERING THE GARAGE`, requests XR and handles denial/session-end timeouts.
+- **S2** shows neon plane outlines and labels (`FLOOR`, `WALL`, `TABLE`, `FURNITURE`, `DOOR`) in world space plus the flow panel's `ROOM LOCKED` progress. `RUN SPACE SETUP` calls `initiateRoomCapture`; `SET UP BY TOUCHING` moves to S3. The scan-timeout path shows `NO ROOM SCAN FOUND` instead of silently using a demo room.
+- **S3** routes the existing four-floor-corner + four-table-corner calibration through the flow and reports live count/UNDO/NO TABLE/BACK.
+- **S4/S5** complete inside the scan normalization and solver; the blueprint beat is the visual collapse.
+- **S6** runs the full reveal.
+- **S7** shows the table panel only when the flow needs confirmation.
+- **S8** shows the passthrough/streaming choice. **S9a** runs Gate 7 device marking (laptop, monitor + keyboard, extra zones) with skip; **S9b** remains the streaming pairing placeholder. **S10** shows the wrist-menu hint and then hands over to the live session. **S11** persists the room/settings on exit and offers `RESUME THE GARAGE`; a restored room runs the 2.2–3 s quick reveal and skips table confirmation when the stored height matches within 3 cm.
+
+### Reveal implementation
+
+- `client/src/reveal/RevealTimeline.ts` builds the data-driven beats and scales the full reveal to the room diagonal (clamped 4–8 s); the quick version is 2.2–3 s and reduced motion is 0.6 s.
+- `client/src/reveal/reveal-shader.ts` injects the shared world-space alpha-clip chunk from `revealChunk.glsl`; unrevealed fragments discard so passthrough remains. Floor uses radial distance, walls use vertical wipes with drips, ceiling/table use directional rollers. Materials are precompiled with `compileAsync` after all GLB loads settle.
+- `client/src/reveal/RevealSystem.ts` drives uniforms, 12 fps uniform quantization, floor/wall/door/table timelines, prop drops/squash, lamp/neon flicker, `READY!` pop, skip (right B/A long-press or panel button), interruption completion, and the three-step adaptive fallback.
+- `client/src/reveal/RevealParticles.ts` uses one instanced billboard pool for dust/paint sparks and a second instanced atlas pool for pop words: two additional draw calls, max 200 + 8.
+- `client/src/reveal/RevealAudio.ts` uses procedural spatial Web Audio (PannerNode) for the entry whoosh, spray, wall whoosh, door roll, thuds, neon buzz and chime. Audio unlocks on the Enter press and is muted from the wrist Settings page.
+- `client/src/reveal/reveal.config.json` holds durations, edge width/color, particle budgets and adaptive thresholds. Query overrides: `revealMode=full|quick|dissolve|off|props`, `revealSpeed`, `revealParticles`, `revealPops`, `revealAdaptive`, `revealStress`, `revealQuick`, `revealOff`, `reducedMotion`.
+
+### Emulator evidence
+
+- `scripts/s0-landing.png` — capability-check landing.
+- `scripts/flow-scan-overlay.png` — neon plane outlines/labels and `ROOM LOCKED`.
+- `scripts/reveal-b1-blueprint.png`, `reveal-b2-floor.png`, `reveal-b3-walls.png`, `reveal-b4-props.png`, `reveal-b5-end.png` — reveal beats.
+- `scripts/reveal-pop-fixed.png` — `READY!` pop and the two-pool particle system.
+- `scripts/flow-s8-mode.png`, `flow-s10-ready.png` — mode choice and ready page.
+- `scripts/wrist-compact-home.png`, `wrist-compact-settings.png` — compact direct-touch wrist pages.
+- `scripts/wrist-hand-pinch-open.png` — palm-up pinch auto-show; `scripts/wrist-poke-touch.png` — poke press.
+- `scripts/device-panel-open.png` — S9a device marking panel; `device-laptop-marked.png` — marked laptop volumes and preview; `device-cutouts-off.png` — ghost outlines; `device-persisted.png` — reloaded devices.
+
+The emulator verified S0→S2→S6→S7→S8→S9a (laptop marking)→S10, reveal skip/off/reduced final-state equality, adaptive fallback, mid-reveal session exit recovery, quick resume from a saved room, manual S3→S5→S6, rescan S10→S2→S6, table edit → YEP → mode, wrist gestures (palm-up pinch open and poke press), wrist cutout/device actions, and device persistence after reload. Physical Quest input, haptics, 72 Hz frame time, persistent anchors/fingerprint verification and Gate 8+ content remain unverified.
+
+## Quest test URL
+
+The product entry is `https://<laptop-LAN-IP>:8091/` and runs S0–S11. The dev hub is `https://<laptop-LAN-IP>:8091/?test=1`; the individual probe URLs remain available for automation: `?roomBuild=1`, `?roomSpike=1&v=1`, `?cutoutSpike=1`, and `?demo=1`. The earlier cutout URL was used only for the completed rendering spike.
+
+## Gate 3 room-data probe
+
+The pre-XR page shows a `GARAGE JAM TEST` badge. Enter XR and read the HUD's floor, wall, table, plane, mesh, label, floor-size, and table-height fields. The room probe requests plane detection, anchors, and mesh detection as optional WebXR features only for this URL; it draws detected planes as wireframes. If no scan appears and the HUD says room capture is available, tap **RUN SCAN** once. The installed IWSDK has its automatic `initiateRoomCapture` call disabled due to an anchor issue, so this probe invokes it only on the user's explicit button press. Record the measured room/table dimensions and compare with a tape measurement; if missing or inaccurate, promote manual calibration to the primary path.
+
+Manual calibration is now the primary path until a Quest room is measured against physical reference dimensions. Press **MANUAL ROOM**, touch the white controller point to four floor corners in order, then four table corners; use **UNDO POINT** or **NO TABLE** as needed. The resulting `RoomModel` is saved locally. Controller trigger marking was verified in the IWSDK emulator using known coordinates; it is not yet a physical-headset accuracy claim.
+
+### Local sample-room validation
+
+`node scripts/emulator-room-probe.mjs` launches the IWSDK Quest 3 emulator on the configured `sunlit_living_room` fixture, enters immersive AR, reads the live room snapshot and UIKitML element text, and saves `client/scripts/room-emulator.png`. On 2026-11-16 it passed with 1 floor, 9 walls, 2 tables, 15 planes, 14 meshes, a 5.00 × 5.80 m floor estimate, and a 0.42 m first-table height. A visual screenshot check confirmed the yellow measurement line and labels render. This validates the sample-room data path and HUD rendering; it is not a 5 cm accuracy check for the user's physical room.
+
+Meta's current [WebXR mixed-reality documentation](https://developers.meta.com/vr/documentation/web/webxr-mixed-reality) was checked for the Quest Browser path. Individual APIs for later stages still require verification when each gated stage begins.

@@ -1,0 +1,13 @@
+{
+  "id": "tiny-2x4",
+  "description": "2.4 x 2.4 m room that must enter compact mode.",
+  "floorPolygon": [{ "x": -1.2, "z": -1.2 }, { "x": 1.2, "z": -1.2 }, { "x": 1.2, "z": 1.2 }, { "x": -1.2, "z": 1.2 }],
+  "ceilingY": 2.4,
+  "table": { "topY": 0.72, "polygon": [{ "x": -0.4, "z": -0.95 }, { "x": 0.4, "z": -0.95 }, { "x": 0.4, "z": -0.35 }, { "x": -0.4, "z": -0.35 }] },
+  "furniture": [],
+  "openings": [{ "type": "door", "wallId": "wall-2", "sillY": 0, "topY": 2.0, "center": 1.2, "width": 0.7 }],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.85,
+  "source": "mock"
+}

@@ -1,0 +1,38 @@
+<style>
+  .root { width: 620px; flex-direction: column; padding: 18px; gap: 9px; background-color: #171a21; border-radius: 16px; }
+  .kicker { color: #ff2d95; font-size: 15px; font-weight: 700; letter-spacing: 2px; }
+  .title { color: #e8ff2a; font-size: 36px; font-weight: 700; }
+  .height { color: #ffffff; font-size: 48px; font-weight: 700; }
+  .body { color: #d8d1c4; font-size: 18px; }
+  .warning { color: #ff8a1f; font-size: 18px; font-weight: 700; }
+  .tip { color: #9de6ef; font-size: 15px; }
+  .row { flex-direction: row; gap: 8px; }
+  .button { background-color: #ff2d95; color: #11131a; padding: 10px; border-radius: 8px; font-size: 19px; font-weight: 700; }
+  .button-alt { background-color: #19e3ff; color: #11131a; padding: 10px; border-radius: 8px; font-size: 19px; font-weight: 700; }
+  .button-yep { background-color: #e8ff2a; color: #11131a; padding: 12px; border-radius: 8px; font-size: 22px; font-weight: 700; }
+  .button-fix { background-color: #ff8a1f; color: #11131a; padding: 12px; border-radius: 8px; font-size: 20px; font-weight: 700; }
+  .small { background-color: #2a303b; color: #ffffff; padding: 8px; border-radius: 7px; font-size: 15px; }
+</style>
+<Panel class="root">
+  <div class="kicker">ROOM CHECK / TABLE</div>
+  <div class="title">THIS YOUR TABLE?</div>
+  <div id="table-height" class="height">74.0 cm</div>
+  <div id="table-size" class="body">Table top 0.9 x 0.9 m</div>
+  <div id="table-room" class="body">Room 5.0 x 5.8 m</div>
+  <div id="table-warning" class="warning" style="display: none">CHECK TABLE HEIGHT</div>
+  <div class="row">
+    <button id="height-minus" class="button">-0.5 cm</button>
+    <button id="height-plus" class="button">+0.5 cm</button>
+    <button id="touch-table" class="button-fix">TOUCH TABLE</button>
+  </div>
+  <div class="row">
+    <button id="shape-check" class="small">MARK 4 CORNERS</button>
+    <button id="view-workbench" class="small">WORKBENCH SKIN</button>
+    <button id="view-real" class="small">REAL TABLE</button>
+  </div>
+  <div id="table-tip" class="tip">Clear loose items off your table; the workbench skin hides them.</div>
+  <div class="row">
+    <button id="yep-button" class="button-yep">YEP!</button>
+    <button id="fix-button" class="button-fix">FIX IT</button>
+  </div>
+</Panel>

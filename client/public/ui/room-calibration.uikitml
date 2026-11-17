@@ -1,0 +1,35 @@
+<style>
+  .card { width: 468px; background-color: #161a22; border-radius: 20px; padding: 24px; gap: 14px; flex-direction: column; }
+  .steps { flex-direction: row; align-items: center; justify-content: space-between; }
+  .eyebrow { color: #88e9ec; font-size: 17px; font-weight: 800; }
+  .count { color: #e8ff70; font-size: 19px; font-weight: 800; }
+  .title { color: #fff9ee; font-size: 35px; font-weight: 800; }
+  .body { color: #d4deeb; font-size: 21px; }
+  .error { color: #ffc191; font-size: 19px; }
+  .track { flex-direction: row; gap: 7px; }
+  .segment { width: 99px; height: 5px; background-color: #485364; border-radius: 2px; }
+  .actions { flex-direction: row; gap: 8px; }
+  .secondary { height: 50px; background-color: #323b4b; color: #fff9ee; border-radius: 9px; padding: 12px; font-size: 18px; font-weight: 700; }
+  .primary { height: 50px; background-color: #e8ff70; color: #161a22; border-radius: 9px; padding: 12px; font-size: 20px; font-weight: 800; }
+</style>
+<Panel class="card">
+  <div class="steps">
+    <div id="cal-step" class="eyebrow">1 OF 2 / FLOOR</div>
+    <div id="cal-count" class="count">0 / 4</div>
+  </div>
+  <div id="cal-title" class="title">Mark the floor</div>
+  <div id="cal-instruction" class="body">Touch corner 1 with your controller tip and pull the trigger. Follow the edges in order.</div>
+  <div class="track">
+    <div id="cal-progress-1" class="segment"></div>
+    <div id="cal-progress-2" class="segment"></div>
+    <div id="cal-progress-3" class="segment"></div>
+    <div id="cal-progress-4" class="segment"></div>
+  </div>
+  <div id="cal-error" class="error" style="display: none"></div>
+  <button id="cal-use" class="primary" style="display: none">Use outline</button>
+  <div class="actions">
+    <button id="cal-undo" class="secondary" style="display: none">Undo corner</button>
+    <button id="cal-skip" class="secondary" style="display: none">No table</button>
+    <button id="cal-cancel" class="secondary">Cancel</button>
+  </div>
+</Panel>

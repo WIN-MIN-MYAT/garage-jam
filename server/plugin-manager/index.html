@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plugins · Garage Jam</title>
+  <link rel="stylesheet" href="/api/plugins/assets/style.css">
+  <script type="module" src="/api/plugins/assets/manage.js"></script>
+</head>
+<body>
+  <main>
+    <a class="back" href="/">← Back to Garage Jam</a>
+    <h1>Plugins</h1>
+    <p class="intro">Connect and verify the services you use with Garage Jam.</p>
+    <p id="notice" role="status" hidden></p>
+    <section id="notion" aria-labelledby="notion-title" tabindex="-1">
+      <h2 id="notion-title">Notion</h2>
+      <p id="notion-state" role="status">Checking connection…</p>
+      <div class="actions">
+        <button data-action="connect" data-provider="notion" hidden>Connect Notion</button>
+        <a data-setup-link="notion" hidden>Open on configured address</a>
+        <button data-action="verify" data-provider="notion" hidden>Verify</button>
+        <button data-action="remove" data-provider="notion" hidden>Disconnect</button>
+      </div>
+    </section>
+    <section id="spotify" aria-labelledby="spotify-title" tabindex="-1">
+      <h2 id="spotify-title">Spotify</h2>
+      <p id="spotify-state" role="status">Checking connection…</p>
+      <div class="actions">
+        <button data-action="connect" data-provider="spotify" hidden>Connect Spotify</button>
+        <a data-setup-link="spotify" hidden>Open on configured address</a>
+        <button data-action="verify" data-provider="spotify" hidden>Verify</button>
+        <button data-action="remove" data-provider="spotify" hidden>Disconnect</button>
+      </div>
+    </section>
+    <section id="calendar" aria-labelledby="calendar-title" tabindex="-1">
+      <h2 id="calendar-title">Google Calendar</h2>
+      <p id="calendar-state" role="status">Checking connection...</p>
+      <div class="actions">
+        <button data-action="connect" data-provider="calendar" hidden>Connect Google Calendar</button>
+        <a data-setup-link="calendar" hidden>Open on configured address</a>
+        <button data-action="verify" data-provider="calendar" hidden>Verify</button>
+        <button data-action="remove" data-provider="calendar" hidden>Disconnect</button>
+      </div>
+    </section>
+    <section id="weather" aria-labelledby="weather-title" tabindex="-1">
+      <h2 id="weather-title">Weather</h2>
+      <p id="weather-state" role="status">Checking connection…</p>
+      <form id="weather-search">
+        <label for="city">City or postal code</label>
+        <div class="actions">
+          <input id="city" name="city" minlength="2" maxlength="120" required>
+          <button type="submit">Find location</button>
+        </div>
+      </form>
+      <div id="locations" class="locations"></div>
+      <div class="actions">
+        <button data-action="verify" data-provider="weather" hidden>Verify</button>
+        <button data-action="remove" data-provider="weather" hidden>Disconnect</button>
+      </div>
+      <p class="credit">Weather data by <a href="https://open-meteo.com/">Open-Meteo</a>. Locations by <a href="https://www.geonames.org/">GeoNames</a>.</p>
+    </section>
+  </main>
+</body>
+</html>

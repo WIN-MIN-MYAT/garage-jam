@@ -1,0 +1,13 @@
+{
+  "id": "low-confidence",
+  "description": "Low-confidence scan; cautious mode must double gaps and skip P2 props.",
+  "floorPolygon": [{ "x": -2, "z": -2 }, { "x": 2, "z": -2 }, { "x": 2, "z": 1 }, { "x": -2, "z": 1 }],
+  "ceilingY": 2.7,
+  "table": { "topY": 0.75, "polygon": [{ "x": -0.6, "z": -1.2 }, { "x": 0.6, "z": -1.2 }, { "x": 0.6, "z": -0.4 }, { "x": -0.6, "z": -0.4 }] },
+  "furniture": [],
+  "openings": [{ "type": "door", "wallId": "wall-2", "sillY": 0, "topY": 2.1, "center": 2.0, "width": 0.9 }],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.25,
+  "source": "mock"
+}

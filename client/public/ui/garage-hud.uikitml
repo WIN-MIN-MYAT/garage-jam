@@ -1,0 +1,31 @@
+<style>
+  .root { width: 740px; flex-direction: column; padding: 14px; gap: 8px; }
+  .heading { color: #ffcd58; font-size: 32px; font-weight: 700; }
+  .body { color: #ffffff; font-size: 18px; }
+  .diagnostics { color: #9de6ef; font-size: 14px; }
+  .room-measurements { color: #ffe66d; font-size: 27px; font-weight: 700; }
+  .row { flex-direction: row; gap: 10px; }
+  .button { background-color: #ed4fa7; color: #11131a; padding: 8px; border-radius: 7px; font-size: 18px; }
+</style>
+<Panel class="root">
+  <div class="heading">GARAGE JAM</div>
+  <div id="status" class="body">Ready to enter</div>
+  <div id="streams" class="body">Monitors: waiting</div>
+  <div id="room-measurements" class="room-measurements" style="display: none">MEASURING FLOOR AND TABLE...</div>
+  <div id="stream-diagnostics" class="diagnostics">Diagnostics loading...</div>
+  <div id="metrics" class="body">Scene: loading</div>
+  <div class="row">
+    <button id="xr-button" class="button">ENTER GARAGE</button>
+    <button id="exit-button" class="button" style="display: none">EXIT XR</button>
+    <button id="passthrough-button" class="button">PASSTHROUGH</button>
+    <button id="sunset-button" class="button">SUNSET</button>
+    <button id="diagnostics-button" class="button">STATS</button>
+    <button id="scan-button" class="button" style="display: none">RUN SCAN</button>
+    <button id="record-button" class="button">SAVE RUN</button>
+  </div>
+  <div class="row">
+    <button id="manual-room-button" class="button" style="display: none">MANUAL ROOM</button>
+    <button id="manual-undo-button" class="button" style="display: none">UNDO POINT</button>
+    <button id="manual-skip-table-button" class="button" style="display: none">NO TABLE</button>
+  </div>
+</Panel>

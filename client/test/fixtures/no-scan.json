@@ -1,0 +1,13 @@
+{
+  "id": "no-scan",
+  "description": "No floor scan; the room provider must fall back to a 5 x 5 m default room.",
+  "floorPolygon": null,
+  "ceilingY": null,
+  "table": null,
+  "furniture": [],
+  "openings": [],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0,
+  "source": "mock"
+}

@@ -1,0 +1,13 @@
+{
+  "id": "no-table",
+  "description": "Room with no table; paper-zone must be logged as P0 unplaced.",
+  "floorPolygon": [{ "x": -2, "z": -2 }, { "x": 2, "z": -2 }, { "x": 2, "z": 1 }, { "x": -2, "z": 1 }],
+  "ceilingY": 2.7,
+  "table": null,
+  "furniture": [],
+  "openings": [{ "type": "door", "wallId": "wall-2", "sillY": 0, "topY": 2.1, "center": 2.0, "width": 0.9 }],
+  "seat": { "x": 0, "y": 0, "z": 0 },
+  "forward": { "x": 0, "z": -1 },
+  "confidence": 0.8,
+  "source": "mock"
+}
