@@ -12,6 +12,16 @@ The recommended split:
 
 The player opens the Vercel URL. The client calls the backend directly for tasks, plugins, and signaling. The sender link shown in the headset points at the backend, so the laptop and headset share the backend's WebSocket endpoint.
 
+## Current deployment for this project
+
+| Piece | URL |
+|---|---|
+| Vercel frontend | `https://garage-jam.vercel.app/` |
+| Render Starter backend | `https://garage-jam.onrender.com` |
+| Free duplicate backend | `https://garage-jam-api.onrender.com` (same build, no disk; can be deleted) |
+
+The Vercel project is `nimbo4/garage-jam` and is connected to `WIN-MIN-MYAT/garage-jam` on `main`. The Render backend uses the Starter plan with a persistent disk.
+
 > **Why not everything on Vercel?** Vercel Functions now support WebSockets, but this server keeps room state in memory, writes tasks/tokens to `server/data/`, and expects one long-lived process. Moving it to Vercel would mean adding Redis/KV/Blob, refactoring Express into a function, and accepting function-duration limits. For a hackathon demo, the split is faster and more reliable.
 
 ---

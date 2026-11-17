@@ -189,12 +189,14 @@ If you need to swap one out, good replacements are **Express**, **Service Worker
 ## 4. Try it out links
 
 ```markdown
-- **Live demo (Quest 3 / 3S):** `<LIVE_DEMO_URL>`
-- **Source code:** `<SOURCE_REPO_URL>`
+- **Live demo (Quest 3 / 3S):** https://garage-jam.vercel.app/
+- **Source code:** https://github.com/WIN-MIN-MYAT/garage-jam
 - **Demo video:** `<YOUTUBE_OR_VIMEO_URL>`
-- **Laptop sender:** `<LIVE_DEMO_URL>/sender` (desktop Chrome, same Wi-Fi as the headset)
-- **Developer hub:** `<LIVE_DEMO_URL>/?test=1`
+- **Laptop sender:** https://garage-jam.onrender.com/sender (desktop Chrome, same Wi-Fi as the headset)
+- **Developer hub:** https://garage-jam.vercel.app/?test=1
 ```
+
+Use the exact room-scoped sender link shown in S9b on the headset. The sender page lives on the Render backend, not Vercel.
 
 ### Important notes before you paste
 

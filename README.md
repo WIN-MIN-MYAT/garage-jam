@@ -30,9 +30,9 @@ USB alternative: first confirm the device with `adb devices`. In PowerShell, set
 
 Garage Jam needs a Node process, a WebSocket `/signal` endpoint, the `/sender` page and the WebXR client on one HTTPS origin. GitHub Pages or Vercel alone is not enough for the full experience.
 
-The repository includes a production `Dockerfile` and a Render blueprint (`render.yaml`). The server serves the built client from `client/dist`, so `https://garagejam.com/`, `https://garagejam.com/sender?room=...`, `/api` and `/signal` share one origin. See [docs/deployment.md](docs/deployment.md) for Render, custom-domain/DNS, Docker/VPS and same-Wi-Fi verification steps.
+The repository includes a production `Dockerfile` and a Render blueprint (`render.yaml`). The server serves the built client from `client/dist`, so `https://garage-jam.onrender.com/`, `https://garage-jam.onrender.com/sender?room=...`, `/api` and `/signal` share one origin. See [docs/deployment.md](docs/deployment.md) for Render, custom-domain/DNS, Docker/VPS and same-Wi-Fi verification steps.
 
-Vercel can host the WebXR client while the Node API, `/signal`, `/sender` and `/connect` stay on Render/Fly. Set `VITE_BACKEND_ORIGIN` to the backend origin and follow [docs/vercel-deployment.md](docs/vercel-deployment.md). The sender link shown in the headset will point at the backend automatically.
+**Live split deployment:** the Vercel frontend is `https://garage-jam.vercel.app/` and the Render Starter backend is `https://garage-jam.onrender.com`. Vercel hosts the WebXR client; the Node API, `/signal`, `/sender` and `/connect` stay on Render. Set `VITE_BACKEND_ORIGIN` to the backend origin and follow [docs/vercel-deployment.md](docs/vercel-deployment.md). The sender link shown in the headset points at the backend automatically.
 
 For judges in other countries, use a shared host account instead of adding their emails to Spotify: set `PLUGIN_SHARED_PROFILE`, connect Spotify once, then set `PLUGIN_DEMO_LOCK=1`. Opening wrist Music starts a Spotify Web Playback SDK player in that visitor's headset. A full Premium account is required. Notion works without judge logins via `NOTION_TOKEN` and `NOTION_DATABASE_ID`. Full steps and caveats are in the deployment guide.
 
