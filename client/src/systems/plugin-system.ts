@@ -29,6 +29,7 @@ export class PluginSystem extends createSystem({}) {
   private localMusic = false;
   private speakers: Mesh[] = [];
   private boombox?: Object3D;
+  private boomboxDirty = true;
   private musicPosition = new Vector3();
   private musicFacing = new Vector3(0, 0, 1);
   private listener = new Vector3();
@@ -54,15 +55,13 @@ export class PluginSystem extends createSystem({}) {
   init() {
     revealAudio.setMusicVolume(garageState.preferences.musicVolume);
     const onRevealed = () => {
-      this.speakers = [];
-      this.boombox = this.world.scene.getObjectByName('PLACED_boombox');
-      this.boombox?.traverse(object => { if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object); });
+      this.refreshBoombox();
     };
     garageEvents.addEventListener('garage-revealed', onRevealed);
     garageEvents.addEventListener('garage-props-rebuilt', onRevealed);
     const roomHidden = () => { this.standHidden = true; this.updateMusicPresence(); };
     const roomShown = () => { this.standHidden = false; this.updateMusicPresence(); };
-    const onReset = () => { this.boombox = undefined; this.speakers = []; roomShown(); };
+    const onReset = () => { this.boombox = undefined; this.speakers = []; this.boomboxDirty = true; roomShown(); };
     const passthrough = (event: Event) => {
       this.manualPassthrough = (event as CustomEvent<boolean>).detail;
       this.updateMusicPresence();
@@ -117,9 +116,11 @@ export class PluginSystem extends createSystem({}) {
         get weather() { return system.weather; },
         get playlists() { return system.playlists; },
         get headset() { return { status: system.headsetStatus, deviceId: system.spotifyDeviceId, message: system.headsetMessage }; },
+        get audio() { return system.audioDebug(); },
         enableHeadset: () => system.ensureHeadsetPlayer(),
         refresh: () => system.refresh(),
         player: (detail: any) => system.playerAction(detail),
+        speakerPose: () => { system.updateSpeakerPosition(); return system.audioDebug(); },
       };
     }
     this.cleanupFuncs.push(() => {
@@ -406,7 +407,45 @@ export class PluginSystem extends createSystem({}) {
     this.lastMixAt = 0;
   }
 
+  private refreshBoombox() {
+    this.boomboxDirty = false;
+    const boombox = this.world.scene.getObjectByName('PLACED_boombox');
+    if (!boombox) {
+      this.boombox = undefined;
+      this.speakers = [];
+      return;
+    }
+    if (this.boombox === boombox) return;
+    this.boombox = boombox;
+    this.speakers = [];
+    boombox.traverse(object => {
+      if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object);
+    });
+  }
+
+  private boomboxAttached() {
+    let node: Object3D | null = this.boombox ?? null;
+    while (node?.parent) node = node.parent;
+    return node === this.world.scene;
+  }
+
   private updateSpeakerPosition() {
+    if (this.boomboxDirty || !this.boombox || !this.boomboxAttached()) this.refreshBoombox();
+    // The placement is the authoritative boombox pose. It is replaced on every
+    // room build and prop rearrangement, so the music follows a moved boombox.
+    const placement = garageState.placements.find(item => item.slotId === 'boombox');
+    if (placement) {
+      const yaw = placement.yaw ?? 0;
+      const facingX = Math.sin(yaw);
+      const facingZ = Math.cos(yaw);
+      this.musicPosition.set(
+        placement.position.x + facingX * 0.12,
+        placement.position.y + 0.15,
+        placement.position.z + facingZ * 0.12,
+      );
+      this.musicFacing.set(facingX, 0, facingZ);
+      return;
+    }
     if (this.boombox) {
       this.boombox.localToWorld(this.musicPosition.set(0, 0.15, 0.12));
       this.boombox.getWorldDirection(this.musicFacing);
@@ -415,6 +454,22 @@ export class PluginSystem extends createSystem({}) {
     const room = garageState.room;
     this.musicPosition.set((room?.seat.x ?? 0) + 0.7, (room?.floor.y ?? 0) + 0.24, (room?.seat.z ?? 0) - 0.8);
     this.musicFacing.set(0, 0, 1);
+  }
+
+  private audioDebug() {
+    const placement = garageState.placements.find(item => item.slotId === 'boombox');
+    const position = this.boombox ? this.boombox.getWorldPosition(new Vector3()) : null;
+    return {
+      localMusic: this.localMusic,
+      attached: this.boombox ? this.boomboxAttached() : false,
+      speakerUuid: this.boombox?.uuid ?? null,
+      speakerPosition: position ? position.toArray() : null,
+      placement: placement
+        ? { x: placement.position.x, y: placement.position.y, z: placement.position.z, yaw: placement.yaw }
+        : null,
+      musicPosition: this.musicPosition.toArray(),
+      musicFacing: this.musicFacing.toArray(),
+    };
   }
 
   private mixSpotify(now: number) {
@@ -441,7 +496,9 @@ export class PluginSystem extends createSystem({}) {
   update() {
     const now = performance.now();
     const playing = this.isHeadsetPlaying() || this.localMusic;
-    if (this.localMusic || this.spotifyDeviceId) this.updateSpeakerPosition();
+    // Track the boombox every frame so the local panner and the Spotify
+    // distance mix follow it after a rearrange or a new room build.
+    this.updateSpeakerPosition();
     if (this.localMusic) revealAudio.moveLoFi(this.musicPosition, this.musicFacing);
     this.mixSpotify(now);
     if (!this.speakers.length) return;
