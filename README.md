@@ -49,6 +49,8 @@ Create a Notion database with these exact properties:
 
 Create a Notion integration, grant it access to that database, and put its token and database ID in `server/.env`. The token stays on the Node server. The proxy pins Notion API version `2022-06-28` because the requested database query route uses that version. Property names can be changed in `.env`. Task reads query up to 30 pending rows and cache the last good response in `server/data/tasks-cache.json`. Failed Done updates retry once, then enter `server/data/done-queue.json` for retry on the next server start. Queued status is shown in the HUD. Without Notion, tasks are stored locally in `server/data/tasks-local.json`; new tasks default to Notion when it is configured, unless `TASKS_SEND_TO=local`. These data files and `.env` are gitignored.
 
+**Shared Notion access without per-visitor OAuth.** The task board uses the server-side `NOTION_TOKEN` and `NOTION_DATABASE_ID`, so every visitor sees and completes the same tasks without signing in. The wrist **CONNECT → Notion** badge shows **ON** from this shared task board even when the optional OAuth connector is not configured. The OAuth connector is only for connecting a personal Notion account through `/api/plugins/manage`; it is not required for the task loop.
+
 ## Plugin connections
 
 Open the wrist menu's **CONNECT** page or visit `/api/plugins/manage` on the Garage Jam site. Sign-in takes place in the browser. Connections are saved for that browser profile. The headset shows a short pairing code and `/connect`; claiming it on a phone or laptop binds the provider tokens to the headset profile, so XR is not interrupted. **Verify** checks the connected account or fetches a fresh weather reading. **Disconnect** removes the saved connection from Garage Jam. To revoke consent with the provider as well, use its account settings.
@@ -76,7 +78,7 @@ If a connection fails while both devices are on the same LAN, check Chrome's `ch
 
 `/` is the product entry. `/?test=1` opens the developer probes. **Enter the Garage** requests an XR session and checks the room planes. If Quest Browser exposes several tables, look at the tabletop you want and choose **Use outlined table** when the outline turns yellow. Use **Mark table corners** to keep the scanned room and measure the tabletop by touch. Full touch setup measures the floor and table. The reveal leads into table confirmation, mode selection, optional device marking, and the live garage.
 
-**Resume the Garage** keeps your setup progress and preferences. It reads the current room after opening a new XR session, then runs the quick reveal and asks you to check the table. A tracking-origin reset also starts a live scan. If the room has no live scan, use full touch setup. The saved room is used for the landing summary.
+**Resume the Garage** checks live room data in the new XR session. If the room and one detected table confidently match the last confirmed setup, the quick reveal leads straight into the saved display mode. Otherwise, the normal room and table setup continues. A tracking-origin reset starts a live scan. If room scan data is unavailable, use touch setup.
 
 ## Room Build Reveal
 

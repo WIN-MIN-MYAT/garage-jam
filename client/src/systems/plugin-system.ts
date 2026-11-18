@@ -6,7 +6,10 @@ import { garageRootsVisible } from '../garage-visibility.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { apiUrl } from '../backend.js';
 
-type PluginStatus = { configured?: boolean; connected?: boolean; account?: string; verifiedAt?: string; sample?: any };
+type PluginStatus = {
+  configured?: boolean; connected?: boolean; account?: string; verifiedAt?: string; sample?: any;
+  taskBoard?: { configured?: boolean; source?: string };
+};
 type Statuses = Record<string, PluginStatus>;
 type SpotifyState = {
   active: boolean; connected?: boolean; playing?: boolean; title?: string; artists?: string; album?: string; art?: string | null;
@@ -160,6 +163,11 @@ export class PluginSystem extends createSystem({}) {
   }
 
   private async connect(provider: string) {
+    const notion = this.statuses.notion;
+    if (provider === 'notion' && notion?.taskBoard?.configured && !notion.connected) {
+      emit('status', 'Notion tasks are connected to the shared database. No account sign-in needed.');
+      return;
+    }
     try {
       const response = await this.api(`/api/plugins/${encodeURIComponent(provider)}/pair`, { method: 'POST' });
       const result = await response.json();

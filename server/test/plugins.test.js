@@ -25,10 +25,13 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
     SPOTIFY_CLIENT_ID: 'spotify-client', SPOTIFY_REDIRECT_URI: origin + base + '/spotify/callback',
     CALENDAR_CLIENT_ID: 'calendar-client', CALENDAR_CLIENT_SECRET: 'calendar-secret', CALENDAR_REDIRECT_URI: origin + base + '/calendar/callback',
     PLUGIN_CLIENT_ORIGINS: 'https://garage-jam.vercel.app',
+    NOTION_TOKEN: 'notion-internal-token',
+    NOTION_DATABASE_ID: '0123456789abcdef0123456789abcdef',
   };
   let challenge;
   let spotifyExpired = false;
   let notionVerified = false;
+  const trackRequests = [];
   const fetcher = async (url, options) => {
     const { hostname, pathname } = new URL(url);
     if (hostname === 'api.notion.com' && pathname === '/v1/oauth/token') {
@@ -71,6 +74,7 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
     }
     if (hostname === 'api.spotify.com' && pathname.startsWith('/v1/me/player/')) {
       assert.match(options.headers.Authorization, /^Bearer spotify-(access|replacement)$/);
+      if (pathname.endsWith('/next') || pathname.endsWith('/previous')) trackRequests.push(new URL(url).search);
       return new Response(null, { status: 204 });
     }
     if (hostname === 'oauth2.googleapis.com' && pathname === '/token') {
@@ -175,7 +179,9 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.match((await (await get('/spotify/headset-token')).json()).access, /^spotify-(access|replacement)$/);
   assert.equal((await (await get('/spotify/devices')).json())[0].id, 'device-1');
   assert.equal((await (await get('/spotify/playlists')).json())[0].name, 'Focus');
-  assert.equal((await post('/spotify/player', { action: 'next' })).status, 200);
+  assert.equal((await post('/spotify/player', { action: 'next', deviceId: 'device-1' })).status, 200);
+  assert.equal((await post('/spotify/player', { action: 'previous', deviceId: 'device-1' })).status, 200);
+  assert.deepEqual(trackRequests, ['?device_id=device-1', '?device_id=device-1']);
   const today = await (await get('/calendar/today')).json();
   assert.equal(today[0].title, 'Design review');
   const current = await (await get('/weather/current')).json();
@@ -188,6 +194,7 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   router = createPluginRouter({ directory, env, fetcher });
   const status = await (await get('/status')).json();
   assert.equal(status.notion.account, 'Test Workspace');
+  assert.equal(status.notion.taskBoard.configured, true, 'the shared Notion task board should be reported separately from OAuth');
   assert.equal(status.spotify.account, 'Spotify Tester');
   assert.equal(status.calendar.account, 'tester@example.com');
   assert.equal(status.weather.account, 'Singapore');

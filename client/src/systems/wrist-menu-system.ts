@@ -12,7 +12,7 @@ import {
 } from '@iwsdk/core';
 import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { garageState, lastRoomStorageKey, resetPreferences, setPreference, setWorkMode } from '../garage-state.js';
+import { confirmedRoomStorageKey, garageState, lastRoomStorageKey, resetPreferences, setPreference, setWorkMode } from '../garage-state.js';
 import { clearDeviceCollection } from '../device-model.js';
 import { isProductEntry, resetFlow, type AppStage } from '../app-flow/app-flow.js';
 import { manualRoomStorageKey } from '../room-model.js';
@@ -84,6 +84,7 @@ export class WristMenuSystem extends createSystem({}) {
   private playlists: any[] = [];
   private headsetMessage = '';
   private headsetReady = false;
+  private headsetDeviceId?: string;
   private playlistIndex = -1;
   private localMusic = false;
 
@@ -135,8 +136,9 @@ export class WristMenuSystem extends createSystem({}) {
     const onPairing = (event: Event) => { this.pluginPairing = (event as CustomEvent<any>).detail ?? null; this.showPage('plugins'); this.openPanel(); this.refresh(); };
     const onSpotify = (event: Event) => { this.spotify = (event as CustomEvent<any>).detail ?? { active: false }; this.refresh(); };
     const onHeadset = (event: Event) => {
-      const { status, message } = (event as CustomEvent<{ status: string; message: string }>).detail;
+      const { status, message, deviceId } = (event as CustomEvent<{ status: string; message: string; deviceId?: string }>).detail;
       this.headsetReady = status === 'ready';
+      this.headsetDeviceId = this.headsetReady ? deviceId : undefined;
       this.headsetMessage = message;
       this.refresh();
     };
@@ -252,12 +254,20 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-mode-real', () => setWorkMode('passthrough'));
     on('wm-mode-stream', () => setWorkMode('streaming'));
     on('wm-monitors', () => { this.close(true); emit('monitor-manager-open'); });
-    on('wm-music-prev', () => emit('spotify-action', { action: 'previous' }));
-    on('wm-music-next', () => emit('spotify-action', { action: 'next' }));
+    on('wm-music-prev', () => this.skipTrack('previous'));
+    on('wm-music-next', () => this.skipTrack('next'));
     on('wm-music-play', () => emit('music-toggle'));
     on('wm-music-vol-down', () => this.musicVolume(-5));
     on('wm-music-vol-up', () => this.musicVolume(5));
+    on('wm-music-connect', () => {
+      this.showPage('plugins');
+      emit('plugin-connect', { provider: 'spotify' });
+    });
     on('wm-music-playlist', () => {
+      if (!this.headsetReady || this.localMusic) {
+        emit('status', this.localMusic ? 'Pause the boombox before starting a Spotify playlist.' : this.headsetMessage || 'Spotify is still connecting.');
+        return;
+      }
       if (!this.playlists.length) { emit('plugin-refresh'); emit('status', 'No Spotify playlists loaded.'); return; }
       this.playlistIndex = (this.playlistIndex + 1) % this.playlists.length;
       const playlist = this.playlists[this.playlistIndex];
@@ -348,7 +358,10 @@ export class WristMenuSystem extends createSystem({}) {
       this.refresh();
     });
     on('wm-save-seat', () => emit('standup-seat-store'));
-    on('wm-clear-board', () => emit('whiteboard-clear'));
+    on('wm-clear-board', () => {
+      emit('whiteboard-clear');
+      emit('status', 'Whiteboard cleared');
+    });
     on('wm-focus-length', () => {
       const values = [25, 45, 60];
       const next = values[(values.indexOf(garageState.preferences.focusMinutes) + 1) % values.length];
@@ -375,6 +388,7 @@ export class WristMenuSystem extends createSystem({}) {
       clearStandSeat();
       localStorage.removeItem(manualRoomStorageKey);
       localStorage.removeItem(lastRoomStorageKey);
+      localStorage.removeItem(confirmedRoomStorageKey);
       localStorage.removeItem('garage-jam-progress-v1');
       localStorage.removeItem('garage-jam-whiteboard-v1');
       resetProgress();
@@ -416,6 +430,18 @@ export class WristMenuSystem extends createSystem({}) {
   private applySound() {
     const prefs = garageState.preferences;
     revealAudio.setVolume(prefs.revealSound ? prefs.sfxVolume : 0);
+  }
+
+  private canSkipTrack() {
+    return !!(this.pluginStatus.spotify?.connected && this.headsetDeviceId && !this.localMusic
+      && this.spotify.active && this.spotify.device?.id === this.headsetDeviceId);
+  }
+
+  private skipTrack(action: 'previous' | 'next') {
+    if (this.canSkipTrack()) emit('spotify-action', { action });
+    else if (!this.pluginStatus.spotify?.connected) emit('status', 'Connect Spotify to skip tracks.');
+    else if (this.localMusic) emit('status', 'Pause the boombox to use Spotify controls.');
+    else emit('status', this.headsetReady ? 'Press Play to listen here first.' : this.headsetMessage || 'Spotify is still connecting.');
   }
 
   private musicVolume(delta: number) {
@@ -532,22 +558,42 @@ export class WristMenuSystem extends createSystem({}) {
     const next = this.calendar[0];
     set('wm-next-event', next ? `${next.allDay ? 'ALL DAY' : new Date(next.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${next.title}` : 'No events today');
     const connected = !!this.pluginStatus.spotify?.connected;
-    set('wm-music-title', this.localMusic ? 'Garage lo-fi' : connected ? this.spotify.title || 'Spotify' : 'Garage lo-fi');
-    set('wm-music-artist', this.localMusic || !connected ? 'Plays from the boombox' : this.spotify.artists || this.spotify.album || 'Choose a playlist or press Play');
+    const spotifySource = connected && !this.localMusic;
+    const canSkip = this.canSkipTrack();
+    const fit = (text: string, length: number) => {
+      const characters = Array.from(text);
+      return characters.length > length ? characters.slice(0, length - 1).join('') + '…' : text;
+    };
+    set('wm-music-source', spotifySource ? 'SPOTIFY' : 'BOOMBOX');
+    set('wm-music-title', spotifySource ? fit(this.spotify.title || 'Spotify', 24) : 'Garage lo-fi');
+    set('wm-music-artist', spotifySource ? fit(this.spotify.artists || this.spotify.album || 'Choose a playlist or press Play', 32) : 'Plays from the boombox');
     set('wm-music-play', this.localMusic || (connected && this.spotify.playing) ? 'PAUSE' : 'PLAY');
-    set('wm-music-playlist-value', this.playlists[this.playlistIndex]?.name ?? 'NONE');
+    set('wm-music-playlist-value', fit(this.playlists[this.playlistIndex]?.name ?? (this.playlists.length ? 'Browse' : 'None loaded'), 20));
     set('wm-music-volume', `${p.musicVolume}%`);
-    for (const id of ['wm-music-prev', 'wm-music-next', 'wm-music-playlist']) {
-      panel.requireElementById(id).setProperties({ display: connected && !this.localMusic && this.headsetReady ? 'flex' : 'none' });
+    for (const id of ['wm-music-prev', 'wm-music-next']) {
+      panel.requireElementById(id).setProperties({
+        color: canSkip ? '#f1eadc' : '#858d99',
+        backgroundColor: canSkip ? '#252c35' : '#1d2129',
+      });
     }
-    set('wm-music-note', connected ? this.headsetMessage : 'Link Spotify from Connect');
+    panel.requireElementById('wm-music-connect').setProperties({ display: connected ? 'none' : 'flex' });
+    panel.requireElementById('wm-music-playlist').setProperties({ display: spotifySource ? 'flex' : 'none' });
+    set('wm-music-note', !spotifySource ? (connected ? this.headsetMessage : '')
+      : canSkip ? '' : this.headsetReady ? 'Press Play to listen here.' : this.headsetMessage || 'Connecting Spotify…');
     for (const provider of ['notion', 'spotify', 'calendar', 'weather'] as const) {
       const status = this.pluginStatus[provider];
-      set(`wm-plugin-${provider}`, status?.connected ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');
+      const sharedNotionTasks = provider === 'notion' && status?.taskBoard?.configured;
+      set(`wm-plugin-${provider}`, status?.connected || sharedNotionTasks ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');
     }
     set('wm-plugin-note', this.pluginPairing
       ? `CODE ${this.pluginPairing.code} / ${location.host}/api/plugins/connect`
-      : this.pluginStatus.spotify?.connected ? 'Spotify connected' : 'Tap a provider, then open /connect');
+      : this.pluginStatus.spotify?.connected && this.pluginStatus.notion?.taskBoard?.configured
+        ? 'Spotify + Notion tasks ON'
+        : this.pluginStatus.spotify?.connected
+          ? 'Spotify connected'
+          : this.pluginStatus.notion?.taskBoard?.configured
+            ? 'Notion tasks connected'
+            : 'Tap a provider, then open /connect');
   }
 
   private updateFromFrame(frame: XRFrame) {

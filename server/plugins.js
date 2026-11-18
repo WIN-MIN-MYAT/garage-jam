@@ -137,7 +137,14 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     const statuses = await Promise.all(Object.entries(providers).map(async ([id, provider]) => [
       id, publicStatus(provider, await read(req.pluginSession, id)),
     ]));
-    res.json(Object.fromEntries(statuses));
+    const result = Object.fromEntries(statuses);
+    if (result.notion) {
+      result.notion.taskBoard = {
+        configured: !!(env.NOTION_TOKEN && env.NOTION_DATABASE_ID),
+        source: 'server',
+      };
+    }
+    res.json(result);
   }));
 
   router.post('/:id/pair', run(async (req, res) => {
@@ -201,8 +208,8 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
       switch (action) {
         case 'play': return providers.spotify.api(connection, `/me/player/play${query}`, json({ ...(contextUri ? { context_uri: contextUri } : {}), ...(Array.isArray(uris) ? { uris } : {}) }));
         case 'pause': return providers.spotify.api(connection, `/me/player/pause${query}`, { method: 'PUT' });
-        case 'next': return providers.spotify.api(connection, '/me/player/next', { method: 'POST' });
-        case 'previous': return providers.spotify.api(connection, '/me/player/previous', { method: 'POST' });
+        case 'next': return providers.spotify.api(connection, `/me/player/next${query}`, { method: 'POST' });
+        case 'previous': return providers.spotify.api(connection, `/me/player/previous${query}`, { method: 'POST' });
         case 'seek': return providers.spotify.api(connection, `/me/player/seek?position_ms=${Math.max(0, Math.round(Number(value) || 0))}`, { method: 'PUT' });
         case 'volume': return providers.spotify.api(connection, `/me/player/volume?volume_percent=${Math.max(0, Math.min(100, Math.round(Number(value) || 0)))}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`, { method: 'PUT' });
         case 'shuffle': return providers.spotify.api(connection, `/me/player/shuffle?state=${value ? 'true' : 'false'}${deviceId ? `&device_id=${encodeURIComponent(deviceId)}` : ''}`, { method: 'PUT' });
