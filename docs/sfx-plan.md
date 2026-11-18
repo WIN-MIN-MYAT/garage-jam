@@ -12,7 +12,7 @@ Five ElevenLabs recordings add quiet neighborhood detail in about 92 KB of mono 
 
 Only one street event plays at a time. The next plays after a 45–120 second gap, with occasional extra silence. The doorway breeze and street share a low-pass filter and volume reduction when the focus shutter closes. The street and room ambience fade when the garage leaves view.
 
-In-app playback uses head-tracked HRTF panners. Interaction cues come from their objects or panels, reveal sounds come from the build, and local music comes from the boombox when placed. The music panner is re-anchored to the boombox's latest placement every frame, so it follows the prop after a rearrange, room rebuild, or rescan. Spotify continues playing on the selected Spotify device.
+In-app playback uses head-tracked HRTF panners. Interaction cues come from their objects or panels, reveal sounds come from the build, and local music comes from the boombox when placed. The local bed uses a mid-range 220–440 Hz chord so it is audible on Quest's built-in speakers. The music panner is re-anchored to the boombox's latest placement every frame, so it follows the prop after a rearrange, room rebuild, or rescan. If the Spotify headset player fails after a Play press, the local bed starts automatically. Spotify continues playing on the selected Spotify device.
 
 ## Reveal accents · 2026-11-17
 

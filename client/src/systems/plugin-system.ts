@@ -117,9 +117,12 @@ export class PluginSystem extends createSystem({}) {
         get playlists() { return system.playlists; },
         get headset() { return { status: system.headsetStatus, deviceId: system.spotifyDeviceId, message: system.headsetMessage }; },
         get audio() { return system.audioDebug(); },
+        get musicSignal() { return revealAudio.getMusicSignal(); },
         enableHeadset: () => system.ensureHeadsetPlayer(),
         refresh: () => system.refresh(),
         player: (detail: any) => system.playerAction(detail),
+        playLocal: () => system.playLocalMusic(),
+        stopLocal: () => system.stopLocalMusic(),
         speakerPose: () => { system.updateSpeakerPosition(); return system.audioDebug(); },
       };
     }
@@ -199,10 +202,14 @@ export class PluginSystem extends createSystem({}) {
   private emitHeadset(status: 'idle' | 'loading' | 'ready' | 'error', message: string, deviceId?: string, detail = '') {
     this.headsetStatus = status;
     this.headsetMessage = message;
+    const wasPending = this.pendingSpotifyPlay;
     if (status === 'error') this.pendingSpotifyPlay = false;
     if (detail) console.warn('[spotify-headset]', detail);
     if (status === 'error' && detail) emit('status', detail);
     emit('spotify-headset', { status, message, deviceId });
+    // If the user pressed Play and the headset player failed, keep the room
+    // musical with the local bed instead of leaving them in silence.
+    if (status === 'error' && wasPending) void this.playLocalMusic();
   }
 
   private resetHeadsetPlayer() {
@@ -375,6 +382,10 @@ export class PluginSystem extends createSystem({}) {
       else await this.playerAction({ action: 'transfer', deviceId: this.spotifyDeviceId, play: true });
       return;
     }
+    return this.playLocalMusic();
+  }
+
+  private async playLocalMusic() {
     if (this.localMusic) return;
     this.updateSpeakerPosition();
     try { await revealAudio.unlock(); } catch { emit('status', 'Tap Play again to start audio.'); return; }
@@ -382,6 +393,8 @@ export class PluginSystem extends createSystem({}) {
       this.localMusic = true;
       emit('local-music-state', true);
       emit('status', 'Playing local lo-fi fallback');
+    } else {
+      emit('status', 'Local audio could not start. Tap Play again.');
     }
   }
 

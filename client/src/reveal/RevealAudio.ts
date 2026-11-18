@@ -622,6 +622,9 @@ export class RevealAudio {
   private musicNodes: AudioNode[] = [];
   private musicVolume = 0.4;
   private musicPresence = 1;
+  private musicTap: AnalyserNode | null = null;
+  private musicTapSink: GainNode | null = null;
+  private musicTapSource: GainNode | null = null;
 
   setMusicVolume(percent: number) {
     this.musicVolume = Math.max(0, Math.min(1, percent / 100));
@@ -637,7 +640,7 @@ export class RevealAudio {
     if (!this.musicGain || !this.context) return;
     const now = this.context.currentTime;
     this.musicGain.gain.cancelAndHoldAtTime(now);
-    this.musicGain.gain.setTargetAtTime(this.musicVolume * this.musicPresence * 0.16, now, 0.18);
+    this.musicGain.gain.setTargetAtTime(this.musicVolume * this.musicPresence * 0.45, now, 0.18);
   }
 
   startLoFi(position: Point) {
@@ -646,26 +649,28 @@ export class RevealAudio {
     const now = context.currentTime;
     const master = context.createGain();
     master.gain.setValueAtTime(0.0001, now);
-    master.gain.linearRampToValueAtTime(this.musicVolume * this.musicPresence * 0.16, now + 0.65);
+    master.gain.linearRampToValueAtTime(this.musicVolume * this.musicPresence * 0.45, now + 0.65);
     this.musicPanner = this.panner(position);
     if (this.musicPanner) {
-      this.musicPanner.refDistance = 0.75;
-      this.musicPanner.rolloffFactor = 0.8;
-      this.musicPanner.coneInnerAngle = 105;
-      this.musicPanner.coneOuterAngle = 250;
-      this.musicPanner.coneOuterGain = 0.55;
+      this.musicPanner.refDistance = 1.1;
+      this.musicPanner.rolloffFactor = 0.55;
+      this.musicPanner.coneInnerAngle = 120;
+      this.musicPanner.coneOuterAngle = 260;
+      this.musicPanner.coneOuterGain = 0.62;
       master.connect(this.musicPanner).connect(context.destination);
     } else master.connect(context.destination);
     this.musicGain = master;
-    // A soft three-note bed with a slow tremolo. This is a fallback for users
-    // without Spotify, not a replacement for the real music connector.
-    const frequencies = [110, 164.81, 220, 277.18];
+    // A soft mid-range chord with a slow tremolo. The previous bed sat at
+    // 55–138 Hz, which is below what Quest's built-in speakers reproduce well.
+    // This is a fallback for users without Spotify, not a replacement for it.
+    const frequencies = [220, 277.18, 329.63, 440, 110];
     frequencies.forEach((frequency, index) => {
       const osc = context.createOscillator();
-      osc.type = index % 2 ? 'triangle' : 'sine';
-      osc.frequency.value = frequency / 2;
+      osc.type = index === 4 ? 'sine' : index % 2 ? 'triangle' : 'sine';
+      osc.frequency.value = frequency;
+      osc.detune.value = index % 2 ? 3 : -3;
       const gain = context.createGain();
-      gain.gain.value = index === 3 ? 0.12 : 0.2;
+      gain.gain.value = index === 4 ? 0.08 : index === 3 ? 0.12 : 0.2;
       const tremolo = context.createGain();
       tremolo.gain.value = 0.7;
       const lfo = context.createOscillator();
@@ -689,6 +694,42 @@ export class RevealAudio {
     speaker.orientationZ.value = facing.z;
   }
 
+  /** Localhost QA probe: reports the live signal level and panner pose. */
+  getMusicSignal() {
+    if (!this.context || !this.musicGain) return null;
+    if (this.musicTapSource !== this.musicGain) {
+      if (this.musicTap) this.musicTapSource?.disconnect(this.musicTap);
+      const analyser = this.context.createAnalyser();
+      analyser.fftSize = 2048;
+      const sink = this.context.createGain();
+      sink.gain.value = 0;
+      this.musicGain.connect(analyser);
+      analyser.connect(sink).connect(this.context.destination);
+      this.musicTap = analyser;
+      this.musicTapSink = sink;
+      this.musicTapSource = this.musicGain;
+    }
+    const analyser = this.musicTap;
+    if (!analyser) return null;
+    const data = new Float32Array(analyser.fftSize);
+    analyser.getFloatTimeDomainData(data);
+    let sum = 0, peak = 0;
+    for (const value of data) {
+      sum += value * value;
+      peak = Math.max(peak, Math.abs(value));
+    }
+    const panner = this.musicPanner;
+    return {
+      state: this.context.state,
+      rms: Math.sqrt(sum / data.length),
+      peak,
+      gain: this.musicGain.gain.value,
+      volume: this.musicVolume,
+      presence: this.musicPresence,
+      panner: panner ? { x: panner.positionX.value, y: panner.positionY.value, z: panner.positionZ.value } : null,
+    };
+  }
+
   stopLoFi() {
     if (!this.context || !this.musicGain) return;
     const now = this.context.currentTime;
@@ -700,6 +741,12 @@ export class RevealAudio {
     this.musicGain = null;
     this.musicPanner = null;
     this.musicNodes = [];
+    if (this.musicTap) this.musicTapSource?.disconnect(this.musicTap);
+    this.musicTap?.disconnect();
+    this.musicTapSink?.disconnect();
+    this.musicTap = null;
+    this.musicTapSink = null;
+    this.musicTapSource = null;
     window.setTimeout(() => {
       for (const node of nodes) {
         try { (node as OscillatorNode).stop?.(); } catch { /* noop */ }
