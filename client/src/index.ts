@@ -6,6 +6,7 @@ import { StreamSystem } from './systems/stream-system.js';
 import { TaskBoardSystem } from './systems/task-board-system.js';
 import { FocusSystem } from './systems/focus-system.js';
 import { PluginSystem } from './systems/plugin-system.js';
+import { SpotifySearchSystem } from './systems/spotify-search-system.js';
 import { EnvironmentSystem } from './systems/environment-system.js';
 import { NudgeSystem } from './systems/nudge-system.js';
 import { WhiteboardSystem } from './systems/whiteboard-system.js';
@@ -121,6 +122,7 @@ function startApp() {
       world.registerSystem(HudSystem);
       world.registerSystem(ToastSystem);
       world.registerSystem(PluginSystem);
+      world.registerSystem(SpotifySearchSystem);
     } else if (cutoutSpike) {
       world.registerSystem(HudSystem);
       world.registerSystem(CutoutSpikeSystem);
@@ -145,6 +147,7 @@ function startApp() {
       world.registerSystem(PluginSystem);
       world.registerSystem(EnvironmentSystem);
       world.registerSystem(NudgeSystem);
+      world.registerSystem(SpotifySearchSystem);
       world.registerSystem(WhiteboardSystem);
       world.registerSystem(PresenceSystem);
       world.registerSystem(MonitorManagerSystem);

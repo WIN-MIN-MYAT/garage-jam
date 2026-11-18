@@ -94,10 +94,10 @@ The table panel, flow panel and wrist menu are loaded from `client/public/ui/tab
 
 ## Gate 9 connectors
 
-- `server/plugin-providers.js` now includes Notion, Spotify (PKCE, refresh, streaming scope), Google Calendar (OAuth + refresh), and Open-Meteo weather. `server/plugins.js` exposes Spotify state/control/devices/playlists/headset-token/image, calendar today, and weather current; a 401 refreshes the token once and retries.
+- `server/plugin-providers.js` now includes Notion, Spotify (PKCE, refresh, streaming scope), Google Calendar (OAuth + refresh), and Open-Meteo weather. `server/plugins.js` exposes Spotify state/control/devices/search/playlists/headset-token/image, calendar today, and weather current; a 401 refreshes the token once and retries.
 - Provider tokens can be bound to the headset profile via `X-Garage-Profile`/`profile` queries and the `/connect` 6-character pairing page, so a phone or laptop can finish OAuth without leaving XR. The plugin manager and provider status are polled back into the wrist.
 - `client/src/systems/plugin-system.ts` polls status/state/calendar/weather only while XR is visible, emits `plugin-status`, `spotify-state`, `spotify-headset`, `calendar-events`, and `weather-current`, and exposes a debug probe. Opening Music loads the Spotify Web Playback SDK, creates a **Garage Jam Headset** device, and transfers playback to the visitor's browser/headset.
-- The wrist menu adds HOME next event, MUSIC, CONNECT and Settings sky/focus rows. Spotify actions cover play/pause, next/previous, device transfer and playlist play. The emulator validates the panel pages, the SDK player with a stubbed token/device, and server unit tests validate the endpoints.
+- The wrist menu adds HOME next event, MUSIC, CONNECT and Settings sky/focus rows. Spotify actions cover play/pause, next/previous, device transfer, playlist play and searched-track playback. The in-headset search panel uses a floating QWERTY keyboard and five result slots, then sends the selected `spotify:track:` URI to the headset player. The emulator validates the panel pages, the search keyboard, the SDK player with a stubbed token/device, and server unit tests validate the endpoints.
 - Physical OAuth consent, Spotify Premium and real Quest headset audio, Google app verification, and weather visuals remain.
 
 ## Gate 10 streaming integration

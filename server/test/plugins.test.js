@@ -72,6 +72,18 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
     if (hostname === 'api.spotify.com' && pathname === '/v1/me/playlists') {
       return Response.json({ items: [{ id: 'list-1', name: 'Focus', uri: 'spotify:playlist:list-1', tracks: { total: 12 }, images: [{ url: 'https://i.scdn.co/image/playlist.jpg' }] }] });
     }
+    if (hostname === 'api.spotify.com' && pathname === '/v1/search') {
+      const query = new URL(url).searchParams;
+      assert.equal(query.get('q'), 'garage');
+      assert.equal(query.get('type'), 'track');
+      assert.match(query.get('market'), /^from_token$/);
+      return Response.json({
+        tracks: { items: [{
+          id: 'track-1', uri: 'spotify:track:track-1', name: 'Garage Loop', duration_ms: 180000,
+          artists: [{ name: 'Lo-Fi Crew' }], album: { name: 'Concrete', images: [{ url: 'https://i.scdn.co/image/track.jpg' }] },
+        }] },
+      });
+    }
     if (hostname === 'api.spotify.com' && pathname.startsWith('/v1/me/player/')) {
       assert.match(options.headers.Authorization, /^Bearer spotify-(access|replacement)$/);
       if (pathname.endsWith('/next') || pathname.endsWith('/previous')) trackRequests.push(new URL(url).search);
@@ -179,6 +191,11 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.match((await (await get('/spotify/headset-token')).json()).access, /^spotify-(access|replacement)$/);
   assert.equal((await (await get('/spotify/devices')).json())[0].id, 'device-1');
   assert.equal((await (await get('/spotify/playlists')).json())[0].name, 'Focus');
+  const search = await (await get('/spotify/search?q=garage')).json();
+  assert.equal(search[0].name, 'Garage Loop');
+  assert.equal(search[0].artists, 'Lo-Fi Crew');
+  assert.equal(search[0].uri, 'spotify:track:track-1');
+  assert.equal((await post('/spotify/player', { action: 'play', deviceId: 'device-1', uris: ['spotify:track:track-1'] })).status, 200);
   assert.equal((await post('/spotify/player', { action: 'next', deviceId: 'device-1' })).status, 200);
   assert.equal((await post('/spotify/player', { action: 'previous', deviceId: 'device-1' })).status, 200);
   assert.deepEqual(trackRequests, ['?device_id=device-1', '?device_id=device-1']);

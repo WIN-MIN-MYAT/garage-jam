@@ -90,6 +90,9 @@ export class PluginSystem extends createSystem({}) {
       revealAudio.setMusicVolume(value);
       this.lastMixAt = 0;
     };
+    const search = (event: Event) => {
+      void this.search(String((event as CustomEvent<{ query?: string }>).detail?.query ?? ''));
+    };
     garageEvents.addEventListener('plugin-refresh', refresh);
     garageEvents.addEventListener('plugin-connect', connect);
     garageEvents.addEventListener('spotify-action', action);
@@ -98,6 +101,7 @@ export class PluginSystem extends createSystem({}) {
     garageEvents.addEventListener('music-stop', musicStop);
     garageEvents.addEventListener('music-toggle', musicToggle);
     garageEvents.addEventListener('music-volume', volume);
+    garageEvents.addEventListener('spotify-search', search);
     this.pollTimer = window.setInterval(() => {
       if (!this.active) return;
       const now = Date.now();
@@ -143,6 +147,7 @@ export class PluginSystem extends createSystem({}) {
       garageEvents.removeEventListener('music-stop', musicStop);
       garageEvents.removeEventListener('music-toggle', musicToggle);
       garageEvents.removeEventListener('music-volume', volume);
+      garageEvents.removeEventListener('spotify-search', search);
       this.spotifyPlayer?.disconnect?.();
       this.spotifyPlayer = null;
       this.stopLocalMusic();
@@ -351,6 +356,8 @@ export class PluginSystem extends createSystem({}) {
       emit('status', 'Connect Spotify in Plugins first.');
       return;
     }
+    // A searched track replaces the local lo-fi bed instead of layering on it.
+    if (Array.isArray(detail.uris) && detail.uris.length) this.stopLocalMusic();
     const deviceId = detail.deviceId ?? this.spotifyDeviceId;
     if (!deviceId || (['pause', 'next', 'previous'].includes(detail.action ?? '') && !this.isHeadsetPlaying() && this.spotify.device?.id !== deviceId)) return;
     try {
@@ -367,6 +374,24 @@ export class PluginSystem extends createSystem({}) {
       }
       await this.pollSpotify();
     } catch { emit('status', 'Spotify is unavailable right now.'); }
+  }
+
+  private async search(query: string) {
+    const clean = query.trim().slice(0, 120);
+    if (clean.length < 2) {
+      emit('spotify-search-results', { query: clean, results: [] });
+      return;
+    }
+    try {
+      const response = await this.api(`/api/plugins/spotify/search?q=${encodeURIComponent(clean)}`);
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `Spotify search failed (${response.status}).`);
+      }
+      emit('spotify-search-results', { query: clean, results: await response.json() });
+    } catch (error) {
+      emit('spotify-search-results', { query: clean, results: [], error: String((error as Error)?.message ?? error) });
+    }
   }
 
   private async playMusic() {

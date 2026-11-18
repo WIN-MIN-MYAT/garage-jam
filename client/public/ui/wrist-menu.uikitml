@@ -98,6 +98,7 @@
       <button id="wm-music-prev" class="transport-key">Previous</button>
       <button id="wm-music-play" class="transport-key transport-play">PLAY</button>
       <button id="wm-music-next" class="transport-key">Next</button>
+      <button id="wm-music-search" class="transport-key">Search</button>
     </div>
     <div class="volume-row">
       <div class="volume-readout"><div class="label">Volume</div><div id="wm-music-volume" class="value">40%</div></div>

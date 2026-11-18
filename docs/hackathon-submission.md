@@ -55,7 +55,7 @@ The full onboarding flow: capability check, XR entry, room scan or touch calibra
 - **A menu on your wrist.** Look at your left wrist or pinch palm-up. A compact panel appears at arm’s length. Poke it with a fingertip or use a controller ray. Pin it, or look away and it disappears.
 - **A workday with a sunset.** Focus rolls a shutter over the garage opening, dims the golden-hour light, and starts a countdown. The garage has a 30-minute sunset, so the day has an end instead of an infinite feed. Break nudges flash a neon sign message.
 - **A room that notices you.** With Stand Fade on, standing up fades the garage back to passthrough; sitting down brings it back with a quick reveal.
-- **Music, weather, and a living room.** Spotify in the headset or a procedural lo-fi fallback from the boombox. The sky can follow the real weather. Over 30 spatial sounds make the room feel inhabited.
+- **Music, weather, and a living room.** Spotify in the headset with an in-headset search keyboard, or a procedural lo-fi fallback from the boombox. The sky can follow the real weather. Over 30 spatial sounds make the room feel inhabited.
 - **Boards instead of dashboards.** Stats, today’s calendar, a Top 3 corkboard, a drawable whiteboard, and a mural that fills in as you finish things. Your progress becomes objects on the wall.
 - **Plugins without leaving VR.** The headset gives you a six-character code; finish sign-in on your phone or laptop. Notion, Spotify, Google Calendar, and Weather connect independently.
 - **No install, no account, no locomotion.** It runs from a URL in Quest Browser. You stay seated; the room comes to you. Y/B or the on-screen button toggles passthrough so you can see your real keyboard.

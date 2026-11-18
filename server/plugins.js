@@ -232,6 +232,22 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     res.json((data?.devices ?? []).map(device => ({ id: device.id, name: device.name, type: device.type, active: !!device.is_active, volume: device.volume_percent })));
   }));
 
+  router.get('/spotify/search', run(async (req, res) => {
+    const query = String(req.query.q ?? '').trim().slice(0, 120);
+    if (query.length < 2) return res.json([]);
+    const params = new URLSearchParams({ q: query, type: 'track', limit: '8', market: 'from_token' });
+    const data = await withConnection(req.pluginSession, 'spotify', connection => providers.spotify.api(connection, `/search?${params}`));
+    res.json((data?.tracks?.items ?? []).filter(Boolean).slice(0, 8).map(track => ({
+      id: track.id,
+      uri: track.uri,
+      name: track.name,
+      artists: (track.artists ?? []).map(artist => artist.name).filter(Boolean).join(', '),
+      album: track.album?.name ?? '',
+      art: track.album?.images?.[0]?.url ?? null,
+      durationMs: track.duration_ms ?? 0,
+    })));
+  }));
+
   router.get('/spotify/playlists', run(async (req, res) => {
     const data = await withConnection(req.pluginSession, 'spotify', connection => providers.spotify.api(connection, '/me/playlists?limit=12'));
     res.json((data?.items ?? []).filter(Boolean).map(playlist => ({

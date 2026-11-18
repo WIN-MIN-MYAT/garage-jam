@@ -255,6 +255,7 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-monitors', () => { this.close(true); emit('monitor-manager-open'); });
     on('wm-music-prev', () => this.skipTrack('previous'));
     on('wm-music-next', () => this.skipTrack('next'));
+    on('wm-music-search', () => { this.close(true); emit('spotify-search-open'); });
     on('wm-music-play', () => emit('music-toggle'));
     on('wm-music-vol-down', () => this.musicVolume(-5));
     on('wm-music-vol-up', () => this.musicVolume(5));

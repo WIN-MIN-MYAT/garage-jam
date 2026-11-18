@@ -1,0 +1,57 @@
+<style>
+  .search-shell { width: 660px; flex-direction: column; gap: 9px; padding: 18px; background-color: #121419; border-width: 1px; border-color: #2a2f39; border-radius: 16px; font-family: inter; }
+  .search-top { flex-direction: row; align-items: center; justify-content: space-between; height: 36px; }
+  .search-brand { flex-direction: row; align-items: center; gap: 9px; }
+  .search-dot { width: 9px; height: 9px; border-radius: 5px; background-color: #1ed760; }
+  .search-title { color: #e8ff70; font-size: 22px; font-weight: 800; letter-spacing: 0.4px; }
+  .search-close { width: 44px; height: 34px; border-radius: 8px; background-color: #2a303a; color: #f1eadc; font-size: 15px; font-weight: 800; }
+  .search-query { height: 44px; padding: 9px; border-radius: 9px; background-color: #0c0f14; border-width: 1px; border-color: #3a414d; color: #f1eadc; font-size: 19px; font-weight: 700; }
+  .search-status { min-height: 17px; color: #9de6ef; font-size: 12px; font-weight: 700; }
+  .key-row { flex-direction: row; justify-content: center; gap: 5px; }
+  .key { width: 50px; height: 38px; border-radius: 7px; background-color: #242a33; color: #f1eadc; font-size: 15px; font-weight: 800; }
+  .key-wide { width: 96px; }
+  .key-space { width: 220px; }
+  .key-accent { background-color: #e8ff70; color: #14161c; }
+  .key-ghost { background-color: #1a1e25; color: #aeb6c5; }
+  .results { flex-direction: column; gap: 4px; }
+  .result { height: 44px; flex-direction: column; align-items: flex-start; justify-content: center; padding: 5px; border-radius: 7px; background-color: #1d2129; }
+  .result-title { color: #f1eadc; font-size: 13.5px; font-weight: 800; }
+  .result-artist { color: #9de6ef; font-size: 10.5px; font-weight: 700; }
+  .search-foot { color: #7f8590; font-size: 10.5px; }
+</style>
+<Panel class="search-shell">
+  <div class="search-top">
+    <div class="search-brand"><div class="search-dot"></div><div class="search-title">Spotify search</div></div>
+    <button id="ss-close" class="search-close">X</button>
+  </div>
+  <div id="ss-query" class="search-query">Type a song or artist</div>
+  <div id="ss-status" class="search-status">Search Spotify, then pick a track.</div>
+
+  <div class="key-row">
+    <button id="ss-key-1" class="key">1</button><button id="ss-key-2" class="key">2</button><button id="ss-key-3" class="key">3</button><button id="ss-key-4" class="key">4</button><button id="ss-key-5" class="key">5</button><button id="ss-key-6" class="key">6</button><button id="ss-key-7" class="key">7</button><button id="ss-key-8" class="key">8</button><button id="ss-key-9" class="key">9</button><button id="ss-key-0" class="key">0</button>
+  </div>
+  <div class="key-row">
+    <button id="ss-key-q" class="key">Q</button><button id="ss-key-w" class="key">W</button><button id="ss-key-e" class="key">E</button><button id="ss-key-r" class="key">R</button><button id="ss-key-t" class="key">T</button><button id="ss-key-y" class="key">Y</button><button id="ss-key-u" class="key">U</button><button id="ss-key-i" class="key">I</button><button id="ss-key-o" class="key">O</button><button id="ss-key-p" class="key">P</button>
+  </div>
+  <div class="key-row">
+    <button id="ss-key-a" class="key">A</button><button id="ss-key-s" class="key">S</button><button id="ss-key-d" class="key">D</button><button id="ss-key-f" class="key">F</button><button id="ss-key-g" class="key">G</button><button id="ss-key-h" class="key">H</button><button id="ss-key-j" class="key">J</button><button id="ss-key-k" class="key">K</button><button id="ss-key-l" class="key">L</button>
+  </div>
+  <div class="key-row">
+    <button id="ss-key-z" class="key">Z</button><button id="ss-key-x" class="key">X</button><button id="ss-key-c" class="key">C</button><button id="ss-key-v" class="key">V</button><button id="ss-key-b" class="key">B</button><button id="ss-key-n" class="key">N</button><button id="ss-key-m" class="key">M</button>
+  </div>
+  <div class="key-row">
+    <button id="ss-clear" class="key key-wide key-ghost">CLEAR</button>
+    <button id="ss-space" class="key key-space">SPACE</button>
+    <button id="ss-back" class="key key-wide key-ghost">DEL</button>
+    <button id="ss-search" class="key key-wide key-accent">SEARCH</button>
+  </div>
+
+  <div class="results">
+    <button id="ss-result-0" class="result" style="display: none"><div id="ss-result-title-0" class="result-title">Result</div><div id="ss-result-artist-0" class="result-artist">Artist</div></button>
+    <button id="ss-result-1" class="result" style="display: none"><div id="ss-result-title-1" class="result-title">Result</div><div id="ss-result-artist-1" class="result-artist">Artist</div></button>
+    <button id="ss-result-2" class="result" style="display: none"><div id="ss-result-title-2" class="result-title">Result</div><div id="ss-result-artist-2" class="result-artist">Artist</div></button>
+    <button id="ss-result-3" class="result" style="display: none"><div id="ss-result-title-3" class="result-title">Result</div><div id="ss-result-artist-3" class="result-artist">Artist</div></button>
+    <button id="ss-result-4" class="result" style="display: none"><div id="ss-result-title-4" class="result-title">Result</div><div id="ss-result-artist-4" class="result-artist">Artist</div></button>
+  </div>
+  <div class="search-foot">Playback goes to the Garage Jam Headset player. Use wrist MUSIC to pause or change volume.</div>
+</Panel>

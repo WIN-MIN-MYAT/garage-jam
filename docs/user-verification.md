@@ -77,6 +77,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and **Clear board** in wrist SET clears them.
 - [ ] Let the break nudge appear (use `?nudgeDemo=1`), confirm the neon message, sound, and dismissal event.
 - [ ] Confirm the local lo-fi fallback plays from the Music page when Spotify is not connected, and stops on pause.
+- [ ] Open wrist **MUSIC → Search**, type a song on the floating keyboard, run **SEARCH**, and pick a result. Confirm the track plays on the Garage Jam Headset and the wrist Music title updates.
 
 ## Gate 12: performance and cleanup
 
