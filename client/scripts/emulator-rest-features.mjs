@@ -90,6 +90,27 @@ try {
   assert.ok(!before.placements.includes('paint-cans'), 'spray cans are removed from the room');
   const boombox = await page.evaluate(() => window.garageBuildDebug.placements.find(item => item.slotId === 'boombox') ?? null);
   assert.ok(boombox, 'boombox should be placed in a corner');
+  const trash = await page.evaluate(() => {
+    const placement = window.garageBuildDebug.placements.find(item => item.slotId === 'trash') ?? null;
+    const frame = window.garageBuildDebug.tableFrame();
+    const room = window.garageBuildDebug.room;
+    return { placement, frame, seat: room?.seat, forward: room?.forward };
+  });
+  assert.ok(trash.placement, 'trash should be placed');
+  if (trash.frame && trash.seat) {
+    const dx = trash.placement.position.x - trash.frame.center.x;
+    const dz = trash.placement.position.z - trash.frame.center.z;
+    const cos = Math.cos(trash.frame.yaw), sin = Math.sin(trash.frame.yaw);
+    const localX = dx * cos - dz * sin;
+    const localZ = dx * sin + dz * cos;
+    const seatDistance = Math.hypot(trash.placement.position.x - trash.seat.x, trash.placement.position.z - trash.seat.z);
+    const ahead = (trash.placement.position.x - trash.seat.x) * trash.forward.x
+      + (trash.placement.position.z - trash.seat.z) * trash.forward.z;
+    assert.ok(Math.abs(localX) > trash.frame.width / 2 - 0.02, JSON.stringify({ reason: 'trash should sit outside the table edge', trash, localX, localZ }));
+    assert.ok(Math.abs(localZ) < trash.frame.depth / 2 + 0.3, JSON.stringify({ reason: 'trash should stay alongside the table', trash, localX, localZ }));
+    assert.ok(seatDistance > 0.5, JSON.stringify({ reason: 'trash should not sit under the seat', trash, seatDistance }));
+    assert.ok(ahead > -0.35, JSON.stringify({ reason: 'trash should not spawn behind the player', trash, ahead }));
+  }
   await lookAt({ x: boombox.position.x, y: boombox.position.y + 0.2, z: boombox.position.z });
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'scripts/boombox-corner.png' });

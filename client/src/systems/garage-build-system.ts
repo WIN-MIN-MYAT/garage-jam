@@ -542,13 +542,13 @@ export class GarageBuildSystem extends createSystem({}) {
     }, this.room.floor.polygon));
   }
 
-  private anchorFree(center: Vec2, width: number, depth: number, yaw: number, height: number, gap = 0.08) {
+  private anchorFree(center: Vec2, width: number, depth: number, yaw: number, height: number, gap = 0.08, ignoreFurniture = false) {
     const body: Obstacle = {
       center: { x: center.x, y: this.room.floor.y + height / 2, z: center.z },
       size: { x: width, y: height, z: depth },
       yaw,
     };
-    if (this.room.furniture.some(item => overlapsBox(body, item, gap))) return false;
+    if (!ignoreFurniture && this.room.furniture.some(item => overlapsBox(body, item, gap))) return false;
     if (this.deviceObstacles.some(item => overlapsBox(body, item, gap))) return false;
     if (this.room.table) {
       const tableBounds = bounds(this.room.table.polygon);
@@ -626,28 +626,118 @@ export class GarageBuildSystem extends createSystem({}) {
     return null;
   }
 
-  /** Keep the trash beside the seat, on the dominant-hand side when space allows. */
-  private seatSideTrash(rule: SlotRule): SlotPlacement | null {
+  /** Put the trash beside the workbench, on the dominant-hand side when it fits. */
+  private seatSideTrash(rule: SlotRule, existing: SlotPlacement[] = []): SlotPlacement | null {
     const seat = this.room.seat;
+    const preferred = garageState.preferences.dominantHand === 'left' ? -1 : 1;
+    const sides = [preferred, -preferred];
+    const seatClearance = Math.max(0.52, rule.footprint.width / 2 + 0.3);
+    const yawFor = (center: Vec2) => Math.atan2(seat.x - center.x, seat.z - center.z);
+    const overlapsExisting = (center: Vec2, yaw: number) => existing.some(item => {
+      const otherRule = this.rules.find(ruleItem => ruleItem.id === item.slotId);
+      return overlapsBox(
+        {
+          center: { x: center.x, y: this.room.floor.y + rule.height / 2, z: center.z },
+          size: { x: rule.footprint.width, y: rule.height, z: rule.footprint.depth },
+          yaw,
+        },
+        {
+          center: { x: item.position.x, y: this.room.floor.y + (otherRule?.height ?? 0.4) / 2, z: item.position.z },
+          size: { x: item.footprint.width, y: otherRule?.height ?? 0.4, z: item.footprint.depth },
+          yaw: item.yaw,
+        },
+        0.12,
+      );
+    });
+    const free = (center: Vec2, gap = 0.08, ignoreFurniture = false) => {
+      const yaw = yawFor(center);
+      if (Math.hypot(center.x - seat.x, center.z - seat.z) < seatClearance) return false;
+      if (overlapsExisting(center, yaw)) return false;
+      if (!this.footprintInside(center, rule.footprint.width, rule.footprint.depth, yaw, 0.03)) return false;
+      return this.anchorFree(center, rule.footprint.width, rule.footprint.depth, yaw, rule.height, gap, ignoreFurniture);
+    };
+    const at = (center: Vec2, reason: string): SlotPlacement => ({
+      slotId: 'trash', type: 'floor',
+      position: { x: center.x, y: this.room.floor.y, z: center.z },
+      yaw: yawFor(center), scale: 1, footprint: rule.footprint,
+      score: 1, breakdown: { anchored: 1 }, reason, locked: true, gapScale: 1,
+    });
+
+    const table = this.room.table;
+    if (table) {
+      const frame = tableFrame(table.polygon);
+      const cos = Math.cos(frame.yaw), sin = Math.sin(frame.yaw);
+      const right = { x: cos, z: -sin };
+      const front = { x: sin, z: cos };
+      const seatFront = (seat.x - frame.center.x) * front.x + (seat.z - frame.center.z) * front.z;
+      const frontSign = seatFront >= 0 ? 1 : -1;
+      const alongs = [0.55, 0.2, 0.9, 0];
+      const outward = [0.1, 0.18, 0.28, 0.42, 0.6];
+      const edge = (side: number, extra: number, along: number): Vec2 => {
+        const offset = frame.width / 2 + rule.footprint.width / 2 + extra;
+        const depthOffset = frame.depth * along * 0.5;
+        return {
+          x: frame.center.x + right.x * side * offset + front.x * frontSign * depthOffset,
+          z: frame.center.z + right.z * side * offset + front.z * frontSign * depthOffset,
+        };
+      };
+
+      // Primary: left or right edge of the workbench, near the seat end.
+      for (const side of sides) {
+        for (const extra of outward) {
+          for (const along of alongs) {
+            const center = edge(side, extra, along);
+            if (free(center)) return at(center, 'anchored beside the workbench');
+          }
+        }
+      }
+
+      // Both side edges are blocked. Stay by the table rather than sending the
+      // bin behind the player; try the far half of the same side edges.
+      for (const side of sides) {
+        for (const extra of outward) {
+          for (const along of [-0.55, -0.2, 0.2, 0.55]) {
+            const center = edge(side, extra, along);
+            if (free(center)) return at(center, 'anchored beside the workbench');
+          }
+        }
+      }
+
+      // Last table fallback: ignore scanned furniture but never the table,
+      // devices, room bounds or the seat footprint.
+      for (const side of sides) {
+        for (const extra of [0.1, 0.2, 0.35, 0.55, 0.8]) {
+          for (const along of alongs) {
+            const center = edge(side, extra, along);
+            if (free(center, 0.04, true)) return at(center, 'anchored near the workbench');
+          }
+        }
+      }
+    }
+
+    // No table, or no table-side fit: stay to the side and slightly forward,
+    // never behind the seat.
     const forward = this.room.forward;
     const right = { x: -forward.z, z: forward.x };
-    const preferred = garageState.preferences.dominantHand === 'left' ? -1 : 1;
-    for (const side of [preferred, -preferred]) {
-      for (const distanceFromSeat of [0.6, 0.74, 0.88]) {
-        for (const ahead of [0.05, -0.25, 0.3, -0.5, -0.7]) {
+    for (const side of sides) {
+      for (const distance of [0.65, 0.8, 0.95, 1.1]) {
+        for (const ahead of [0.2, 0.45, 0.7, 0]) {
           const center = {
-            x: seat.x + right.x * distanceFromSeat * side + forward.x * ahead,
-            z: seat.z + right.z * distanceFromSeat * side + forward.z * ahead,
+            x: seat.x + right.x * distance * side + forward.x * ahead,
+            z: seat.z + right.z * distance * side + forward.z * ahead,
           };
-          const yaw = Math.atan2(seat.x - center.x, seat.z - center.z);
-          if (!this.footprintInside(center, rule.footprint.width, rule.footprint.depth, yaw, 0.1)) continue;
-          if (!this.anchorFree(center, rule.footprint.width, rule.footprint.depth, yaw, rule.height, 0.08)) continue;
-          return {
-            slotId: 'trash', type: 'floor',
-            position: { x: center.x, y: this.room.floor.y, z: center.z },
-            yaw, scale: 1, footprint: rule.footprint,
-            score: 1, breakdown: { anchored: 1 }, reason: 'anchored beside the seat', locked: true, gapScale: 1,
+          if (free(center)) return at(center, 'anchored beside the seat');
+        }
+      }
+    }
+    for (const side of sides) {
+      for (const distance of [0.65, 0.8, 1.0]) {
+        for (const ahead of [0.2, 0.45]) {
+          const center = {
+            x: seat.x + right.x * distance * side + forward.x * ahead,
+            z: seat.z + right.z * distance * side + forward.z * ahead,
           };
+          if (free(center, 0.04, true)) return at(center, 'anchored near the seat');
         }
       }
     }
@@ -703,7 +793,7 @@ export class GarageBuildSystem extends createSystem({}) {
       if (shelf) anchored.push(shelf);
     }
     if (trashRule) {
-      const trash = this.seatSideTrash(trashRule);
+      const trash = this.seatSideTrash(trashRule, anchored);
       if (trash) anchored.push(trash);
     }
     if (boomboxRule) {
