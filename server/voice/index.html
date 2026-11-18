@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#121318">
+  <title>Garage Jam — Voice task</title>
+  <link rel="stylesheet" href="/voice/style.css">
+</head>
+<body>
+  <main>
+    <header>
+      <div class="kicker">GARAGE JAM</div>
+      <h1>Add a task by voice</h1>
+      <p>Speak, or type below. The paper appears on your workbench in a few seconds.</p>
+    </header>
+
+    <section class="card">
+      <button id="mic" class="mic" type="button">Start listening</button>
+      <div id="status" class="status" role="status" aria-live="polite">Tap the mic and say “add task …”.</div>
+
+      <form id="task-form">
+        <label for="title">Task title</label>
+        <input id="title" name="title" maxlength="200" autocomplete="off" enterkeyhint="done" placeholder="e.g. Send the build to Sam">
+        <button class="add" type="submit">Add task</button>
+      </form>
+    </section>
+
+    <section class="hint">
+      <strong>Quest Browser doesn’t expose speech recognition.</strong>
+      This page runs on your phone instead. Keep it open while you speak; tasks sync to the garage through the shared backend.
+    </section>
+
+    <footer>Garage Jam · <a href="https://garage-jam.vercel.app/">back to the garage</a></footer>
+  </main>
+  <script type="module" src="/voice/voice.js"></script>
+</body>
+</html>

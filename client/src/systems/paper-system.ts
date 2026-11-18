@@ -87,8 +87,10 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private paperLoader = new GLTFLoader();
   private paperShell = new MeshBasicMaterial({ transparent: true, opacity: 0, depthWrite: false, colorWrite: false });
   private tasks = new Map<string, Task>();
+  private taskLoadGeneration = 0;
   private roomHidden = false;
   private highlightingZone = false;
+  private pollTimer = 0;
 
   init() {
     this.paperLoader.setMeshoptDecoder(MeshoptDecoder);
@@ -112,7 +114,8 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
       emit('tasks-updated', { tasks: [...this.tasks.values()], offline: false });
     };
     const onReset = () => {
-      this.loaded = false; this.loading = false;
+      this.started = false; this.loaded = false; this.loading = false;
+      this.taskLoadGeneration++;
       for (const entity of this.queries.papers.entities) {
         this.disposePaper(entity);
       }
@@ -125,6 +128,10 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     garageEvents.addEventListener('task-created', onCreated);
     garageEvents.addEventListener('room-hidden', onRoomHidden);
     garageEvents.addEventListener('room-shown', onRoomShown);
+    this.pollTimer = window.setInterval(() => {
+      if (this.started && !this.loading && !this.roomHidden) void this.refreshTasks();
+    }, 6000);
+    this.cleanupFuncs.push(() => window.clearInterval(this.pollTimer));
     if (location.hostname === 'localhost') Object.assign(((window as any).garageDebug ??= {}), {
       papers: () => [...this.queries.papers.entities].map(entity => ({ id: entity.getValue(PaperTask, 'taskId'), state: entity.getValue(PaperTask, 'state') })),
       crumpleFirst: () => { const first = this.queries.papers.entities.values().next().value; if (first) this.crumple(first); },
@@ -145,21 +152,8 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-shown', onRoomShown));
     this.cleanupFuncs.push(() => this.paperShell.dispose());
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
-      if (state === VisibilityState.Visible && (this.demo || garageState.room) && !this.started) {
-        this.started = true;
-        this.layoutFromRoom();
-        void this.loadTasks();
-      }
-      if (state === VisibilityState.NonImmersive && this.started) {
-        this.started = false; this.loaded = false; this.loading = false;
-        for (const entity of this.queries.papers.entities) {
-          this.disposePaper(entity);
-        }
-        this.previous.clear();
-        this.trashContacts.clear();
-        this.motion.clear();
-        this.tasks.clear();
-      }
+      if (state === VisibilityState.Visible && this.demo && !this.started) onRevealed();
+      if (state === VisibilityState.NonImmersive && this.started) onReset();
     }));
     const onRelease = (entity: Entity) => {
       if (!entity.hasComponent(PaperTask) || !entity.hasComponent(PhysicsBody)) return;
@@ -240,6 +234,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
 
   private async loadTasks() {
     if (this.loaded || this.loading) return;
+    const generation = this.taskLoadGeneration;
     this.loading = true;
     try {
       const [response] = await Promise.all([
@@ -249,6 +244,7 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
       ]);
       if (!response.ok) throw new Error(`Tasks HTTP ${response.status}`);
       const result = await response.json() as { tasks: Task[]; offline: boolean; message?: string; notion?: { configured?: boolean } };
+      if (generation !== this.taskLoadGeneration) return;
       const remote = result.tasks ?? [];
       const tasks = remote.length ? remote : this.demo ? [
         { id: 'demo-1', title: 'Finish the garage demo', priority: 'High', due: null, source: 'demo', starter: true },
@@ -261,13 +257,35 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
       emit('tasks-updated', { tasks: source, offline: !!result.offline });
       this.loaded = true;
       source.forEach((task, index) => setTimeout(() => {
-        if (this.started && this.queries.papers.entities.size < paperLimit) this.spawn(task, index);
+        if (generation === this.taskLoadGeneration && this.queries.papers.entities.size < paperLimit) this.spawn(task, index);
       }, index * 60));
       if (tasks.length > paperLimit) emit('status', `${paperLimit} papers, +${tasks.length - paperLimit} more`);
     } catch (error) {
-      emit('status', `Tasks unavailable: ${(error as Error).message}`);
-      this.loading = false;
-    } finally { this.loading = false; }
+      if (generation === this.taskLoadGeneration) emit('status', `Tasks unavailable: ${(error as Error).message}`);
+    } finally {
+      if (generation === this.taskLoadGeneration) this.loading = false;
+    }
+  }
+
+  private async refreshTasks() {
+    const generation = this.taskLoadGeneration;
+    try {
+      const response = await fetch(apiUrl('/api/tasks'));
+      if (!response.ok) return;
+      const result = await response.json() as { tasks: Task[]; offline: boolean };
+      if (generation !== this.taskLoadGeneration) return;
+      let added = 0;
+      for (const task of result.tasks ?? []) {
+        if (this.tasks.has(task.id)) continue;
+        this.tasks.set(task.id, task);
+        if (this.queries.papers.entities.size < paperLimit) {
+          this.spawn(task, this.queries.papers.entities.size);
+          added++;
+          emit('status', `New task: ${task.title}`);
+        }
+      }
+      if (added) emit('tasks-updated', { tasks: [...this.tasks.values()], offline: !!result.offline });
+    } catch { /* offline is fine */ }
   }
 
   private spawn(task: Task, index: number) {

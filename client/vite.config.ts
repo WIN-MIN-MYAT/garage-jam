@@ -43,6 +43,7 @@ export default defineConfig({
     '/sender': { target: 'http://localhost:8082', xfwd: true },
     '/sender.js': { target: 'http://localhost:8082', xfwd: true },
     '/sender-timecode.js': { target: 'http://localhost:8082', xfwd: true },
+    '/voice': { target: 'http://localhost:8082', xfwd: true },
     '/stream-shared': { target: 'http://localhost:8082', xfwd: true },
     '/health': { target: 'http://localhost:8082', xfwd: true },
   } },

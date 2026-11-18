@@ -1,6 +1,6 @@
 import { createSystem } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { apiUrl } from '../backend.js';
+import { apiUrl, voiceUrl } from '../backend.js';
 
 export class VoiceSystem extends createSystem({}) {
   private recognition: any = null;
@@ -20,7 +20,7 @@ export class VoiceSystem extends createSystem({}) {
     if (this.listening) return;
     const Recognition = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
     if (!Recognition) {
-      emit('status', 'Voice capture is not available in this browser. Add tasks from a paper or the phone pairing page.');
+      emit('status', `Voice unavailable in Quest Browser. Open ${voiceUrl()} on your phone.`);
       return;
     }
     const recognition = new Recognition();
@@ -30,7 +30,8 @@ export class VoiceSystem extends createSystem({}) {
     recognition.onstart = () => { this.listening = true; emit('status', 'Listening... say “add task” and a title'); emit('voice-state', { listening: true }); };
     recognition.onerror = (event: any) => {
       this.listening = false;
-      emit('status', event.error === 'not-allowed' ? 'Microphone permission was denied.' : `Voice capture failed: ${event.error}`);
+      const reason = event.error === 'not-allowed' ? 'Microphone permission was denied.' : `Voice capture failed: ${event.error}.`;
+      emit('status', `${reason} Phone fallback: ${voiceUrl()}`);
       emit('voice-state', { listening: false });
     };
     recognition.onend = () => { this.listening = false; emit('voice-state', { listening: false }); };
@@ -47,15 +48,20 @@ export class VoiceSystem extends createSystem({}) {
 
   private async create(title: string) {
     try {
-      const response = await fetch(apiUrl('/api/tasks'), {
+      const clean = title.slice(0, 200);
+      const post = (body: Record<string, string>) => fetch(apiUrl('/api/tasks'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title: title.slice(0, 200), target: 'local' }),
+        body: JSON.stringify(body),
       });
+      // Prefer the shared Notion board when the server has it configured, but
+      // never lose the task if Notion is rate-limited or offline.
+      let response = await post({ title: clean });
+      if (!response.ok) response = await post({ title: clean, target: 'local' });
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const task = await response.json();
       emit('task-created', task);
-      emit('status', `Task added: ${task.title}`);
+      emit('status', `Task added: ${task.title}${task.target === 'notion' ? ' (Notion)' : ''}`);
     } catch (error) {
       emit('status', `Could not add task: ${(error as Error).message}`);
     }

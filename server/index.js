@@ -61,6 +61,8 @@ app.get('/sender', (_req, res) => res.sendFile(join(import.meta.dirname, '..', '
 app.get('/sender.js', (_req, res) => res.sendFile(join(import.meta.dirname, '..', 'sender', 'sender.js')));
 app.get('/sender/timecode', (_req, res) => res.sendFile(join(import.meta.dirname, '..', 'sender', 'timecode.html')));
 app.get('/connect', (_req, res) => res.sendFile(join(import.meta.dirname, 'plugin-manager', 'connect.html')));
+app.get('/voice', (_req, res) => res.sendFile(join(import.meta.dirname, 'voice', 'index.html')));
+app.use('/voice', express.static(join(import.meta.dirname, 'voice'), { index: 'index.html' }));
 app.get('/sender-timecode.js', (_req, res) => res.type('application/javascript').sendFile(join(import.meta.dirname, '..', 'sender', 'timecode.js')));
 app.use('/stream-shared', express.static(join(import.meta.dirname, '..', 'client', 'src', 'stream-shared')));
 
@@ -77,7 +79,7 @@ if (existsSync(clientDist)) {
   }));
   app.get('*', (req, res, next) => {
     if (extname(req.path) || req.path.startsWith('/api/') || req.path.startsWith('/sender') ||
-        req.path.startsWith('/connect') || req.path === '/signal' || req.path === '/health') return next();
+        req.path.startsWith('/connect') || req.path.startsWith('/voice') || req.path === '/signal' || req.path === '/health') return next();
     res.sendFile(join(clientDist, 'index.html'));
   });
 }
