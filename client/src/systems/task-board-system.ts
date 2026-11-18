@@ -9,7 +9,6 @@ import type { Vec2 } from '../room-model.js';
 import { apiUrl } from '../backend.js';
 
 type Task = { id: string; title: string; priority?: string | null; due?: string | null };
-type CalendarEvent = { id: string; title: string; start: string | null; end: string | null; allDay: boolean };
 type FocusState = { running: boolean; remaining: number; duration: number; phase: 'focus' | 'break' };
 
 const boardInk = '#f5ecd7';
@@ -53,7 +52,6 @@ export class TaskBoardSystem extends createSystem({}) {
   private root = new Group();
   private content = new Map<string, { mesh: Mesh; texture: CanvasTexture }>();
   private tasks: Task[] = [];
-  private calendar: CalendarEvent[] = [];
   private focus: FocusState = { running: false, remaining: 0, duration: 0, phase: 'focus' };
   private progress: GarageProgress = loadProgress();
   private mural = new Group();
@@ -78,7 +76,6 @@ export class TaskBoardSystem extends createSystem({}) {
       this.tasks = detail?.tasks ?? [];
       this.schedule();
     };
-    const onCalendar = (event: Event) => { this.calendar = (event as CustomEvent<CalendarEvent[]>).detail ?? []; this.schedule(); };
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<FocusState>).detail ?? this.focus; this.schedule(); };
     const onDone = () => { this.progress = loadProgress(); this.addSplat(); this.schedule(); };
     const onReset = () => { this.clear(); };
@@ -86,7 +83,6 @@ export class TaskBoardSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-revealed', onRevealed);
     garageEvents.addEventListener('garage-props-rebuilt', onLayout);
     garageEvents.addEventListener('tasks-updated', onTasks);
-    garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('focus-state', onFocus);
     garageEvents.addEventListener('task-done', onDone);
     garageEvents.addEventListener('progress-updated', onProgress);
@@ -124,7 +120,6 @@ export class TaskBoardSystem extends createSystem({}) {
       garageEvents.removeEventListener('garage-revealed', onRevealed);
       garageEvents.removeEventListener('garage-props-rebuilt', onLayout);
       garageEvents.removeEventListener('tasks-updated', onTasks);
-      garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('focus-state', onFocus);
       garageEvents.removeEventListener('task-done', onDone);
       garageEvents.removeEventListener('progress-updated', onProgress);
@@ -227,30 +222,6 @@ export class TaskBoardSystem extends createSystem({}) {
       ctx.fillStyle = boardInk; ctx.font = 'bold 18px sans-serif'; ctx.fillText('STREAK', 332, 188);
       ctx.fillStyle = '#19e3ff'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(this.focus.running ? `FOCUS ${this.clock(this.focus.remaining)}` : 'READY TO FOCUS', 330, 250);
       stats.texture.needsUpdate = true;
-    }
-    const calendar = this.ensureBoard('calendar-board');
-    if (calendar) {
-      const ctx = calendar.ctx, w = calendar.canvas.width, h = calendar.canvas.height;
-      ctx.fillStyle = '#644e53'; ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = '#eddcc7'; ctx.fillRect(14, 14, w - 28, h - 28);
-      ctx.fillStyle = '#c8a098'; ctx.fillRect(197, 8, 118, 18);
-      ctx.fillStyle = '#623b50'; ctx.font = '800 25px "GarageDisplay", sans-serif';
-      ctx.fillText('TODAY', 37, 64);
-      ctx.fillStyle = '#cbb4a7'; ctx.fillRect(37, 78, w - 74, 2);
-      ctx.textAlign = 'left';
-      if (!this.calendar.length) {
-        ctx.fillStyle = '#403341'; ctx.font = 'bold 26px "GarageDisplay", sans-serif'; ctx.fillText('No events today', 38, 128);
-        ctx.fillStyle = '#665254'; ctx.font = '18px sans-serif'; ctx.fillText('Connect Google Calendar in Plugins.', 38, 159);
-      } else {
-        this.calendar.slice(0, 3).forEach((event, index) => {
-          const y = 112 + index * 76;
-          const time = event.allDay ? 'ALL DAY' : event.start ? new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-          ctx.fillStyle = '#79405c'; ctx.font = 'bold 18px sans-serif'; ctx.fillText(time, 38, y);
-          ctx.fillStyle = '#403341'; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
-          ctx.fillText(fitted(ctx, event.title, 400, 22, 1)[0] ?? event.title, 38, y + 28, 420);
-        });
-      }
-      calendar.texture.needsUpdate = true;
     }
     const cork = this.ensureBoard('corkboard');
     if (cork) {

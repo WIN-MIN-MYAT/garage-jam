@@ -13,6 +13,7 @@ import { emit, garageEvents } from '../events.js';
 import { garageState, saveConfirmedRoom, saveLastRoom, savePreferences, setPreference, type TableView } from '../garage-state.js';
 import { matchesSavedWorkspace } from '../device-model.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
+import { paintDriveway, paintGarageSky, skyLooks } from '../garage-sky.js';
 import { isProductEntry } from '../app-flow/app-flow.js';
 import { manualRoomStorageKey, outlineBounds, pointInPolygon, roomFingerprint, type RoomModel, type Vec2 } from '../room-model.js';
 import { readPlaneSnapshots, readRoomFromFrame, withScannedTable, type PlaneSnapshot, type ScanInfo } from '../room-scan.js';
@@ -26,7 +27,6 @@ const assetForSlot: Record<string, string> = {
   trash: 'SLOT_TrashCan',
   neon: 'SLOT_NeonSign',
   'stats-board': 'SLOT_StatsBoard',
-  'calendar-board': 'SLOT_CalendarBoard',
   corkboard: 'SLOT_Corkboard',
   whiteboard: 'SLOT_Whiteboard',
   boombox: 'SLOT_Boombox',
@@ -333,7 +333,7 @@ export class GarageBuildSystem extends createSystem({}) {
     this.candidateAt = -Infinity;
     this.trackedScanFrame = false;
     this.scanErrorLogged = false;
-    this.scanOverlay.visible = true;
+    this.scanOverlay.visible = !resumeRoom;
     if (!isProductEntry) emit('status', 'SCANNING ROOM... move around lightly so Quest can detect the floor and table');
     this.stopScan = this.world.onXRFrame(frame => this.scanFrame(frame));
   }
@@ -395,13 +395,16 @@ export class GarageBuildSystem extends createSystem({}) {
         this.scanCandidate = null;
         this.candidateAt = -Infinity;
         this.clearScanOverlay(false);
-        if (now - this.scanStartedAt >= 2500) emit('room-tracking-pending');
+        if (now - this.scanStartedAt >= (this.resumeRoom ? 3500 : 2500)) {
+          this.resumeRoom = undefined;
+          emit('room-tracking-pending');
+        }
         return;
       }
       this.trackedScanFrame = true;
       const snapshots = readPlaneSnapshots(frame, referenceSpace);
       scan = readRoomFromFrame(frame, referenceSpace, snapshots, isProductEntry, this.scanCandidate?.info.tableCenter ?? undefined);
-      this.updateScanOverlay(snapshots, scan?.info.tableCenter ?? null);
+      if (!this.resumeRoom) this.updateScanOverlay(snapshots, scan?.info.tableCenter ?? null);
     } catch (error) {
       this.resumeMatch = undefined;
       if (!this.scanErrorLogged) {
@@ -429,8 +432,8 @@ export class GarageBuildSystem extends createSystem({}) {
     const elapsed = now - this.scanStartedAt;
     if (!hasWalls) this.resumeMatch = undefined;
     else if (this.resumeRoom && this.tryResumeScan(this.resumeRoom, scan, now)) return;
-    if (this.resumeRoom && this.resumeMatch && elapsed < 3500) return;
-    if (elapsed >= 2500) this.resumeRoom = undefined;
+    if (this.resumeRoom && elapsed < 3500) return;
+    this.resumeRoom = undefined;
     const needsChoice = isProductEntry && elapsed >= 2500 && (scan.info.tableCount !== 1 || !hasTable);
     emit('scan-progress', { info: scan.info, hasFloor, hasWalls, hasTable, progress, needsChoice });
     if (elapsed < 2500 || needsChoice || (elapsed < 8000 && !scan.info.tableCount)) return;
@@ -1767,30 +1770,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private buildSky(group: Group, door: SlotPlacement | null) {
     const canvas = document.createElement('canvas'); canvas.width = 1024; canvas.height = 768;
     const ctx = canvas.getContext('2d')!;
-    const gradient = ctx.createLinearGradient(0, 0, 0, 768);
-    gradient.addColorStop(0, '#332e50');
-    gradient.addColorStop(0.40, '#875069');
-    gradient.addColorStop(0.64, '#e19073');
-    gradient.addColorStop(1, '#eead7d');
-    ctx.fillStyle = gradient; ctx.fillRect(0, 0, 1024, 768);
-    const glow = ctx.createRadialGradient(580, 405, 26, 580, 405, 160);
-    glow.addColorStop(0, 'rgba(255,209,137,0.70)');
-    glow.addColorStop(1, 'rgba(255,209,137,0)');
-    ctx.fillStyle = glow; ctx.fillRect(400, 235, 360, 340);
-    ctx.fillStyle = '#ffdc9d'; ctx.beginPath(); ctx.arc(580, 405, 43, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#89586b'; ctx.beginPath(); ctx.moveTo(0, 505);
-    ctx.bezierCurveTo(170, 463, 280, 515, 419, 489);
-    ctx.bezierCurveTo(594, 516, 743, 443, 1024, 495);
-    ctx.lineTo(1024, 768); ctx.lineTo(0, 768); ctx.fill();
-    ctx.fillStyle = '#564356';
-    for (const [x, y, width, height] of [[30, 489, 150, 58], [220, 467, 111, 77], [355, 492, 112, 47], [685, 477, 136, 68], [832, 455, 145, 88]]) {
-      ctx.beginPath(); ctx.moveTo(x, y + height); ctx.lineTo(x, y + 13);
-      ctx.lineTo(x + width * 0.48, y - 9); ctx.lineTo(x + width, y + 13);
-      ctx.lineTo(x + width, y + height); ctx.fill();
-    }
-    ctx.fillRect(0, 535, 1024, 233);
-    ctx.fillStyle = '#e3a87f';
-    for (const [x, y] of [[140, 520], [251, 502], [276, 502], [728, 516], [756, 516], [884, 495]]) ctx.fillRect(x, y, 10, 5);
+    paintGarageSky(ctx, skyLooks.golden, 'sunny');
     const texture = new CanvasTexture(canvas); texture.colorSpace = SRGBColorSpace;
     const enclosureMaterial = new MeshBasicMaterial({ map: texture, side: BackSide, transparent: true, opacity: 0, depthWrite: false });
     // A large inward-facing sky shell closes every seam, so an oblique view can never
@@ -1832,11 +1812,7 @@ export class GarageBuildSystem extends createSystem({}) {
       const driveCanvas = document.createElement('canvas');
       driveCanvas.width = driveCanvas.height = 128;
       const driveCtx = driveCanvas.getContext('2d')!;
-      const pavement = driveCtx.createLinearGradient(0, 0, 0, 128);
-      pavement.addColorStop(0, '#564356'); pavement.addColorStop(1, '#6b515b');
-      driveCtx.fillStyle = pavement; driveCtx.fillRect(0, 0, 128, 128);
-      driveCtx.fillStyle = '#907075'; driveCtx.fillRect(0, 66, 128, 2);
-      driveCtx.fillStyle = '#745963'; driveCtx.fillRect(0, 68, 128, 6);
+      paintDriveway(driveCtx, 'golden', 'sunny');
       const drivewayTexture = new CanvasTexture(driveCanvas); drivewayTexture.colorSpace = SRGBColorSpace;
       const drivewayMaterial = new MeshBasicMaterial({ map: drivewayTexture, transparent: true, opacity: 0, depthWrite: false });
       drivewayMaterial.userData.ownedTexture = drivewayTexture;

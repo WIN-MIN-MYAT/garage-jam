@@ -30,6 +30,7 @@ export class AppFlowSystem extends createSystem({}) {
   private resume = false;
   private resumeStage: AppStage = 'S0';
   private resumeDirectToLive = false;
+  private checkingSavedRoom = false;
   private matchedResume = false;
   private sessionWasVisible = false;
   private enterTimeout?: number;
@@ -58,6 +59,7 @@ export class AppFlowSystem extends createSystem({}) {
     const onRoomMatched = () => { this.matchedResume = true; };
     const onTrackingPending = () => {
       if (this.stage !== 'S2' || this.openingSpaceSetup) return;
+      this.showScanFallback();
       this.showScanChoices(false);
       this.scanTitle('Finding your position');
       this.scanBody('Hold still and look around the room. You can mark the corners when tracking returns.');
@@ -209,15 +211,16 @@ export class AppFlowSystem extends createSystem({}) {
     this.revealHandled = false;
     this.markTableAfterBuild = false;
     this.matchedResume = false;
-    this.setStage('S2');
-    this.placePanel('scan');
-    this.refreshScanPage();
     const confirmedRoom = this.resume && this.resumeDirectToLive && garageState.preferences.tableConfirmed
       ? loadConfirmedRoom() : null;
+    this.checkingSavedRoom = !!confirmedRoom;
+    this.setStage('S2');
+    if (!this.checkingSavedRoom) this.refreshScanPage();
     this.builder?.beginRoomScan(confirmedRoom ?? undefined);
   }
 
   private onSessionHidden() {
+    this.checkingSavedRoom = false;
     if (this.stage === 'S1') {
       setLandingBusy(false);
       showLanding();
@@ -284,11 +287,12 @@ export class AppFlowSystem extends createSystem({}) {
   private goLive() {
     this.live = true;
     this.setStage('S10');
-    emit('status', 'Garage live');
+    if (!this.matchedResume) emit('status', 'Garage live');
   }
 
   private onScanProgress(detail: { info?: ScanInfo; hasFloor?: boolean; hasWalls?: boolean; hasTable?: boolean; needsChoice?: boolean }) {
     if (this.stage !== 'S2' || this.openingSpaceSetup || !detail?.info) return;
+    this.showScanFallback();
     const selected = detail.info.tableTopY != null;
     this.setScanProgress(!!detail.hasFloor, !!detail.hasWalls, !!detail.hasTable);
     this.showScanChoices(!!detail.needsChoice, selected);
@@ -316,12 +320,21 @@ export class AppFlowSystem extends createSystem({}) {
 
   private onScanMissing() {
     if (this.stage !== 'S2' || this.openingSpaceSetup) return;
+    this.showScanFallback();
     this.showScanChoices(false, false, true);
     this.scanTitle('Set up your room');
     this.scanBody('Mark four floor corners to get started, or open Space Setup to scan your room.');
     this.panel?.getElementById('scan-progress')?.setProperties({ display: 'none' });
     this.showPage('scan');
     this.placePanel('scan');
+  }
+
+  private showScanFallback() {
+    if (!this.checkingSavedRoom) return;
+    this.checkingSavedRoom = false;
+    emit('reveal-request', { mode: 'full' });
+    this.refreshScanPage();
+    this.showPage('scan');
   }
 
   private beginManual() {
@@ -342,6 +355,7 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private rescan(realign = false) {
+    this.checkingSavedRoom = false;
     this.matchedResume = false;
     this.showedScanLock = false;
     this.resumeDirectToLive = this.stage === 'S10' || this.resumeDirectToLive;
@@ -395,6 +409,7 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private pageForStage(stage: AppStage): PanelPage | null {
+    if (stage === 'S2' && this.checkingSavedRoom) return null;
     if (stage === 'S2' || stage === 'S5') return 'scan';
     if (stage === 'S6' || stage === 'S11') return null;
     if (stage === 'S7') return null;

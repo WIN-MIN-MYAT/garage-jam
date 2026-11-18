@@ -58,13 +58,21 @@ try {
     const { garageEvents } = await import('/src/events.ts');
     window.resumeStages = [];
     window.resumeReveals = [];
+    window.resumeSetupFrames = 0;
     garageEvents.addEventListener('app-flow-stage', event => window.resumeStages.push(event.detail.stage));
     garageEvents.addEventListener('reveal-started', event => window.resumeReveals.push(event.detail.mode));
     await window.garageEmulatorWorld.renderer.xr.getSession().end();
   });
   await stage('S11');
+  await page.evaluate(() => {
+    window.stopResumeObserver = window.garageEmulatorWorld.onXRFrame(() => {
+      if (window.garageFlowDebug.panel.visible || window.garageTableDebug.panel.visible ||
+          window.garageEmulatorWorld.scene.getObjectByName('Room scan overlay').visible) window.resumeSetupFrames++;
+    });
+  });
   await page.locator('#gj-enter').click();
   await stage('S10');
+  await page.evaluate(() => window.stopResumeObserver());
   const matched = await measuredTable();
   assert.ok(Math.abs(matched.y - first.y) < 0.01);
   assert.deepEqual(matched.scan.tableCenter, first.scan.tableCenter);
@@ -73,9 +81,11 @@ try {
     table: window.garageTableDebug.panel.visible,
     stages: window.resumeStages,
     reveals: window.resumeReveals,
+    setupFrames: window.resumeSetupFrames,
   }));
   assert.equal(visible.flow, false);
   assert.equal(visible.table, false);
+  assert.equal(visible.setupFrames, 0, 'no room scan, setup, or confirmation should be visible on matching resume');
   assert.ok(visible.stages.includes('S2'));
   assert.ok(visible.stages.includes('S6'));
   assert.ok(!visible.stages.includes('S7'));
@@ -103,12 +113,18 @@ try {
   assert.equal(await page.evaluate(() => !!window.garageBuildDebug), false, 'the old build must be removed on reset');
   await choices();
   await aim(desk);
-  await page.waitForFunction(async desk => {
+  await page.evaluate(async () => {
     const { GarageBuildSystem } = await import('/src/systems/garage-build-system.ts');
-    const center = window.garageEmulatorWorld.getSystem(GarageBuildSystem).scanInfo?.tableCenter;
-    return center && Math.hypot(center.x - desk.x, center.z - desk.z) < 0.01;
+    window.alignmentBuilder = window.garageEmulatorWorld.getSystem(GarageBuildSystem);
+  });
+  await page.waitForFunction(desk => {
+    const builder = window.alignmentBuilder;
+    const center = builder.scanCandidate?.info.tableCenter;
+    if (!center || Math.hypot(center.x - desk.x, center.z - desk.z) >= 0.01 ||
+        performance.now() - builder.candidateAt > 750) return false;
+    window.garageFlowDebug.panel.requireElementById('flow-use-table').dispatchEvent({ type: 'click' });
+    return builder.building;
   }, desk);
-  await button('flow-use-table');
   await stage('S7');
   const reset = await measuredTable();
   assert.ok(Math.abs(reset.scan.tableCenter.x - desk.x) < 0.01);

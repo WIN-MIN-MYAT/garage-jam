@@ -1,5 +1,5 @@
 const prefix = '/api/plugins';
-const labels = { notion: 'Notion', spotify: 'Spotify', calendar: 'Google Calendar', weather: 'Weather' };
+const labels = { notion: 'Notion', spotify: 'Spotify', weather: 'Weather' };
 const notice = document.querySelector('#notice');
 const locations = document.querySelector('#locations');
 const query = new URLSearchParams(location.search);

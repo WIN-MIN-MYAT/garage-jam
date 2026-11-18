@@ -1,5 +1,5 @@
 import {
-  AdditiveBlending, BufferGeometry, DoubleSide, Float32BufferAttribute, Group, Mesh, Points, ShaderMaterial,
+  AdditiveBlending, BufferGeometry, Color, DoubleSide, Float32BufferAttribute, Group, Mesh, Points, ShaderMaterial,
 } from '@iwsdk/core';
 import { pointInPolygon, type RoomModel, type Vec2 } from '../room-model.js';
 
@@ -25,6 +25,8 @@ export function createDoorwayAtmosphere(room: RoomModel, door: Vec2, normal: Vec
     uClosure: { value: 0 },
     uTime: { value: 0 },
     uMotion: { value: 1 },
+    uLightColor: { value: new Color().setRGB(1, 0.76, 0.43) },
+    uLightStrength: { value: 1 },
   };
   const visibility = /* glsl */`
     float doorwayLight(float vent) {
@@ -88,6 +90,8 @@ export function createDoorwayAtmosphere(room: RoomModel, door: Vec2, normal: Vec
     fragmentShader: /* glsl */`
       uniform float uPresence;
       uniform float uClosure;
+      uniform vec3 uLightColor;
+      uniform float uLightStrength;
       varying vec2 vUv;
       varying vec2 vStyle;
       ${visibility}
@@ -96,8 +100,8 @@ export function createDoorwayAtmosphere(room: RoomModel, door: Vec2, normal: Vec
         float softness = mix(1.75, .82, vStyle.x);
         float core = pow(edge, softness);
         float lengthFade = smoothstep(0.0, .10, vUv.y) * (1.0 - smoothstep(.45, 1.0, vUv.y));
-        vec3 color = mix(vec3(1., .55, .28), vec3(1., .76, .43), vStyle.x);
-        gl_FragColor = vec4(color, core * lengthFade * vStyle.y * uPresence * doorwayLight(vStyle.x));
+        vec3 color = mix(uLightColor * vec3(1., .72, .65), uLightColor, vStyle.x);
+        gl_FragColor = vec4(color, core * lengthFade * vStyle.y * uPresence * uLightStrength * doorwayLight(vStyle.x));
       }
     `,
   }));
@@ -149,11 +153,13 @@ export function createDoorwayAtmosphere(room: RoomModel, door: Vec2, normal: Vec
     fragmentShader: /* glsl */`
       uniform float uPresence;
       uniform float uClosure;
+      uniform vec3 uLightColor;
+      uniform float uLightStrength;
       varying vec2 vStyle;
       ${visibility}
       void main() {
         float falloff = 1.0 - smoothstep(.08, .5, length(gl_PointCoord - .5));
-        gl_FragColor = vec4(1., .76, .47, falloff * (.26 + vStyle.x * .28) * uPresence * doorwayLight(vStyle.y));
+        gl_FragColor = vec4(uLightColor, falloff * (.26 + vStyle.x * .28) * uPresence * uLightStrength * doorwayLight(vStyle.y));
       }
     `,
   }));

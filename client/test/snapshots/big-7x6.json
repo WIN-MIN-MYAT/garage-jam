@@ -38,13 +38,13 @@
     {
       "slotId": "graffiti",
       "position": [
-        -2.2,
+        -3.482,
         0.9,
-        -2.982
+        1.9
       ],
-      "yaw": 0,
+      "yaw": 1.571,
       "scale": 1,
-      "wallId": "wall-0"
+      "wallId": "wall-3"
     },
     {
       "slotId": "lamp",
@@ -93,13 +93,13 @@
     {
       "slotId": "shutter",
       "position": [
-        -3.292,
+        0.4,
         0,
-        2.1
+        2.792
       ],
-      "yaw": 1.571,
+      "yaw": -3.142,
       "scale": 1,
-      "wallId": "wall-3"
+      "wallId": "wall-2"
     },
     {
       "slotId": "tires",
@@ -133,13 +133,20 @@
       "yaw": -1.446,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "whiteboard",
+      "position": [
+        -1.9,
+        1.1,
+        -2.942
+      ],
+      "yaw": 0,
+      "scale": 1,
+      "wallId": "wall-0"
     }
   ],
   "unplaced": [
-    {
-      "slotId": "calendar-board",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
     {
       "slotId": "corkboard",
       "reason": "no valid candidate after gap/scale fallback"
@@ -158,10 +165,6 @@
     },
     {
       "slotId": "stats-board",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
-    {
-      "slotId": "whiteboard",
       "reason": "no valid candidate after gap/scale fallback"
     }
   ],

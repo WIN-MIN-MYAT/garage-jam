@@ -18,7 +18,7 @@ import { isProductEntry, resetFlow, type AppStage } from '../app-flow/app-flow.j
 import { manualRoomStorageKey } from '../room-model.js';
 import { resetProgress } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
-import { bindPress, clearUiInput, PanelInput, sendPanelToFront, uiInputActive } from '../ui-press.js';
+import { bindPress, clearUiInput, PanelInput, uiInputActive } from '../ui-press.js';
 import { pulseGamepads } from '../feedback.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 import { clearStandSeat } from '../stand-seat-memory.js';
@@ -30,7 +30,7 @@ type Side = 'left' | 'right';
 const wristAngle = Math.cos(14 * Math.PI / 180);
 const panelAngle = Math.cos(22 * Math.PI / 180);
 const panelScale = 0.082;
-const panelDistance = 0.50;
+const panelDistance = 0.62;
 const panelDrop = 0;
 const glanceDelay = 600;
 const autoCloseDelay = 3500;
@@ -51,8 +51,7 @@ export class WristMenuSystem extends createSystem({}) {
   private editingTable = false;
   private markingDevices = false;
   private managingMonitors = false;
-  private standHidden = false;
-  private restoreAfterStand = false;
+  private repositionAfterStand = false;
   private passthrough = false;
   private glanceStarted: number | null = null;
   private handStarted: number | null = null;
@@ -79,7 +78,6 @@ export class WristMenuSystem extends createSystem({}) {
   private pluginStatus: Record<string, any> = {};
   private pluginPairing: { provider: string; code: string; url: string } | null = null;
   private spotify: any = { active: false };
-  private calendar: any[] = [];
   private focus: any = { running: false, paused: false, remaining: 0, duration: 0, phase: 'focus' };
   private playlists: any[] = [];
   private headsetMessage = '';
@@ -112,19 +110,17 @@ export class WristMenuSystem extends createSystem({}) {
       if (this.managingMonitors) this.close(true);
     };
     const onRoomHidden = () => {
-      this.standHidden = true;
-      this.restoreAfterStand = !!this.panel?.visible;
-      if (this.panel) this.panel.visible = false;
+      this.repositionAfterStand = !!this.panel?.visible;
       clearUiInput();
       this.resetGesture();
     };
     const onRoomShown = () => {
-      this.standHidden = false;
+      this.repositionAfterStand = !!this.panel?.visible;
       this.placeOnOpen = true;
       this.resetGesture();
     };
     const onRoomReset = () => {
-      this.standHidden = this.restoreAfterStand = false;
+      this.repositionAfterStand = false;
       this.close();
     };
     const onMode = () => this.refresh();
@@ -142,7 +138,6 @@ export class WristMenuSystem extends createSystem({}) {
       this.headsetMessage = message;
       this.refresh();
     };
-    const onCalendar = (event: Event) => { this.calendar = (event as CustomEvent<any[]>).detail ?? []; this.refresh(); };
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<any>).detail ?? this.focus; this.refresh(); };
     const onLocalMusic = (event: Event) => { this.localMusic = (event as CustomEvent<boolean>).detail; this.refresh(); };
     const onPlaylists = (event: Event) => {
@@ -172,7 +167,6 @@ export class WristMenuSystem extends createSystem({}) {
     garageEvents.addEventListener('plugin-pairing', onPairing);
     garageEvents.addEventListener('spotify-state', onSpotify);
     garageEvents.addEventListener('spotify-headset', onHeadset);
-    garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('focus-state', onFocus);
     garageEvents.addEventListener('spotify-playlists', onPlaylists);
     const stopFrame = this.world.onXRFrame(frame => this.updateFromFrame(frame));
@@ -200,7 +194,6 @@ export class WristMenuSystem extends createSystem({}) {
       garageEvents.removeEventListener('plugin-pairing', onPairing);
       garageEvents.removeEventListener('spotify-state', onSpotify);
       garageEvents.removeEventListener('spotify-headset', onHeadset);
-      garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('focus-state', onFocus);
       garageEvents.removeEventListener('spotify-playlists', onPlaylists);
       stopFrame();
@@ -215,7 +208,7 @@ export class WristMenuSystem extends createSystem({}) {
     panel.name = 'Left wrist menu';
     panel.scale.setScalar(panelScale);
     panel.visible = false;
-    sendPanelToFront(panel);
+    panel.document.rootElement.setProperties({ depthTest: true, depthWrite: false, renderOrder: 1000 });
     const entity = this.world.createTransformEntity(panel, { persistent: true });
     entity.addComponent(RayInteractable, {});
     entity.addComponent(PokeInteractable, {});
@@ -241,7 +234,8 @@ export class WristMenuSystem extends createSystem({}) {
     on('wm-settings-room', () => { this.settingsPage = 'room'; this.refresh(); });
     on('wm-tab-plugins', () => { this.showPage('plugins'); emit('plugin-refresh'); });
     on('wm-connect-screen', () => { this.close(true); emit('stream-guide-open'); });
-    for (const provider of ['notion', 'spotify', 'calendar', 'weather']) {
+    on('wm-connect-weather', () => { this.close(true); emit('weather-search-open'); });
+    for (const provider of ['notion', 'spotify']) {
       on(`wm-connect-${provider}`, () => emit('plugin-connect', { provider }));
     }
     on('wm-focus', () => {
@@ -343,11 +337,23 @@ export class WristMenuSystem extends createSystem({}) {
       this.refresh();
     });
     on('wm-sky', () => {
-      const modes = ['golden', 'time', 'weather'] as const;
+      const modes = ['morning', 'noon', 'golden', 'night', 'time'] as const;
       const next = modes[(modes.indexOf(garageState.preferences.skyMode) + 1) % modes.length];
       setPreference('skyMode', next);
-      emit('sky-mode-changed', next);
-      if (next === 'weather' && !this.pluginStatus.weather?.connected) emit('status', 'Connect Weather in Plugins for live sky.');
+      emit('sky-mode-changed');
+      this.refresh();
+    });
+    on('wm-weather', () => {
+      const modes = ['sunny', 'rain', 'snow', 'live'] as const;
+      const next = modes[(modes.indexOf(garageState.preferences.weatherMode) + 1) % modes.length];
+      if (next === 'live' && !garageState.preferences.weatherLocation && !this.pluginStatus.weather?.connected) {
+        this.close(true);
+        emit('weather-search-open');
+        return;
+      }
+      setPreference('weatherMode', next);
+      emit('sky-mode-changed');
+      if (next === 'live') emit('plugin-refresh');
       this.refresh();
     });
     on('wm-standup', () => {
@@ -458,7 +464,7 @@ export class WristMenuSystem extends createSystem({}) {
 
   private close(dismissed = false) {
     this.pinned = false;
-    this.restoreAfterStand = false;
+    this.repositionAfterStand = false;
     this.resetGesture();
     this.dismissed = dismissed;
     if (dismissed) {
@@ -548,15 +554,14 @@ export class WristMenuSystem extends createSystem({}) {
     set('wm-outlines-value', p.outlines ? 'ON' : 'OFF');
     set('wm-standup-value', p.standUpFade ? 'ON' : 'OFF');
     set('wm-save-seat-value', this.standSeatState);
-    set('wm-sky-value', p.skyMode === 'golden' ? 'GOLD' : p.skyMode === 'time' ? 'TIME' : 'LIVE');
+    set('wm-sky-value', p.skyMode === 'golden' ? 'EVENING' : p.skyMode === 'time' ? 'LOCAL TIME' : p.skyMode.toUpperCase());
+    set('wm-weather-value', p.weatherMode.toUpperCase());
     set('wm-focus-length-value', `${p.focusMinutes}M`);
     const focusSeconds = Math.ceil(this.focus.remaining);
     const focusPhase = this.focus.phase === 'break' ? 'break' : 'focus';
     set('wm-focus-label', this.focus.running ? `${this.focus.paused ? 'Resume' : 'Pause'} ${focusPhase}` : 'Start focus');
     set('wm-focus-value', this.focus.running ? `${Math.floor(focusSeconds / 60)}:${String(focusSeconds % 60).padStart(2, '0')}` : `${p.focusMinutes}M`);
     this.panel?.requireElementById('wm-focus-end').setProperties({ display: this.focus.running ? 'flex' : 'none' });
-    const next = this.calendar[0];
-    set('wm-next-event', next ? `${next.allDay ? 'ALL DAY' : new Date(next.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })} ${next.title}` : 'No events today');
     const connected = !!this.pluginStatus.spotify?.connected;
     const spotifySource = connected && !this.localMusic;
     const canSkip = this.canSkipTrack();
@@ -580,7 +585,8 @@ export class WristMenuSystem extends createSystem({}) {
     panel.requireElementById('wm-music-playlist').setProperties({ display: spotifySource ? 'flex' : 'none' });
     set('wm-music-note', !spotifySource ? (connected ? this.headsetMessage : '')
       : canSkip ? '' : this.headsetReady ? 'Press Play to listen here.' : this.headsetMessage || 'Connecting Spotify…');
-    for (const provider of ['notion', 'spotify', 'calendar', 'weather'] as const) {
+    set('wm-plugin-weather', fit(p.weatherLocation?.name || this.pluginStatus.weather?.account || 'SEARCH', 22));
+    for (const provider of ['notion', 'spotify'] as const) {
       const status = this.pluginStatus[provider];
       const sharedNotionTasks = provider === 'notion' && status?.taskBoard?.configured;
       set(`wm-plugin-${provider}`, status?.connected || sharedNotionTasks ? 'ON' : status?.configured === false ? 'SETUP' : 'OPEN');
@@ -606,7 +612,6 @@ export class WristMenuSystem extends createSystem({}) {
     if (this.editingTable) { this.gate = 'table-panel'; return; }
     if (this.markingDevices) { this.gate = 'device-panel'; return; }
     if (this.managingMonitors) { this.gate = 'monitor-panel'; return; }
-    if (this.standHidden && !this.passthrough) { this.gate = 'stand-fade'; return; }
     if (isProductEntry && this.stage !== 'S10') { this.gate = 'stage'; return; }
     if (!this.builder?.isRevealed()) { this.gate = 'not-revealed'; return; }
     this.gate = 'ok';
@@ -620,9 +625,9 @@ export class WristMenuSystem extends createSystem({}) {
       return;
     }
     const { position, orientation } = viewer.transform;
-    if (this.restoreAfterStand && !this.standHidden) {
-      this.restoreAfterStand = false;
-      this.openPanel();
+    if (this.repositionAfterStand) {
+      this.repositionAfterStand = false;
+      this.placePanel();
       return;
     }
     this.head.set(position.x, position.y, position.z);
@@ -679,20 +684,20 @@ export class WristMenuSystem extends createSystem({}) {
       this.handStarted = null;
     }
     const gestureHold = this.handStarted !== null && now - this.handStarted >= handHold;
-    if (!panel.visible && now >= this.reopenAt && !uiInputActive() && (gestureHold || (this.glanceStarted !== null && now - this.glanceStarted >= glanceDelay))) {
+    const panelOutOfReach = panel.visible && panel.getWorldPosition(this.offset).distanceTo(this.menuHead) > 1.1;
+    if ((!panel.visible || panelOutOfReach) && now >= this.reopenAt && !uiInputActive() && (gestureHold || (this.glanceStarted !== null && now - this.glanceStarted >= glanceDelay))) {
       if (gestureHold && this.hand.side) this.menuSide = this.hand.side;
+      if (panelOutOfReach) this.placeOnOpen = true;
       this.openPanel();
     }
-    const interacting = this.panelEntity
-      ? this.panelEntity.hasComponent(Hovered) || this.panelEntity.hasComponent(Pressed)
-      : false;
-    const tone = this.panelEntity?.hasComponent(Pressed) ? '#8ef5ef'
-      : interacting ? '#e8ff70' : '#2a2f39';
+    const pressed = this.panelEntity?.hasComponent(Pressed);
+    const hovered = this.panelEntity?.hasComponent(Hovered);
+    const tone = pressed ? '#8ef5ef' : hovered ? '#e8ff70' : '#2a2f39';
     if (tone !== this.hoverTone) {
       this.hoverTone = tone;
       panel.requireElementById('wm-card').setProperties({ borderColor: tone });
     }
-    if (lookingAtWrist || lookingAtMenu || interacting) this.lastLook = now;
+    if (lookingAtWrist || lookingAtMenu || pressed) this.lastLook = now;
     if (!this.pinned && panel.visible && now - this.lastLook > autoCloseDelay) this.close();
   }
 
@@ -761,7 +766,7 @@ export class WristMenuSystem extends createSystem({}) {
     this.right.set(-this.offset.z, 0, this.offset.x);
     this.offset.y = Math.max(-0.45, Math.min(0, this.forward.y - 0.10));
     this.offset.normalize();
-    const side = this.menuSide === 'left' ? -0.075 : 0.075;
+    const side = this.menuSide === 'left' ? 0.19 : -0.19;
     panel.position.copy(head)
       .addScaledVector(this.offset, panelDistance)
       .addScaledVector(this.right, side);

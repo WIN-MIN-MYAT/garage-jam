@@ -14,17 +14,6 @@
       "wallId": null
     },
     {
-      "slotId": "calendar-board",
-      "position": [
-        -0.95,
-        1.3,
-        -1.942
-      ],
-      "yaw": 0,
-      "scale": 1,
-      "wallId": "wall-0"
-    },
-    {
       "slotId": "corkboard",
       "position": [
         0.7,
@@ -71,11 +60,11 @@
     {
       "slotId": "mini-fridge",
       "position": [
-        -1.6,
+        0.6,
         0,
-        -0.7
+        0.6
       ],
-      "yaw": 1.477,
+      "yaw": -2.661,
       "scale": 1,
       "wallId": null
     },
@@ -115,35 +104,24 @@
     {
       "slotId": "pegboard",
       "position": [
-        -1.902,
+        -0.9,
         1.175,
-        -0.4
+        -1.902
       ],
-      "yaw": 1.571,
+      "yaw": 0,
       "scale": 1,
-      "wallId": "wall-3"
+      "wallId": "wall-0"
     },
     {
       "slotId": "shelf",
       "position": [
-        0.5,
+        -1.7,
         0,
-        0.6
+        -0.4
       ],
-      "yaw": -2.731,
-      "scale": 0.8,
-      "wallId": null
-    },
-    {
-      "slotId": "stats-board",
-      "position": [
-        -1.942,
-        1.3,
-        -1.35
-      ],
-      "yaw": 1.571,
+      "yaw": 1.659,
       "scale": 1,
-      "wallId": "wall-3"
+      "wallId": null
     },
     {
       "slotId": "toolbox",
@@ -166,6 +144,17 @@
       "yaw": -1.268,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "whiteboard",
+      "position": [
+        -1.959,
+        1.24,
+        -1.49
+      ],
+      "yaw": 1.571,
+      "scale": 0.65,
+      "wallId": "wall-3"
     }
   ],
   "unplaced": [
@@ -178,11 +167,11 @@
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
-      "slotId": "tires",
+      "slotId": "stats-board",
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
-      "slotId": "whiteboard",
+      "slotId": "tires",
       "reason": "no valid candidate after gap/scale fallback"
     }
   ],

@@ -23,7 +23,6 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   const env = {
     NOTION_CLIENT_ID: 'notion-client', NOTION_CLIENT_SECRET: 'notion-secret', NOTION_REDIRECT_URI: origin + base + '/notion/callback',
     SPOTIFY_CLIENT_ID: 'spotify-client', SPOTIFY_REDIRECT_URI: origin + base + '/spotify/callback',
-    CALENDAR_CLIENT_ID: 'calendar-client', CALENDAR_CLIENT_SECRET: 'calendar-secret', CALENDAR_REDIRECT_URI: origin + base + '/calendar/callback',
     PLUGIN_CLIENT_ORIGINS: 'https://garage-jam.vercel.app',
     NOTION_TOKEN: 'notion-internal-token',
     NOTION_DATABASE_ID: '0123456789abcdef0123456789abcdef',
@@ -89,22 +88,14 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
       if (pathname.endsWith('/next') || pathname.endsWith('/previous')) trackRequests.push(new URL(url).search);
       return new Response(null, { status: 204 });
     }
-    if (hostname === 'oauth2.googleapis.com' && pathname === '/token') {
-      assert.equal(options.body.get('client_id'), 'calendar-client');
-      return Response.json(options.body.get('grant_type') === 'refresh_token'
-        ? { access_token: 'calendar-replacement' }
-        : { access_token: 'calendar-access', refresh_token: 'calendar-refresh' });
-    }
-    if (hostname === 'www.googleapis.com' && pathname === '/oauth2/v2/userinfo') {
-      return Response.json({ email: 'tester@example.com', name: 'Calendar Tester' });
-    }
-    if (hostname === 'www.googleapis.com' && pathname === '/calendar/v3/calendars/primary/events') {
-      assert.equal(options.headers.Authorization, 'Bearer calendar-access');
-      return Response.json({ items: [{ id: 'event-1', summary: 'Design review', start: { dateTime: '2026-11-17T10:00:00Z' }, end: { dateTime: '2026-11-17T11:00:00Z' }, location: 'Desk' }] });
-    }
     if (hostname === 'geocoding-api.open-meteo.com') {
-      assert.equal(new URL(url).searchParams.get('name'), 'Singapore');
+      const name = new URL(url).searchParams.get('name');
+      if (name === 'Japan') return Response.json({ results: [] });
+      assert.equal(name, 'Singapore');
       return Response.json({ results: [{ name: 'Singapore', country: 'Singapore', latitude: 1.29, longitude: 103.85 }] });
+    }
+    if (hostname === 'api.worldbank.org' && pathname === '/v2/country/JP') {
+      return Response.json([{}, [{ capitalCity: 'Tokyo', latitude: '35.67', longitude: '139.77' }]]);
     }
     if (hostname === 'api.open-meteo.com') {
       assert.equal(new URL(url).searchParams.get('latitude'), '1.29');
@@ -176,11 +167,11 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   const retry = await authorize('spotify');
   challenge = retry.searchParams.get('code_challenge');
   assert.match(await callback('spotify', retry.searchParams.get('state')), /result=connected$/);
-  const calendar = await authorize('calendar');
-  assert.match(await callback('calendar', calendar.searchParams.get('state')), /result=connected$/);
   spotifyExpired = true;
   assert.equal((await post('/spotify/verify')).status, 200);
   const [location] = await (await get('/weather/locations?name=Singapore')).json();
+  const [country] = await (await get('/weather/locations?name=Japan')).json();
+  assert.deepEqual(country, { name: 'Japan · Tokyo', latitude: 35.67, longitude: 139.77 });
   assert.equal((await post('/weather/connect', { ...location, latitude: 150 })).status, 400);
   const weather = await (await post('/weather/connect', location)).json();
   assert.equal(weather.sample.temperature, 29);
@@ -199,11 +190,13 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.equal((await post('/spotify/player', { action: 'next', deviceId: 'device-1' })).status, 200);
   assert.equal((await post('/spotify/player', { action: 'previous', deviceId: 'device-1' })).status, 200);
   assert.deepEqual(trackRequests, ['?device_id=device-1', '?device_id=device-1']);
-  const today = await (await get('/calendar/today')).json();
-  assert.equal(today[0].title, 'Design review');
   const current = await (await get('/weather/current')).json();
   assert.equal(current.code, 2);
   assert.equal(current.sunset, '2026-11-17T18:55');
+  const localWeather = await (await get('/weather/current?latitude=1.29&longitude=103.85&name=My+city', stranger)).json();
+  assert.equal(localWeather.location, 'My city');
+  assert.equal(localWeather.code, 2);
+  assert.equal((await get('/weather/current?latitude=91&longitude=0')).status, 400);
   for (const file of await readdir(directory)) {
     assert.doesNotMatch((await readFile(join(directory, file))).toString(), /secret|spotify-access|spotify-replacement|notion-access/);
   }
@@ -213,7 +206,6 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   assert.equal(status.notion.account, 'Test Workspace');
   assert.equal(status.notion.taskBoard.configured, true, 'the shared Notion task board should be reported separately from OAuth');
   assert.equal(status.spotify.account, 'Spotify Tester');
-  assert.equal(status.calendar.account, 'tester@example.com');
   assert.equal(status.weather.account, 'Singapore');
   assert.equal(Object.values(await (await get('/status', stranger)).json()).some(value => value.connected), false);
   assert.doesNotMatch(JSON.stringify(status), /spotify-replacement|notion-access|notion-secret|spotify-refresh/);

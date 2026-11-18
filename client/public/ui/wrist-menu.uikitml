@@ -70,7 +70,7 @@
       <button id="wm-focus" class="half"><div id="wm-focus-label" class="label">Start focus</div><div id="wm-focus-value" class="value">25M</div></button>
     </div>
     <button id="wm-focus-end" class="action danger" style="display: none">End focus</button>
-    <div class="foot"><div id="wm-next-event" class="hint">No events today</div><div id="wm-page-label" class="hint">HOME</div></div>
+    <div class="foot"><div id="wm-page-label" class="hint">HOME</div></div>
   </Panel>
 
   <Panel id="page-room" class="page" style="display: none">
@@ -105,7 +105,7 @@
       <button id="wm-music-vol-down" class="volume-key">-</button>
       <button id="wm-music-vol-up" class="volume-key">+</button>
     </div>
-    <button id="wm-music-playlist" class="action music-action" style="display: none"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">Loading…</div></button>
+    <button id="wm-music-playlist" class="action music-action" style="display: none"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">Loading</div></button>
     <button id="wm-music-connect" class="action music-action">Connect Spotify</button>
     <div id="wm-music-note" class="music-note">Press Play to listen here.</div>
   </Panel>
@@ -127,7 +127,8 @@
         <button id="wm-outlines" class="cell"><div class="celllabel">Outlines</div><div id="wm-outlines-value" class="cellvalue">ON</div></button>
       </div>
       <div class="grid">
-        <button id="wm-sky" class="cell"><div class="celllabel">Sky</div><div id="wm-sky-value" class="cellvalue">GOLD</div></button>
+        <button id="wm-sky" class="cell"><div class="celllabel">Time of day</div><div id="wm-sky-value" class="cellvalue">EVENING</div></button>
+        <button id="wm-weather" class="cell"><div class="celllabel">Weather</div><div id="wm-weather-value" class="cellvalue">SUNNY</div></button>
         <button id="wm-focus-length" class="cell"><div class="celllabel">Focus length</div><div id="wm-focus-length-value" class="cellvalue">25M</div></button>
       </div>
       <div class="grid">
@@ -162,10 +163,7 @@
       <button id="wm-connect-notion" class="half"><div class="label">Notion</div><div id="wm-plugin-notion" class="value">OPEN</div></button>
       <button id="wm-connect-spotify" class="half"><div class="label">Spotify</div><div id="wm-plugin-spotify" class="value">OPEN</div></button>
     </div>
-    <div class="row">
-      <button id="wm-connect-calendar" class="half"><div class="label">Calendar</div><div id="wm-plugin-calendar" class="value">OPEN</div></button>
-      <button id="wm-connect-weather" class="half"><div class="label">Weather</div><div id="wm-plugin-weather" class="value">OPEN</div></button>
-    </div>
+    <button id="wm-connect-weather" class="action"><div class="label">Weather location</div><div id="wm-plugin-weather" class="value">SEARCH</div></button>
     <div class="foot"><div id="wm-plugin-note" class="hint">Continue in browser</div><div class="hint">CONNECT</div></div>
   </Panel>
 </Panel>

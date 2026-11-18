@@ -14,17 +14,6 @@
       "wallId": null
     },
     {
-      "slotId": "calendar-board",
-      "position": [
-        -1.05,
-        1.3,
-        0.942
-      ],
-      "yaw": -3.142,
-      "scale": 1,
-      "wallId": "wall-2"
-    },
-    {
       "slotId": "corkboard",
       "position": [
         1.5,
@@ -71,24 +60,24 @@
     {
       "slotId": "neon",
       "position": [
-        -1.942,
+        -1.4,
         1.65,
-        -0.8
+        0.942
       ],
-      "yaw": 1.571,
+      "yaw": -3.142,
       "scale": 1,
-      "wallId": "wall-3"
+      "wallId": "wall-2"
     },
     {
       "slotId": "patch-bay",
       "position": [
-        1.942,
+        -1.942,
         1.2,
-        -0.75
+        -0.95
       ],
-      "yaw": -1.571,
+      "yaw": 1.571,
       "scale": 1,
-      "wallId": "wall-1"
+      "wallId": "wall-3"
     },
     {
       "slotId": "pegboard",
@@ -106,11 +95,22 @@
       "position": [
         -1.7,
         0,
-        0.1
+        0
       ],
-      "yaw": 1.63,
+      "yaw": 1.571,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "stats-board",
+      "position": [
+        1.942,
+        1.3,
+        -0.95
+      ],
+      "yaw": -1.571,
+      "scale": 1,
+      "wallId": "wall-1"
     },
     {
       "slotId": "trash",
@@ -122,6 +122,17 @@
       "yaw": -0.245,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "whiteboard",
+      "position": [
+        -1.51,
+        1.24,
+        -1.959
+      ],
+      "yaw": 0,
+      "scale": 0.65,
+      "wallId": "wall-0"
     }
   ],
   "unplaced": [
@@ -142,20 +153,12 @@
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
-      "slotId": "stats-board",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
-    {
       "slotId": "tires",
       "reason": "no valid candidate after gap/scale fallback"
     },
     {
       "slotId": "toolbox",
       "reason": "removed to make room for P0 paper-zone"
-    },
-    {
-      "slotId": "whiteboard",
-      "reason": "no valid candidate after gap/scale fallback"
     }
   ],
   "p0Unplaced": [

@@ -3,6 +3,17 @@
   "cautious": true,
   "placements": [
     {
+      "slotId": "boombox",
+      "position": [
+        2.3,
+        0,
+        -0.1
+      ],
+      "yaw": -1.527,
+      "scale": 1,
+      "wallId": null
+    },
+    {
       "slotId": "door",
       "position": [
         0.1,
@@ -26,14 +37,6 @@
     }
   ],
   "unplaced": [
-    {
-      "slotId": "boombox",
-      "reason": "removed to make room for P0 paper-zone"
-    },
-    {
-      "slotId": "calendar-board",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
     {
       "slotId": "corkboard",
       "reason": "no valid candidate after gap/scale fallback"
@@ -64,7 +67,7 @@
     },
     {
       "slotId": "whiteboard",
-      "reason": "no valid candidate after gap/scale fallback"
+      "reason": "removed to make room for P0 paper-zone"
     }
   ],
   "p0Unplaced": [

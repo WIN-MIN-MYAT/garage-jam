@@ -11,6 +11,7 @@ import { emit, garageEvents } from '../events.js';
 import { bindPress, clearUiInput, PanelInput, sendPanelToFront } from '../ui-press.js';
 import { pulseGamepads } from '../feedback.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { garageState, type WeatherLocation } from '../garage-state.js';
 
 type Track = {
   id: string;
@@ -23,6 +24,7 @@ type Track = {
 };
 
 type SearchResponse = { query: string; results: Track[]; error?: string };
+type WeatherSearchResponse = { query: string; results: WeatherLocation[]; error?: string };
 
 const letters = 'abcdefghijklmnopqrstuvwxyz'.split('');
 const digits = '1234567890'.split('');
@@ -31,6 +33,8 @@ const maxResults = 5;
 
 export class SpotifySearchSystem extends createSystem({}) {
   private panel?: UIKitMLAsset;
+  private mode: 'spotify' | 'weather' = 'spotify';
+  private locations: WeatherLocation[] = [];
   private query = '';
   private results: Track[] = [];
   private status = 'Search Spotify, then pick a track.';
@@ -46,11 +50,20 @@ export class SpotifySearchSystem extends createSystem({}) {
 
   init() {
     const onOpen = () => this.openPanel();
+    const onWeatherOpen = () => this.openPanel('weather');
+    const onWeatherResults = (event: Event) => {
+      const detail = (event as CustomEvent<WeatherSearchResponse>).detail;
+      if (!this.opened || this.mode !== 'weather' || detail.query !== this.query.trim()) return;
+      this.searching = false;
+      this.locations = detail.results;
+      this.status = detail.error ?? (this.locations.length ? 'Choose a location to follow its sky.' : 'No matching city or country.');
+      this.render();
+    };
     const onResults = (event: Event) => this.onResults((event as CustomEvent<SearchResponse>).detail);
     const onPlugins = (event: Event) => {
       const statuses = (event as CustomEvent<Record<string, any>>).detail ?? {};
       this.spotifyConnected = !!statuses.spotify?.connected;
-      if (this.opened) {
+      if (this.opened && this.mode === 'spotify') {
         if (!this.spotifyConnected) this.status = 'Connect Spotify in the wrist CONNECT page.';
         else if (this.status.startsWith('Connect Spotify')) this.status = 'Search Spotify, then pick a track.';
         this.render();
@@ -78,6 +91,8 @@ export class SpotifySearchSystem extends createSystem({}) {
       if ((event as CustomEvent<boolean>).detail) this.close();
     };
     garageEvents.addEventListener('spotify-search-open', onOpen);
+    garageEvents.addEventListener('weather-search-open', onWeatherOpen);
+    garageEvents.addEventListener('weather-search-results', onWeatherResults);
     garageEvents.addEventListener('spotify-search-results', onResults);
     garageEvents.addEventListener('plugin-status', onPlugins);
     garageEvents.addEventListener('spotify-headset', onHeadset);
@@ -93,6 +108,8 @@ export class SpotifySearchSystem extends createSystem({}) {
     });
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('spotify-search-open', onOpen);
+      garageEvents.removeEventListener('weather-search-open', onWeatherOpen);
+      garageEvents.removeEventListener('weather-search-results', onWeatherResults);
       garageEvents.removeEventListener('spotify-search-results', onResults);
       garageEvents.removeEventListener('plugin-status', onPlugins);
       garageEvents.removeEventListener('spotify-headset', onHeadset);
@@ -157,11 +174,16 @@ export class SpotifySearchSystem extends createSystem({}) {
     this.render();
     if (this.openRequested) {
       this.openRequested = false;
-      this.openPanel();
+      this.openPanel(this.mode);
     }
   }
 
-  private openPanel() {
+  private openPanel(mode: typeof this.mode = 'spotify') {
+    if (this.mode !== mode) {
+      this.close();
+      this.mode = mode;
+      this.clearQuery();
+    }
     if (!this.panel) {
       this.openRequested = true;
       return;
@@ -176,14 +198,19 @@ export class SpotifySearchSystem extends createSystem({}) {
     this.panel.lookAt(head);
     this.panel.visible = true;
     sendPanelToFront(this.panel);
-    if (!this.results.length) this.status = 'Search Spotify, then pick a track.';
-    emit('plugin-refresh');
-    emit('spotify-headset-enable');
+    if (mode === 'spotify') {
+      if (!this.results.length) this.status = 'Search Spotify, then pick a track.';
+      emit('plugin-refresh');
+      emit('spotify-headset-enable');
+    } else if (!this.locations.length) {
+      this.status = garageState.preferences.weatherLocation?.name ?? 'Search for a city or country.';
+    }
     this.render();
   }
 
   private close() {
     this.opened = false;
+    this.searching = false;
     this.pending = undefined;
     window.clearTimeout(this.pendingTimer);
     if (this.panel) this.panel.visible = false;
@@ -193,21 +220,30 @@ export class SpotifySearchSystem extends createSystem({}) {
   private type(character: string) {
     if (this.query.length >= maxQuery) return;
     this.query += character;
-    if (this.results.length) this.status = 'Press SEARCH to update results.';
+    this.markQueryChanged();
     this.render();
   }
 
   private backspace() {
     this.query = Array.from(this.query).slice(0, -1).join('');
-    if (this.results.length) this.status = 'Press SEARCH to update results.';
+    this.markQueryChanged();
     this.render();
   }
 
   private clearQuery() {
     this.query = '';
     this.results = [];
-    this.status = 'Search Spotify, then pick a track.';
+    this.locations = [];
+    this.searching = false;
+    this.status = this.mode === 'weather' ? 'Search for a city or country.' : 'Search Spotify, then pick a track.';
     this.render();
+  }
+
+  private markQueryChanged() {
+    this.searching = false;
+    this.results = [];
+    this.locations = [];
+    this.status = 'Press Search to update results.';
   }
 
   private search() {
@@ -216,6 +252,14 @@ export class SpotifySearchSystem extends createSystem({}) {
     if (query.length < 2) {
       this.status = 'Type at least 2 characters.';
       this.render();
+      return;
+    }
+    if (this.mode === 'weather') {
+      this.searching = true;
+      this.locations = [];
+      this.status = 'Finding locations…';
+      this.render();
+      emit('weather-location-search', { query });
       return;
     }
     if (!this.spotifyConnected) {
@@ -231,7 +275,7 @@ export class SpotifySearchSystem extends createSystem({}) {
   }
 
   private onResults(detail: SearchResponse) {
-    if (!detail) return;
+    if (!detail || this.mode !== 'spotify' || detail.query !== this.query.trim()) return;
     this.searching = false;
     this.results = Array.isArray(detail.results) ? detail.results.slice(0, maxResults) : [];
     if (detail.error) this.status = detail.error;
@@ -240,6 +284,13 @@ export class SpotifySearchSystem extends createSystem({}) {
   }
 
   private playResult(index: number) {
+    if (this.mode === 'weather') {
+      const location = this.locations[index];
+      if (!location) return;
+      emit('weather-location-selected', location);
+      this.close();
+      return;
+    }
     const track = this.results[index];
     if (!track) return;
     if (!this.spotifyConnected) {
@@ -275,14 +326,17 @@ export class SpotifySearchSystem extends createSystem({}) {
     const panel = this.panel;
     if (!panel) return;
     const set = (id: string, text: string) => panel.getElementById(id)?.setProperties({ text });
-    set('ss-query', this.query || 'Type a song or artist');
+    const weather = this.mode === 'weather';
+    set('ss-title', weather ? 'Weather location' : 'Spotify search');
+    set('ss-foot', weather ? 'Weather by Open-Meteo · Country results use the capital city.' : 'Use wrist Music to pause or adjust playback.');
+    set('ss-query', this.query || (weather ? 'Type a city or country' : 'Type a song or artist'));
     set('ss-status', this.status);
     for (let index = 0; index < maxResults; index++) {
-      const track = this.results[index];
-      panel.getElementById(`ss-result-${index}`)?.setProperties({ display: track ? 'flex' : 'none' });
-      if (!track) continue;
-      set(`ss-result-title-${index}`, fit(track.name, 52));
-      set(`ss-result-artist-${index}`, fit(track.artists || track.album || '', 64));
+      const result = weather ? this.locations[index] : this.results[index];
+      panel.getElementById(`ss-result-${index}`)?.setProperties({ display: result ? 'flex' : 'none' });
+      if (!result) continue;
+      set(`ss-result-title-${index}`, fit(result.name, 52));
+      set(`ss-result-artist-${index}`, 'artists' in result ? fit(result.artists || result.album || '', 64) : 'Use this location');
     }
   }
 }

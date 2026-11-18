@@ -36,8 +36,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
   const pendingByState = new Map();
   const pairingCodes = new Map();
   const mutations = new Map();
-  let weatherCache = new Map();
-  let calendarCache = new Map();
+  const weatherCache = new Map();
   const storagePath = (session, id) => join(directory, `${hash('plugin-file', session).toString('hex')}-${id}.bin`);
 
   async function read(session, id) {
@@ -270,39 +269,26 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     res.send(Buffer.from(await image.arrayBuffer()));
   }));
 
-  router.get('/calendar/today', run(async (req, res) => {
-    const cached = calendarCache.get(req.pluginSession);
-    if (cached && Date.now() - cached.at < 300000) return res.json(cached.value);
-    const now = new Date();
-    const start = new Date(now); start.setHours(0, 0, 0, 0);
-    const end = new Date(start); end.setDate(end.getDate() + 1);
-    const query = new URLSearchParams({
-      timeMin: start.toISOString(), timeMax: end.toISOString(), singleEvents: 'true', orderBy: 'startTime', maxResults: '20', timeZone: req.query.timeZone || 'UTC',
-    });
-    const data = await withConnection(req.pluginSession, 'calendar', connection => providers.calendar.api(connection, `/calendars/primary/events?${query}`));
-    const value = (data?.items ?? []).map(event => ({
-      id: event.id,
-      title: event.summary || '(busy)',
-      start: event.start?.dateTime || event.start?.date || null,
-      end: event.end?.dateTime || event.end?.date || null,
-      allDay: !!event.start?.date,
-      location: event.location || null,
-      link: event.htmlLink || null,
-    }));
-    calendarCache.set(req.pluginSession, { at: Date.now(), value });
-    res.json(value);
-  }));
-
   router.get('/weather/current', run(async (req, res) => {
-    let connection = await read(req.pluginSession, 'weather');
+    const { latitude, longitude, name } = req.query;
+    let connection;
+    if (latitude !== undefined || longitude !== undefined) {
+      if (typeof latitude !== 'string' || !latitude.trim() || typeof longitude !== 'string' || !longitude.trim() ||
+          !Number.isFinite(Number(latitude)) || Math.abs(Number(latitude)) > 90 ||
+          !Number.isFinite(Number(longitude)) || Math.abs(Number(longitude)) > 180) {
+        throw new PluginError(400, 'Choose a valid weather location.');
+      }
+      connection = { latitude: Number(latitude), longitude: Number(longitude), account: typeof name === 'string' ? name.slice(0, 240) : 'Selected location' };
+    } else connection = await read(req.pluginSession, 'weather');
     if (!connection && Number.isFinite(Number(process.env.WEATHER_LATITUDE)) && Number.isFinite(Number(process.env.WEATHER_LONGITUDE))) {
       connection = { account: process.env.WEATHER_LOCATION || 'Default location', latitude: Number(process.env.WEATHER_LATITUDE), longitude: Number(process.env.WEATHER_LONGITUDE) };
     }
     if (!connection) throw new PluginError(409, 'Connect a weather location first.');
-    const key = `${req.pluginSession}:${connection.latitude},${connection.longitude}`;
+    const key = `${connection.latitude},${connection.longitude}`;
     const cached = weatherCache.get(key);
-    if (cached && Date.now() - cached.at < 600000) return res.json(cached.value);
+    if (cached && Date.now() - cached.at < 600000) return res.json({ ...cached.value, location: connection.account });
     const value = await providers.weather.current(connection);
+    if (weatherCache.size >= 512) weatherCache.delete(weatherCache.keys().next().value);
     weatherCache.set(key, { at: Date.now(), value });
     res.json(value);
   }));
@@ -354,7 +340,7 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
 
   router.get('/weather/locations', run(async (req, res) => {
     const name = typeof req.query.name === 'string' ? req.query.name.trim() : '';
-    if (name.length < 2 || name.length > 120) throw new PluginError(400, 'Enter a city name between 2 and 120 characters.');
+    if (name.length < 2 || name.length > 120) throw new PluginError(400, 'Enter a city or country name between 2 and 120 characters.');
     res.json(await providers.weather.search(name));
   }));
   router.post('/weather/connect', run(async (req, res) => {

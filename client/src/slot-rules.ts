@@ -12,9 +12,8 @@ export const slotRules: SlotRule[] = [
 
   { id: 'neon', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.8, depth: 0.1 }, height: 0.3, preferredHeight: 1.8, minGap: 0.1 },
   { id: 'stats-board', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.9, depth: 0.1 }, height: 0.6, preferredHeight: 1.6, minGap: 0.1 },
-  { id: 'calendar-board', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.9, depth: 0.1 }, height: 0.6, preferredHeight: 1.6, minGap: 0.1 },
   { id: 'corkboard', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.8, depth: 0.1 }, height: 0.6, preferredHeight: 1.5, minGap: 0.1 },
-  { id: 'whiteboard', type: 'wall', priority: 1, reach: 'near', footprint: { width: 1.2, depth: 0.1 }, height: 0.8, preferredHeight: 1.5, minGap: 0.1 },
+  { id: 'whiteboard', type: 'wall', priority: 1, reach: 'decor', footprint: { width: 1.2, depth: 0.1 }, height: 0.8, preferredHeight: 1.5, canScale: true, minGap: 0.1 },
   { id: 'patch-bay', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.7, depth: 0.1 }, height: 0.6, preferredHeight: 1.5, minGap: 0.1 },
 
   { id: 'pegboard', type: 'wall', priority: 1, reach: 'near', footprint: { width: 0.8, depth: 0.18 }, height: 0.55, preferredHeight: 1.45, minGap: 0.1 },

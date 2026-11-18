@@ -33,21 +33,11 @@
         <button data-action="remove" data-provider="spotify" hidden>Disconnect</button>
       </div>
     </section>
-    <section id="calendar" aria-labelledby="calendar-title" tabindex="-1">
-      <h2 id="calendar-title">Google Calendar</h2>
-      <p id="calendar-state" role="status">Checking connection...</p>
-      <div class="actions">
-        <button data-action="connect" data-provider="calendar" hidden>Connect Google Calendar</button>
-        <a data-setup-link="calendar" hidden>Open on configured address</a>
-        <button data-action="verify" data-provider="calendar" hidden>Verify</button>
-        <button data-action="remove" data-provider="calendar" hidden>Disconnect</button>
-      </div>
-    </section>
     <section id="weather" aria-labelledby="weather-title" tabindex="-1">
       <h2 id="weather-title">Weather</h2>
       <p id="weather-state" role="status">Checking connection…</p>
       <form id="weather-search">
-        <label for="city">City or postal code</label>
+        <label for="city">City, country, or postal code</label>
         <div class="actions">
           <input id="city" name="city" minlength="2" maxlength="120" required>
           <button type="submit">Find location</button>

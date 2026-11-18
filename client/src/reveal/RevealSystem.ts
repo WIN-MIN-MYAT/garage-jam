@@ -282,12 +282,6 @@ export class RevealSystem extends createSystem({}) {
       return;
     }
     emit('reveal-started', { mode, duration: this.timeline.duration });
-    if (mode === 'quick') {
-      const camera = this.world.camera;
-      const position = camera.getWorldPosition(new Vector3());
-      const direction = camera.getWorldDirection(new Vector3());
-      this.particles?.spawnPop('WELCOME BACK', position.x + direction.x * 1.1, position.y + 0.12, position.z + direction.z * 1.1, 0.38, { r: 0.35, g: 1, b: 0.9 } as any);
-    }
     if (this.timeline.reducedMotion) {
       this.fallbackStep = Math.max(this.fallbackStep, 2);
       this.dissolveStart = 0;
@@ -621,11 +615,13 @@ export class RevealSystem extends createSystem({}) {
     const direction = camera.getWorldDirection(new Vector3());
     const x = position.x + direction.x * 1.15;
     const z = position.z + direction.z * 1.15;
-    this.particles?.spawnPop('READY!', x, position.y + 0.10, z, 0.42, { r: 0.91, g: 1, b: 0.16 } as any);
+    if (this.mode !== 'quick') {
+      this.particles?.spawnPop('READY!', x, position.y + 0.10, z, 0.42, { r: 0.91, g: 1, b: 0.16 } as any);
+      emit('status', 'GARAGE READY');
+    }
     if (this.canPlayRevealSound()) revealAudio.playChime({ x, y: position.y + 0.10, z });
     const neon = runtime.props.find(prop => prop.id === 'neon');
     if (neon) neon.object.visible = true;
-    emit('status', 'GARAGE READY');
   }
 
   private sprayStarted = false;

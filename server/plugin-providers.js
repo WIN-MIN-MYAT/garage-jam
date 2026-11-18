@@ -2,6 +2,17 @@ import { createHash } from 'node:crypto';
 
 const notionVersion = '2022-06-28';
 const notionHeaders = { 'Notion-Version': notionVersion };
+const regionNames = new Intl.DisplayNames(['en'], { type: 'region', fallback: 'none' });
+const regionCodes = new Map();
+for (const a of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+  for (const b of 'ABCDEFGHIJKLMNOPQRSTUVWXYZ') {
+    const code = a + b;
+    const name = regionNames.of(code);
+    if (name) regionCodes.set(name.toLowerCase(), code);
+  }
+}
+regionCodes.set('usa', 'US');
+regionCodes.set('uk', 'GB');
 
 export class PluginError extends Error {
   constructor(status, message) {
@@ -12,7 +23,7 @@ export class PluginError extends Error {
 
 export function createProviders(env, fetcher) {
   async function request(url, label, options) {
-    const response = await fetcher(url, { ...options, signal: AbortSignal.timeout(8000), redirect: 'error' });
+    const response = await fetcher(url, { signal: AbortSignal.timeout(8000), ...options, redirect: 'error' });
     if (!response.ok) throw new PluginError(502, `${label} returned HTTP ${response.status}.`);
     return response.json();
   }
@@ -101,29 +112,35 @@ export function createProviders(env, fetcher) {
   });
   spotify.api = (connection, pathname, options = {}) => authorized(new URL(`https://api.spotify.com/v1${pathname}`), 'Spotify', connection, options);
 
-  const calendar = oauth('calendar', 'Google Calendar', 'https://accounts.google.com/o/oauth2/v2/auth', 'https://oauth2.googleapis.com/token', 'https://www.googleapis.com/oauth2/v2/userinfo', {
-    form: true,
-    params: {
-      scope: env.CALENDAR_SCOPES || 'openid email https://www.googleapis.com/auth/calendar.readonly',
-      access_type: 'offline',
-      prompt: 'consent',
-      include_granted_scopes: 'true',
-    },
-    profile: profile => profile.email || profile.name || 'Google Calendar',
-  });
-  calendar.api = (connection, pathname) => authorized(new URL(`https://www.googleapis.com/calendar/v3${pathname}`), 'Google Calendar', connection);
-
   const weather = {
     label: 'Weather', configured: true,
     async search(name) {
       const url = new URL('https://geocoding-api.open-meteo.com/v1/search');
       url.search = new URLSearchParams({ name, count: '6', language: 'en' }).toString();
-      const { results = [] } = await request(url, 'Weather location search');
-      return results.filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map(item => ({
+      const code = regionCodes.get(name.toLowerCase());
+      const [locations, country] = await Promise.allSettled([
+        request(url, 'Weather location search'),
+        code ? request(new URL(`https://api.worldbank.org/v2/country/${code}?format=json`), 'Country lookup', { signal: AbortSignal.timeout(2500) }) : null,
+      ]);
+      const capital = country.status === 'fulfilled' ? country.value?.[1]?.[0] : null;
+      if (locations.status === 'rejected' && !capital) throw locations.reason;
+      const results = locations.status === 'fulfilled' ? locations.value.results ?? [] : [];
+      const matches = results.filter(item => Number.isFinite(item.latitude) && Number.isFinite(item.longitude)).map(item => ({
         name: [...new Set([item.name, item.admin1, item.country].filter(Boolean))].join(', '),
         latitude: item.latitude,
         longitude: item.longitude,
       }));
+      if (capital?.capitalCity && capital.latitude && capital.longitude) {
+        const result = {
+          name: `${regionNames.of(code)} · ${capital.capitalCity}`,
+          latitude: Number(capital.latitude),
+          longitude: Number(capital.longitude),
+        };
+        const duplicate = matches.findIndex(match => Math.hypot(match.latitude - result.latitude, match.longitude - result.longitude) < 0.25);
+        if (duplicate >= 0) matches.splice(duplicate, 1);
+        matches.unshift(result);
+      }
+      return matches.slice(0, 6);
     },
     async verify({ latitude, longitude }) {
       const url = new URL('https://api.open-meteo.com/v1/forecast');
@@ -154,6 +171,7 @@ export function createProviders(env, fetcher) {
         wind: current.wind_speed_10m,
         isDay: current.is_day === 1,
         localTime: current.time,
+        timezone: reply.timezone,
         sunrise: reply.daily?.sunrise?.[0] ?? null,
         sunset: reply.daily?.sunset?.[0] ?? null,
         location: connection.account,
@@ -161,5 +179,5 @@ export function createProviders(env, fetcher) {
     },
   };
 
-  return { notion, spotify, calendar, weather };
+  return { notion, spotify, weather };
 }

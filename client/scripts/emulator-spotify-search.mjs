@@ -27,7 +27,6 @@ try {
     body: JSON.stringify({
       notion: { configured: false, connected: false },
       spotify: { configured: true, connected: true, account: 'Demo account' },
-      calendar: { configured: false, connected: false },
       weather: { configured: false, connected: false },
     }),
   }));
@@ -45,6 +44,7 @@ try {
     contentType: 'application/json',
     body: JSON.stringify([{ id: 'mock-device', name: 'Garage Jam Headset', type: 'Computer', active: true, volume: 80 }]),
   }));
+  await page.route('**/api/plugins/spotify/playlists', route => route.fulfill({ json: [] }));
   await page.route(/\/api\/plugins\/spotify\/search/, async route => {
     const url = new URL(route.request().url());
     searchRequests.push(url.searchParams.get('q'));

@@ -5,7 +5,9 @@ import type { SlotPlacement } from './placement-solver.js';
 export type TableView = 'workbench' | 'real';
 export type Units = 'cm' | 'in';
 export type WorkMode = 'passthrough' | 'streaming';
-export type SkyMode = 'golden' | 'time' | 'weather';
+export type SkyMode = 'morning' | 'noon' | 'golden' | 'night' | 'time';
+export type WeatherMode = 'sunny' | 'rain' | 'snow' | 'live';
+export type WeatherLocation = { name: string; latitude: number; longitude: number };
 
 export type GaragePreferences = {
   units: Units;
@@ -15,6 +17,8 @@ export type GaragePreferences = {
   cutouts: boolean;
   mode: WorkMode;
   skyMode: SkyMode;
+  weatherMode: WeatherMode;
+  weatherLocation: WeatherLocation | null;
   outlines: boolean;
   musicVolume: number;
   sfxVolume: number;
@@ -37,6 +41,8 @@ const defaults: GaragePreferences = {
   cutouts: true,
   mode: 'passthrough',
   skyMode: 'golden',
+  weatherMode: 'sunny',
+  weatherLocation: null,
   outlines: true,
   musicVolume: 40,
   sfxVolume: 65,
@@ -53,7 +59,13 @@ const defaults: GaragePreferences = {
 export function loadPreferences(): GaragePreferences {
   try {
     const stored = localStorage.getItem(key);
-    return stored ? { ...defaults, ...JSON.parse(stored) } : { ...defaults };
+    const previous = stored ? JSON.parse(stored) : null;
+    const prefs: GaragePreferences = { ...defaults, ...previous };
+    if (previous?.skyMode === 'weather') {
+      prefs.skyMode = 'time';
+      prefs.weatherMode = 'live';
+    }
+    return prefs;
   } catch {
     return { ...defaults };
   }

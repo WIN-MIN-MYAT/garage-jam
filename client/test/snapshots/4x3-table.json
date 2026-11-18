@@ -14,17 +14,6 @@
       "wallId": null
     },
     {
-      "slotId": "calendar-board",
-      "position": [
-        -1.05,
-        1.3,
-        0.942
-      ],
-      "yaw": -3.142,
-      "scale": 1,
-      "wallId": "wall-2"
-    },
-    {
       "slotId": "corkboard",
       "position": [
         0.8,
@@ -73,16 +62,16 @@
       "position": [
         -1.6,
         0,
-        -1
+        -0.7
       ],
-      "yaw": 1.012,
+      "yaw": 1.158,
       "scale": 1,
       "wallId": null
     },
     {
       "slotId": "neon",
       "position": [
-        1.5,
+        -1.4,
         1.65,
         0.942
       ],
@@ -104,33 +93,33 @@
     {
       "slotId": "patch-bay",
       "position": [
-        -1.942,
+        1.45,
         1.2,
-        -0.95
+        0.942
+      ],
+      "yaw": -3.142,
+      "scale": 1,
+      "wallId": "wall-2"
+    },
+    {
+      "slotId": "pegboard",
+      "position": [
+        -1.902,
+        1.175,
+        -0.6
       ],
       "yaw": 1.571,
       "scale": 1,
       "wallId": "wall-3"
     },
     {
-      "slotId": "pegboard",
-      "position": [
-        1.902,
-        1.175,
-        0.2
-      ],
-      "yaw": -1.571,
-      "scale": 1,
-      "wallId": "wall-1"
-    },
-    {
       "slotId": "shelf",
       "position": [
-        -1.7,
+        -1.6,
         0,
-        0.1
+        0.4
       ],
-      "yaw": 1.63,
+      "yaw": 1.816,
       "scale": 1,
       "wallId": null
     },
@@ -139,7 +128,7 @@
       "position": [
         1.942,
         1.3,
-        -0.95
+        -0.45
       ],
       "yaw": -1.571,
       "scale": 1,
@@ -150,9 +139,9 @@
       "position": [
         1.7,
         0,
-        -1.7
+        0.2
       ],
-      "yaw": -0.785,
+      "yaw": -1.688,
       "scale": 1,
       "wallId": null
     },
@@ -166,6 +155,17 @@
       "yaw": -0.951,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "whiteboard",
+      "position": [
+        -1.959,
+        1.24,
+        -1.49
+      ],
+      "yaw": 1.571,
+      "scale": 0.65,
+      "wallId": "wall-3"
     }
   ],
   "unplaced": [
@@ -179,10 +179,6 @@
     },
     {
       "slotId": "tires",
-      "reason": "no valid candidate after gap/scale fallback"
-    },
-    {
-      "slotId": "whiteboard",
       "reason": "no valid candidate after gap/scale fallback"
     }
   ],

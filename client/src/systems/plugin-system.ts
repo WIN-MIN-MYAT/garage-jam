@@ -1,7 +1,7 @@
-import { createSystem, Mesh, Vector3, VisibilityState } from '@iwsdk/core';
+import { createSystem, Vector3, VisibilityState } from '@iwsdk/core';
 import type { Object3D } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { garageState } from '../garage-state.js';
+import { garageState, setPreference, type WeatherLocation } from '../garage-state.js';
 import { garageRootsVisible } from '../garage-visibility.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { apiUrl } from '../backend.js';
@@ -21,13 +21,13 @@ export class PluginSystem extends createSystem({}) {
   private profile = this.loadProfile();
   private statuses: Statuses = {};
   private spotify: SpotifyState = { active: false };
-  private calendar: any[] = [];
   private weather: any = null;
+  private weatherRequest = 0;
+  private nextWeatherPoll = 0;
   private playlists: any[] = [];
   private spotifyBackoffUntil = 0;
   private pairingUntil = 0;
   private localMusic = false;
-  private speakers: Mesh[] = [];
   private boombox?: Object3D;
   private boomboxDirty = true;
   private musicPosition = new Vector3();
@@ -61,7 +61,7 @@ export class PluginSystem extends createSystem({}) {
     garageEvents.addEventListener('garage-props-rebuilt', onRevealed);
     const roomHidden = () => { this.standHidden = true; this.updateMusicPresence(); };
     const roomShown = () => { this.standHidden = false; this.updateMusicPresence(); };
-    const onReset = () => { this.boombox = undefined; this.speakers = []; this.boomboxDirty = true; roomShown(); };
+    const onReset = () => { this.boombox = undefined; this.boomboxDirty = true; roomShown(); };
     const passthrough = (event: Event) => {
       this.manualPassthrough = (event as CustomEvent<boolean>).detail;
       this.updateMusicPresence();
@@ -93,6 +93,19 @@ export class PluginSystem extends createSystem({}) {
     const search = (event: Event) => {
       void this.search(String((event as CustomEvent<{ query?: string }>).detail?.query ?? ''));
     };
+    const weatherSearch = (event: Event) => {
+      void this.searchWeather((event as CustomEvent<{ query: string }>).detail.query);
+    };
+    const weatherSelect = (event: Event) => {
+      const place = (event as CustomEvent<WeatherLocation>).detail;
+      setPreference('weatherLocation', place);
+      setPreference('skyMode', 'time');
+      setPreference('weatherMode', 'live');
+      this.weather = null;
+      emit('weather-current', null);
+      emit('sky-mode-changed');
+      void this.pollWeather(true);
+    };
     garageEvents.addEventListener('plugin-refresh', refresh);
     garageEvents.addEventListener('plugin-connect', connect);
     garageEvents.addEventListener('spotify-action', action);
@@ -102,21 +115,21 @@ export class PluginSystem extends createSystem({}) {
     garageEvents.addEventListener('music-toggle', musicToggle);
     garageEvents.addEventListener('music-volume', volume);
     garageEvents.addEventListener('spotify-search', search);
+    garageEvents.addEventListener('weather-location-search', weatherSearch);
+    garageEvents.addEventListener('weather-location-selected', weatherSelect);
     this.pollTimer = window.setInterval(() => {
       if (!this.active) return;
       const now = Date.now();
       if (now - this.lastPoll < (now < this.pairingUntil ? 3000 : 12000)) return;
       this.lastPoll = now;
       if (this.statuses.spotify?.connected) void this.pollSpotify();
-      if (this.statuses.calendar?.connected) void this.pollCalendar();
-      if (this.statuses.weather?.connected) void this.pollWeather();
+      void this.pollWeather();
     }, 5000);
     if (location.hostname === 'localhost') {
       const system = this;
       (window as any).garagePluginDebug = {
         get statuses() { return system.statuses; },
         get spotify() { return system.spotify; },
-        get calendar() { return system.calendar; },
         get weather() { return system.weather; },
         get playlists() { return system.playlists; },
         get headset() { return { status: system.headsetStatus, deviceId: system.spotifyDeviceId, message: system.headsetMessage }; },
@@ -148,6 +161,8 @@ export class PluginSystem extends createSystem({}) {
       garageEvents.removeEventListener('music-toggle', musicToggle);
       garageEvents.removeEventListener('music-volume', volume);
       garageEvents.removeEventListener('spotify-search', search);
+      garageEvents.removeEventListener('weather-location-search', weatherSearch);
+      garageEvents.removeEventListener('weather-location-selected', weatherSelect);
       this.spotifyPlayer?.disconnect?.();
       this.spotifyPlayer = null;
       this.stopLocalMusic();
@@ -199,8 +214,7 @@ export class PluginSystem extends createSystem({}) {
       if (!this.statuses.spotify?.connected) this.resetHeadsetPlayer();
       else if (this.headsetRequested) void this.ensureHeadsetPlayer();
       if (this.statuses.spotify?.connected) void this.pollSpotify();
-      if (this.statuses.calendar?.connected) void this.pollCalendar();
-      if (this.statuses.weather?.connected) void this.pollWeather();
+      void this.pollWeather();
     } catch { /* offline is fine */ }
   }
 
@@ -330,22 +344,37 @@ export class PluginSystem extends createSystem({}) {
     } catch { /* keep cached lists */ }
   }
 
-  private async pollCalendar() {
+  private async searchWeather(query: string) {
     try {
-      const response = await this.api('/api/plugins/calendar/today');
-      if (!response.ok) return;
-      this.calendar = await response.json();
-      emit('calendar-events', this.calendar);
-    } catch { /* no calendar */ }
+      const response = await this.api(`/api/plugins/weather/locations?${new URLSearchParams({ name: query })}`);
+      if (!response.ok) throw new Error('Weather search is unavailable. Try again.');
+      emit('weather-search-results', { query, results: await response.json() });
+    } catch {
+      emit('weather-search-results', { query, results: [], error: 'Weather search is unavailable. Try again.' });
+    }
   }
 
-  private async pollWeather() {
+  private async pollWeather(force = false) {
+    const place = garageState.preferences.weatherLocation;
+    if (!place && !this.statuses.weather?.connected && garageState.preferences.weatherMode !== 'live') return;
+    if (!force && Date.now() < this.nextWeatherPoll) return;
+    const request = ++this.weatherRequest;
+    const query = place ? '?' + new URLSearchParams({
+      latitude: String(place.latitude), longitude: String(place.longitude), name: place.name,
+    }) : '';
+    this.nextWeatherPoll = Date.now() + 600000;
     try {
-      const response = await this.api('/api/plugins/weather/current');
-      if (!response.ok) return;
-      this.weather = await response.json();
+      const response = await this.api('/api/plugins/weather/current' + query);
+      if (!response.ok) throw new Error('Weather unavailable');
+      const current = await response.json();
+      if (request !== this.weatherRequest || place !== garageState.preferences.weatherLocation) return;
+      this.weather = current;
       emit('weather-current', this.weather);
-    } catch { /* no weather */ }
+    } catch {
+      if (request !== this.weatherRequest) return;
+      this.nextWeatherPoll = Date.now() + 30000;
+      if (force) emit('status', 'Weather is unavailable. The garage will retry.');
+    }
   }
 
   private async playerAction(detail: { action?: string; value?: any; deviceId?: string; contextUri?: string; uris?: string[]; play?: boolean }) {
@@ -417,7 +446,7 @@ export class PluginSystem extends createSystem({}) {
     if (revealAudio.startLoFi(this.musicPosition)) {
       this.localMusic = true;
       emit('local-music-state', true);
-      emit('status', 'Playing local lo-fi fallback');
+      emit('status', 'Playing Garage lo-fi');
     } else {
       emit('status', 'Local audio could not start. Tap Play again.');
     }
@@ -447,18 +476,7 @@ export class PluginSystem extends createSystem({}) {
 
   private refreshBoombox() {
     this.boomboxDirty = false;
-    const boombox = this.world.scene.getObjectByName('PLACED_boombox');
-    if (!boombox) {
-      this.boombox = undefined;
-      this.speakers = [];
-      return;
-    }
-    if (this.boombox === boombox) return;
-    this.boombox = boombox;
-    this.speakers = [];
-    boombox.traverse(object => {
-      if (object instanceof Mesh && object.name.startsWith('Boombox speaker')) this.speakers.push(object);
-    });
+    this.boombox = this.world.scene.getObjectByName('PLACED_boombox');
   }
 
   private boomboxAttached() {
@@ -533,16 +551,10 @@ export class PluginSystem extends createSystem({}) {
 
   update() {
     const now = performance.now();
-    const playing = this.isHeadsetPlaying() || this.localMusic;
     // Track the boombox every frame so the local panner and the Spotify
     // distance mix follow it after a rearrange or a new room build.
     this.updateSpeakerPosition();
     if (this.localMusic) revealAudio.moveLoFi(this.musicPosition, this.musicFacing);
     this.mixSpotify(now);
-    if (!this.speakers.length) return;
-    const pulse = playing ? 1 + Math.sin(now / 110) * 0.055 : 1;
-    for (const speaker of this.speakers) {
-      speaker.scale.setScalar(pulse);
-    }
   }
 }

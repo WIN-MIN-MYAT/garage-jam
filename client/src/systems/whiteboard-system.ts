@@ -1,4 +1,4 @@
-import { CanvasTexture, createSystem, Group, Mesh, MeshBasicMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3 } from '@iwsdk/core';
+import { CanvasTexture, createSystem, Group, Matrix4, Mesh, MeshBasicMaterial, PlaneGeometry, Quaternion, SRGBColorSpace, Vector3 } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot, garageRootsVisible } from '../garage-visibility.js';
@@ -6,6 +6,7 @@ import { slotRules } from '../slot-rules.js';
 import { uiInputActive } from '../ui-press.js';
 
 type Stroke = { color: string; points: { x: number; y: number }[] };
+type DrawingInput = { source: XRInputSource; direct: boolean };
 const key = 'garage-jam-whiteboard-v1';
 const colors = ['#9b315d', '#245c73', '#65621f', '#443347'];
 const legacyInk: Record<string, string> = {
@@ -31,7 +32,12 @@ export class WhiteboardSystem extends createSystem({}) {
   private width = 1.2;
   private height = 0.8;
   private strokes: Stroke[] = load();
-  private drawing = false;
+  private drawing?: DrawingInput;
+  private boardFromWorld = new Matrix4();
+  private tip = new Vector3();
+  private origin = new Vector3();
+  private direction = new Vector3();
+  private rotation = new Quaternion();
   private last = { x: 0, y: 0 };
   private colorIndex = 0;
   private lastUpload = 0;
@@ -116,45 +122,80 @@ export class WhiteboardSystem extends createSystem({}) {
     const session = this.world.session;
     const space = this.world.renderer.xr.getReferenceSpace();
     if (!mesh || !session || !space || !garageRootsVisible()) { if (this.drawing) this.finish(); return; }
-    if (uiInputActive()) { if (this.drawing) this.finish(); return; }
-    const side = garageState.preferences.dominantHand;
-    const source = this.input.xr.getPrimaryInputSource?.(side) ?? Array.from(session.inputSources).find(input => input.handedness === side);
-    if (!source?.targetRaySpace) { if (this.drawing) this.finish(); return; }
-    const pose = frame.getPose(source.targetRaySpace, space);
-    if (!pose) { if (this.drawing) this.finish(); return; }
-    const { position, orientation } = pose.transform;
-    const direction = new Vector3(0, 0, -1).applyQuaternion(new Quaternion(orientation.x, orientation.y, orientation.z, orientation.w));
-    const origin = new Vector3(position.x, position.y, position.z);
-    mesh.updateMatrixWorld(true);
-    const normal = new Vector3(0, 0, 1).applyQuaternion(mesh.getWorldQuaternion(new Quaternion()));
-    const denom = direction.dot(normal);
-    if (Math.abs(denom) < 1e-4) { if (this.drawing) this.finish(); return; }
-    const toPlane = mesh.getWorldPosition(new Vector3()).sub(origin);
-    const t = toPlane.dot(normal) / denom;
-    if (t <= 0 || t > 3) { if (this.drawing) this.finish(); return; }
-    const hit = origin.addScaledVector(direction, t);
-    const local = mesh.worldToLocal(hit.clone());
-    const inside = Math.abs(local.x) <= this.width / 2 && Math.abs(local.y) <= this.height / 2;
-    const pressed = source.hand
-      ? (this.input.xr.visualAdapters.hand[side]?.getPinchStrength?.() ?? 0) > 0.6 || this.input.xr.getSelectState?.(side)?.active
-      : source.gamepad?.buttons[0]?.pressed ?? false;
-    if (!inside || !pressed) {
-      if (this.drawing) this.finish();
+    mesh.updateWorldMatrix(true, false);
+    this.boardFromWorld.copy(mesh.matrixWorld).invert();
+    if (this.drawing) {
+      const { source, direct } = this.drawing;
+      const hit = Array.from(session.inputSources).includes(source) && this.pressed(source, true)
+        ? this.boardPoint(frame, space, source, direct) : null;
+      if (hit) this.record(hit);
+      else this.finish();
       return;
     }
+    const preferred = garageState.preferences.dominantHand;
+    const sources = Array.from(session.inputSources);
+    for (const side of [preferred, preferred === 'left' ? 'right' : 'left']) {
+      for (const source of sources) {
+        if (source.handedness !== side || source.targetRayMode !== 'tracked-pointer' || (!source.hand && side !== preferred)
+            || !this.pressed(source, false)) continue;
+        const fingertip = source.hand ? this.boardPoint(frame, space, source, true) : null;
+        const hit = fingertip ?? this.boardPoint(frame, space, source, false);
+        if (!hit) continue;
+        this.drawing = { source, direct: !!fingertip };
+        const stroke: Stroke = { color: colors[this.colorIndex++ % colors.length], points: [] };
+        this.strokes.push(stroke);
+        this.record(hit, true);
+        return;
+      }
+    }
+  }
+
+  private pressed(source: XRInputSource, drawing: boolean) {
+    if (!source.hand) return source.gamepad?.buttons[0]?.pressed ?? false;
+    const side = source.handedness;
+    if (side !== 'left' && side !== 'right') return false;
+    const strength = this.input.xr.visualAdapters.hand[side]?.getPinchStrength?.() ?? 0;
+    return strength > (drawing ? 0.35 : 0.60) || !!this.input.xr.getSelectState?.(side)?.active;
+  }
+
+  private boardPoint(frame: XRFrame, space: XRReferenceSpace, source: XRInputSource, direct: boolean) {
+    let local: Vector3;
+    if (direct) {
+      const joint = source.hand?.get('index-finger-tip');
+      const pose = joint && frame.getJointPose?.(joint, space);
+      if (!pose) return null;
+      const { x, y, z } = pose.transform.position;
+      local = this.tip.set(x, y, z).applyMatrix4(this.boardFromWorld);
+      const depth = local.z * (this.mesh?.scale.x ?? 1);
+      if (depth < -0.04 || depth > 0.10) return null;
+    } else {
+      if (uiInputActive()) return null;
+      const pose = frame.getPose(source.targetRaySpace, space);
+      if (!pose) return null;
+      const { position, orientation } = pose.transform;
+      local = this.origin.set(position.x, position.y, position.z).applyMatrix4(this.boardFromWorld);
+      this.direction.set(0, 0, -1).applyQuaternion(this.rotation.set(orientation.x, orientation.y, orientation.z, orientation.w));
+      this.direction.transformDirection(this.boardFromWorld);
+      if (local.z <= 0 || this.direction.z >= -1e-4) return null;
+      const distance = -local.z / this.direction.z;
+      if (distance * (this.mesh?.scale.x ?? 1) > 3) return null;
+      local.addScaledVector(this.direction, distance);
+    }
+    return Math.abs(local.x) <= this.width / 2 && Math.abs(local.y) <= this.height / 2 ? local : null;
+  }
+
+  private record(local: Vector3, first = false) {
     const point = {
       x: Math.max(0, Math.min(1, local.x / this.width + 0.5)),
       y: Math.max(0, Math.min(1, 1 - (local.y / this.height + 0.5))),
     };
-    if (!this.drawing) {
-      this.drawing = true;
-      const stroke: Stroke = { color: colors[this.colorIndex++ % colors.length], points: [point] };
-      this.strokes.push(stroke);
+    const stroke = this.strokes[this.strokes.length - 1];
+    if (first) {
+      stroke.points.push(point);
       this.last = point;
       this.drawDot(stroke, point);
       this.markTexture(true);
     } else if (Math.hypot(point.x - this.last.x, point.y - this.last.y) > 0.006) {
-      const stroke = this.strokes[this.strokes.length - 1];
       stroke.points.push(point);
       this.drawSegment(stroke, this.last, point);
       this.last = point;
@@ -163,7 +204,7 @@ export class WhiteboardSystem extends createSystem({}) {
   }
 
   private finish() {
-    this.drawing = false;
+    this.drawing = undefined;
     const before = this.strokes.length;
     this.strokes = this.strokes.slice(-40);
     try { localStorage.setItem(key, JSON.stringify(this.strokes)); } catch { /* private mode */ }
@@ -237,7 +278,7 @@ export class WhiteboardSystem extends createSystem({}) {
 
   private clear() {
     this.strokes = [];
-    this.drawing = false;
+    this.drawing = undefined;
     try { localStorage.removeItem(key); } catch { /* private mode */ }
     this.redraw();
     emit('status', 'Whiteboard cleared');

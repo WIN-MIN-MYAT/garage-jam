@@ -9,6 +9,19 @@ try {
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   page.on('response', response => { if (response.status() >= 500) errors.push(`${response.status()} ${response.url()}`); });
+  await page.route('**/api/tasks', route => {
+    if (route.request().method() !== 'GET') return route.continue();
+    return route.fulfill({
+      json: {
+        tasks: [
+          { id: 'qa-task-1', title: 'QA task one', priority: 'High', due: null, source: 'local', starter: true },
+          { id: 'qa-task-2', title: 'QA task two', priority: 'Medium', due: null, source: 'local', starter: true },
+        ],
+        offline: false,
+        notion: { configured: false },
+      },
+    });
+  });
   await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/?revealSpeed=3`, { waitUntil: 'domcontentloaded' });
   await page.waitForFunction(() => window.garageWristDebug && window.garageManualDebug?.panel && window.IWER_DEVICE);
   const click = (owner, id) => page.evaluate(({ owner, id }) => window[owner].panel.requireElementById(id).dispatchEvent({ type: 'click' }), { owner, id });
@@ -85,11 +98,16 @@ try {
   await page.evaluate(() => window.garageWristDebug.show('plugins'));
   await page.waitForTimeout(300);
   await page.evaluate(() => window.garageWristDebug.panel.requireElementById('wm-connect-weather').dispatchEvent({ type: 'click' }));
-  await page.waitForFunction(() => window.garageWristDebug.panel.requireElementById('wm-plugin-note').properties.value.text.includes('CODE'), null, { timeout: 8000 });
-  const pairingNote = await page.evaluate(() => ({ note: window.garageWristDebug.panel.requireElementById('wm-plugin-note').properties.value.text, url: location.href }));
-  assert.match(pairingNote.note, /CODE [0-9A-F]{6}/);
-  assert.ok(pairingNote.url.includes('/?'), 'plugin pairing must not navigate away from XR');
-  await page.evaluate(() => window.garageWristDebug.hide());
+  await page.waitForFunction(() => window.garageSpotifySearchDebug?.state.open === true, null, { timeout: 8000 });
+  const weatherPanel = await page.evaluate(() => ({
+    title: window.garageSpotifySearchDebug.panel.requireElementById('ss-title').properties.value.text,
+    open: window.garageSpotifySearchDebug.state.open,
+    url: location.href,
+  }));
+  assert.equal(weatherPanel.title, 'Weather location');
+  assert.equal(weatherPanel.open, true);
+  assert.ok(weatherPanel.url.includes('/?'), 'weather search must not navigate away from XR');
+  await page.evaluate(() => window.garageSpotifySearchDebug.close());
 
   await page.evaluate(() => window.garageMonitorDebug?.show());
   await page.waitForTimeout(400);
@@ -162,7 +180,7 @@ try {
   const seat = await page.evaluate(() => window.garagePresenceDebug.pose);
   await moveHead({ ...seat, y: seat.y + 0.48 });
   await page.waitForFunction(() => window.garagePresenceDebug.hidden && !window.garageBuildDebug.root.visible);
-  assert.equal(await page.evaluate(() => window.garageWristDebug.panel.visible), false);
+  assert.equal(await page.evaluate(() => window.garageWristDebug.panel.visible), true);
   await moveHead(seat);
   await page.waitForFunction(() => !window.garagePresenceDebug.hidden
     && window.garageBuildDebug.root.visible && window.garageWristDebug.panel.visible);

@@ -14,26 +14,15 @@
       "wallId": null
     },
     {
-      "slotId": "calendar-board",
+      "slotId": "corkboard",
       "position": [
-        -1.05,
-        1.3,
+        -1.4,
+        1.2,
         0.942
       ],
       "yaw": -3.142,
       "scale": 1,
       "wallId": "wall-2"
-    },
-    {
-      "slotId": "corkboard",
-      "position": [
-        0.7,
-        1.2,
-        -1.942
-      ],
-      "yaw": 0,
-      "scale": 1,
-      "wallId": "wall-0"
     },
     {
       "slotId": "crates",
@@ -49,13 +38,13 @@
     {
       "slotId": "graffiti",
       "position": [
-        -1.985,
+        1.985,
         1.11,
-        -1.185
+        0.285
       ],
-      "yaw": 1.571,
+      "yaw": -1.571,
       "scale": 0.65,
-      "wallId": "wall-3"
+      "wallId": "wall-1"
     },
     {
       "slotId": "lamp",
@@ -82,13 +71,13 @@
     {
       "slotId": "neon",
       "position": [
-        1.942,
+        0.9,
         1.65,
-        -0.9
+        -1.942
       ],
-      "yaw": -1.571,
+      "yaw": 0,
       "scale": 1,
-      "wallId": "wall-1"
+      "wallId": "wall-0"
     },
     {
       "slotId": "paper-zone",
@@ -117,7 +106,7 @@
       "position": [
         1.902,
         1.175,
-        0.1
+        -0.8
       ],
       "yaw": -1.571,
       "scale": 1,
@@ -155,6 +144,17 @@
       "yaw": -1.816,
       "scale": 1,
       "wallId": null
+    },
+    {
+      "slotId": "whiteboard",
+      "position": [
+        -1.942,
+        1.1,
+        -1.2
+      ],
+      "yaw": 1.571,
+      "scale": 1,
+      "wallId": "wall-3"
     }
   ],
   "unplaced": [
@@ -173,10 +173,6 @@
     {
       "slotId": "toolbox",
       "reason": "removed to make room for P0 door"
-    },
-    {
-      "slotId": "whiteboard",
-      "reason": "no valid candidate after gap/scale fallback"
     }
   ],
   "p0Unplaced": [

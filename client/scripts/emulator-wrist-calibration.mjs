@@ -113,6 +113,7 @@ try {
   await page.waitForTimeout(420);
   assert.equal(await page.evaluate(() => window.garageWristDebug.panel.visible), true);
   await menu('wm-pin');
+  await lookAt({ x: 2, y: 1.6, z: 0 });
   await page.waitForFunction(() => !window.garageWristDebug.panel.visible);
 
   const reopen = async () => {
@@ -151,7 +152,7 @@ try {
   for (const id of ['wm-units', 'wm-hand', 'wm-motion', 'wm-reveal', 'wm-sound', 'wm-outlines', 'wm-sky', 'wm-focus-length', 'wm-standup']) await menu(id);
   const prefs = await preferences();
   assert.deepEqual([prefs.units, prefs.dominantHand, prefs.reducedMotion, prefs.revealOff, prefs.revealSound, prefs.outlines, prefs.skyMode, prefs.focusMinutes, prefs.standUpFade],
-    ['in', 'left', true, true, false, false, 'time', 45, true]);
+    ['in', 'left', true, true, false, false, 'night', 45, true]);
   await menu('wm-tab-music');
   assert.equal(await page.evaluate(() => window.garageWristDebug.panel.requireElementById('page-music').properties.value.display), 'flex');
   await menu('wm-tab-settings');
