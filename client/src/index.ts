@@ -7,7 +7,6 @@ import { TaskBoardSystem } from './systems/task-board-system.js';
 import { FocusSystem } from './systems/focus-system.js';
 import { PluginSystem } from './systems/plugin-system.js';
 import { EnvironmentSystem } from './systems/environment-system.js';
-import { VoiceSystem } from './systems/voice-system.js';
 import { NudgeSystem } from './systems/nudge-system.js';
 import { WhiteboardSystem } from './systems/whiteboard-system.js';
 import { PresenceSystem } from './systems/presence-system.js';
@@ -122,7 +121,6 @@ function startApp() {
       world.registerSystem(HudSystem);
       world.registerSystem(ToastSystem);
       world.registerSystem(PluginSystem);
-      world.registerSystem(VoiceSystem);
     } else if (cutoutSpike) {
       world.registerSystem(HudSystem);
       world.registerSystem(CutoutSpikeSystem);
@@ -146,7 +144,6 @@ function startApp() {
       world.registerSystem(FocusSystem);
       world.registerSystem(PluginSystem);
       world.registerSystem(EnvironmentSystem);
-      world.registerSystem(VoiceSystem);
       world.registerSystem(NudgeSystem);
       world.registerSystem(WhiteboardSystem);
       world.registerSystem(PresenceSystem);

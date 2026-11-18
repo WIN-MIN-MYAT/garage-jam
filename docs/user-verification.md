@@ -75,7 +75,6 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Confirm each completed task adds a paint splat to the mural and that splats persist after reload.
 - [ ] Drop/release a flat paper near the corkboard. Confirm it freezes on the corkboard, pins into Today / Top 3, and persists after reload.
 - [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and **Clear board** in wrist SET clears them.
-- [ ] Trigger **Voice task** and say “add task …”. Confirm a new local task and paper appear. If Web Speech is unavailable in Quest Browser, confirm the friendly fallback message.
 - [ ] Let the break nudge appear (use `?nudgeDemo=1`), confirm the neon message, sound, and dismissal event.
 - [ ] Confirm the local lo-fi fallback plays from the Music page when Spotify is not connected, and stops on pause.
 

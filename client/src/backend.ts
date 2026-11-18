@@ -40,7 +40,3 @@ export function senderUrl(room?: string) {
 export function connectUrl() {
   return `${backendOrigin}/connect`;
 }
-
-export function voiceUrl() {
-  return `${backendOrigin}/voice`;
-}

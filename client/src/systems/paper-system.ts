@@ -90,7 +90,6 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
   private taskLoadGeneration = 0;
   private roomHidden = false;
   private highlightingZone = false;
-  private pollTimer = 0;
 
   init() {
     this.paperLoader.setMeshoptDecoder(MeshoptDecoder);
@@ -128,10 +127,6 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     garageEvents.addEventListener('task-created', onCreated);
     garageEvents.addEventListener('room-hidden', onRoomHidden);
     garageEvents.addEventListener('room-shown', onRoomShown);
-    this.pollTimer = window.setInterval(() => {
-      if (this.started && !this.loading && !this.roomHidden) void this.refreshTasks();
-    }, 6000);
-    this.cleanupFuncs.push(() => window.clearInterval(this.pollTimer));
     if (location.hostname === 'localhost') Object.assign(((window as any).garageDebug ??= {}), {
       papers: () => [...this.queries.papers.entities].map(entity => ({ id: entity.getValue(PaperTask, 'taskId'), state: entity.getValue(PaperTask, 'state') })),
       crumpleFirst: () => { const first = this.queries.papers.entities.values().next().value; if (first) this.crumple(first); },
@@ -265,27 +260,6 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     } finally {
       if (generation === this.taskLoadGeneration) this.loading = false;
     }
-  }
-
-  private async refreshTasks() {
-    const generation = this.taskLoadGeneration;
-    try {
-      const response = await fetch(apiUrl('/api/tasks'));
-      if (!response.ok) return;
-      const result = await response.json() as { tasks: Task[]; offline: boolean };
-      if (generation !== this.taskLoadGeneration) return;
-      let added = 0;
-      for (const task of result.tasks ?? []) {
-        if (this.tasks.has(task.id)) continue;
-        this.tasks.set(task.id, task);
-        if (this.queries.papers.entities.size < paperLimit) {
-          this.spawn(task, this.queries.papers.entities.size);
-          added++;
-          emit('status', `New task: ${task.title}`);
-        }
-      }
-      if (added) emit('tasks-updated', { tasks: [...this.tasks.values()], offline: !!result.offline });
-    } catch { /* offline is fine */ }
   }
 
   private spawn(task: Task, index: number) {

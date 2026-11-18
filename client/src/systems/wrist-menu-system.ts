@@ -250,7 +250,6 @@ export class WristMenuSystem extends createSystem({}) {
       this.refresh();
     });
     on('wm-focus-end', () => emit('focus-cancel'));
-    on('wm-voice', () => { this.close(true); emit('voice-start'); });
     on('wm-mode-real', () => setWorkMode('passthrough'));
     on('wm-mode-stream', () => setWorkMode('streaming'));
     on('wm-monitors', () => { this.close(true); emit('monitor-manager-open'); });

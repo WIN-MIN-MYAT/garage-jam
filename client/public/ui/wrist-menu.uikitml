@@ -68,7 +68,6 @@
     <button id="wm-place" class="action">Center wrist panel</button>
     <div class="row">
       <button id="wm-focus" class="half"><div id="wm-focus-label" class="label">Start focus</div><div id="wm-focus-value" class="value">25M</div></button>
-      <button id="wm-voice" class="half">Voice task</button>
     </div>
     <button id="wm-focus-end" class="action danger" style="display: none">End focus</button>
     <div class="foot"><div id="wm-next-event" class="hint">No events today</div><div id="wm-page-label" class="hint">HOME</div></div>
