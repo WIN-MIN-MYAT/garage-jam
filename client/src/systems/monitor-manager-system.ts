@@ -3,7 +3,7 @@ import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
 import { garageState, setWorkMode } from '../garage-state.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
-import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
+import { getStreamRoom, streamSenderShareUrl } from '../stream-room.js';
 import { bindPress, clearUiInput, PanelInput, sendPanelToFront } from '../ui-press.js';
 import { pulseGamepads } from '../feedback.js';
 import { StreamSystem } from './stream-system.js';
@@ -123,7 +123,7 @@ export class MonitorManagerSystem extends createSystem({}) {
     set('mm-layout', { display: editing ? 'flex' : 'none' });
     set('mm-connect', { display: editing ? 'none' : 'flex' });
     if (!editing) {
-      set('mm-address', { text: streamSenderUrl('') });
+      set('mm-address', { text: streamSenderShareUrl() });
       set('mm-code', { text: getStreamRoom() });
       return;
     }

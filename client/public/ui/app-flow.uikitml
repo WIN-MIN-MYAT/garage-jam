@@ -66,7 +66,7 @@
     <div class="flow-body">Open this address in Chrome.</div>
     <div id="flow-pair-url" class="flow-body">/sender</div>
     <div class="flow-code-row"><div class="flow-body">Room code</div><div id="flow-pair-code" class="flow-code">...</div></div>
-    <div class="flow-hint">Enter the code and start sharing on an enabled monitor. Find this guide again in Connect.</div>
+    <div class="flow-hint">Open this link; the room is already filled in. Find this guide again in Connect.</div>
     <div id="flow-monitor-status" class="flow-hint">Ready to share</div>
     <button id="flow-continue-2" class="flow-primary">Continue to garage</button>
   </Panel>

@@ -167,7 +167,9 @@ export class PaperSystem extends createSystem({ papers: { required: [PaperTask] 
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-hidden', onRoomHidden));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('room-shown', onRoomShown));
     this.cleanupFuncs.push(() => garageEvents.removeEventListener('pinned-task-done', onBoardDone));
-    this.cleanupFuncs.push(this.world.onXRFrame(frame => this.sampleHands(frame)));
+    this.cleanupFuncs.push(this.world.onXRFrame(frame => {
+      try { this.sampleHands(frame); } catch { /* hand tracking is optional */ }
+    }));
     this.cleanupFuncs.push(() => { this.paperShell.dispose(); this.grabGeometry.dispose(); this.grabMaterial.dispose(); });
     this.cleanupFuncs.push(this.world.visibilityState.subscribe(state => {
       if (state === VisibilityState.Visible && this.demo && !this.started) onRevealed();

@@ -37,6 +37,11 @@ export function senderUrl(room?: string) {
   return `${backendOrigin}/sender${room ? `?room=${encodeURIComponent(room)}` : ''}`;
 }
 
+/** Short share link that pre-fills the sender's room code. */
+export function senderShareUrl(room?: string) {
+  return room ? `${backendOrigin}/s/${encodeURIComponent(room)}` : `${backendOrigin}/sender`;
+}
+
 export function connectUrl() {
   return `${backendOrigin}/connect`;
 }

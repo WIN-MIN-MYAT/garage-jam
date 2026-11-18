@@ -16,7 +16,7 @@ import { bindPress, clearUiInput, sendPanelToFront } from '../ui-press.js';
 import { pulseGamepads } from '../feedback.js';
 import type { RoomModel } from '../room-model.js';
 import type { ScanInfo } from '../room-scan.js';
-import { getStreamRoom, streamSenderUrl } from '../stream-room.js';
+import { getStreamRoom, streamSenderShareUrl } from '../stream-room.js';
 
 type PanelPage = 'scan' | 'mode' | 'devices' | 'pairing' | 'ready';
 
@@ -466,7 +466,7 @@ export class AppFlowSystem extends createSystem({}) {
     const pages: PanelPage[] = ['scan', 'mode', 'devices', 'pairing', 'ready'];
     for (const name of pages) this.panel.getElementById(`page-${name}`)?.setProperties({ display: name === page ? 'flex' : 'none' });
     if (page === 'pairing') {
-      this.panel.getElementById('flow-pair-url')?.setProperties({ text: streamSenderUrl('') });
+      this.panel.getElementById('flow-pair-url')?.setProperties({ text: streamSenderShareUrl() });
       this.panel.getElementById('flow-pair-code')?.setProperties({ text: getStreamRoom() });
       emit('stream-refresh');
     }

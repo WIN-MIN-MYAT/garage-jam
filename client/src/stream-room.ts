@@ -1,4 +1,4 @@
-import { senderUrl } from './backend.js';
+import { senderShareUrl, senderUrl } from './backend.js';
 
 const roomKey = 'garage-jam-stream-room-v1';
 const roomPattern = /^[A-Za-z0-9_-]{4,32}$/;
@@ -27,4 +27,8 @@ export function streamChannel(room: string, index: number) {
 
 export function streamSenderUrl(room = getStreamRoom()) {
   return senderUrl(room);
+}
+
+export function streamSenderShareUrl(room = getStreamRoom()) {
+  return senderShareUrl(room);
 }

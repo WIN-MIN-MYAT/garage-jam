@@ -378,8 +378,10 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
 
   private monitorAtHand(side: HandTurn['side']) {
     const xr = this.input.xr;
-    xr.xrOrigin.indexTipSpaces[side].getWorldPosition(this.pinchPoint);
-    const ray = xr.xrOrigin.raySpaces[side];
+    const tip = xr.xrOrigin?.indexTipSpaces?.[side];
+    const ray = xr.xrOrigin?.raySpaces?.[side];
+    if (!tip || !ray) return undefined;
+    tip.getWorldPosition(this.pinchPoint);
     ray.getWorldPosition(this.rayStart);
     ray.getWorldDirection(this.rayDirection).negate();
     let closest: Channel | undefined;
@@ -433,7 +435,12 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
         this.endHandTurn();
         return;
       }
-      xr.xrOrigin.indexTipSpaces[turn.side].getWorldPosition(this.pinchPoint);
+      const tip = xr.xrOrigin?.indexTipSpaces?.[turn.side];
+      if (!tip) {
+        this.endHandTurn();
+        return;
+      }
+      tip.getWorldPosition(this.pinchPoint);
       const movement = this.pinchPoint.sub(turn.start).dot(turn.right);
       const drag = Math.sign(movement) * Math.max(0, Math.abs(movement) - 0.012);
       const target = turn.yaw - 4.5 * drag;
@@ -452,7 +459,9 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
       const channel = held ?? this.monitorAtHand(side);
       if (!channel?.entity?.hasComponent(OneHandGrabbable)) continue;
       const yaw = channel.root.rotation.y;
-      xr.xrOrigin.indexTipSpaces[side].getWorldPosition(this.pinchPoint);
+      const tip = xr.xrOrigin?.indexTipSpaces?.[side];
+      if (!tip) continue;
+      tip.getWorldPosition(this.pinchPoint);
       channel.entity.setValue(OneHandGrabbable, 'rotate', false);
       this.handTurn = { side, channel, start: this.pinchPoint.clone(), right: new Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), yaw, appliedYaw: yaw, changed: false };
       break;
@@ -460,7 +469,13 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   update(delta: number) {
-    this.updateHandTurn(delta);
+    try {
+      this.updateHandTurn(delta);
+    } catch {
+      // Hand-tracking spaces can briefly disappear while tracking is acquired.
+      // Never let that interrupt the stream state machine.
+      this.endHandTurn();
+    }
     const grabbed = this.channels.some(channel => channel.entity && this.queries.grabbed.entities.has(channel.entity));
     if (grabbed === this.wasGrabbed) return;
     this.wasGrabbed = grabbed;

@@ -51,7 +51,7 @@
     <div class="note">Open this address in Chrome on your laptop.</div>
     <div id="mm-address" class="address">/sender</div>
     <div class="codeRow"><div class="label">Room code</div><div id="mm-code" class="code">...</div></div>
-    <div class="note">Enter the room code on the laptop. Then start sharing on an enabled monitor and pick a window or tab.</div>
+    <div class="note">Open this link in Chrome; the room is already filled in. Then start sharing on an enabled monitor and pick a window or tab.</div>
     <button id="mm-back" class="action">Manage monitors</button>
   </div>
 </Panel>

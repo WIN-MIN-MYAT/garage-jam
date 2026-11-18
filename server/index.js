@@ -58,6 +58,11 @@ app.put('/api/state', async (req, res) => {
   catch (error) { res.status(500).json({ error: error.message }); }
 });
 app.get('/sender', (_req, res) => res.sendFile(join(import.meta.dirname, '..', 'sender', 'sender.html')));
+app.get('/s/:room', (req, res) => {
+  const room = String(req.params.room ?? '');
+  if (!/^[A-Za-z0-9_-]{4,32}$/.test(room)) return res.status(400).send('Invalid room code.');
+  res.redirect(302, `/sender?room=${encodeURIComponent(room)}`);
+});
 app.get('/sender.js', (_req, res) => res.sendFile(join(import.meta.dirname, '..', 'sender', 'sender.js')));
 app.get('/sender/timecode', (_req, res) => res.sendFile(join(import.meta.dirname, '..', 'sender', 'timecode.html')));
 app.get('/connect', (_req, res) => res.sendFile(join(import.meta.dirname, 'plugin-manager', 'connect.html')));
