@@ -140,6 +140,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private deviceSignature = '[]';
   private layoutResolveToken = 0;
   private buildLayer = new Group();
+  private floorCollider?: Entity;
   private root = new Group();
   private loader = new GLTFLoader();
   private surfaces: RevealSurface[] = [];
@@ -229,6 +230,7 @@ export class GarageBuildSystem extends createSystem({}) {
       this.referenceSpace?.removeEventListener('reset', this.onSpaceReset);
       this.stopScanning();
       this.removeTableCollider();
+      this.removeFloorCollider();
       this.clearScanOverlay(true);
       this.scanOverlay.removeFromParent();
       this.scanLabels.forEach(texture => texture.dispose());
@@ -906,6 +908,8 @@ export class GarageBuildSystem extends createSystem({}) {
     else this.buildSky(skyGroup, null);
     await this.waitForModels();
     if (generation !== this.buildGeneration) return;
+    this.removeFloorCollider();
+    this.floorCollider = this.createSurfaceCollider('Garage floor collider', this.room.floor.polygon, this.room.floor.y + 0.002, 0.10);
     this.buildTableCollider();
     this.buildTableOccluder();
     this.applyTableVisibility();
@@ -1442,9 +1446,18 @@ export class GarageBuildSystem extends createSystem({}) {
   }
 
   private removeTableCollider() {
-    const mesh = this.tableCollider?.object3D;
-    this.tableCollider?.destroy();
+    this.disposeSurfaceCollider(this.tableCollider);
     this.tableCollider = undefined;
+  }
+
+  private removeFloorCollider() {
+    this.disposeSurfaceCollider(this.floorCollider);
+    this.floorCollider = undefined;
+  }
+
+  private disposeSurfaceCollider(entity?: Entity) {
+    const mesh = entity?.object3D;
+    entity?.destroy();
     if (mesh instanceof Mesh) {
       mesh.geometry.dispose();
       mesh.material.dispose();
@@ -1455,13 +1468,17 @@ export class GarageBuildSystem extends createSystem({}) {
     this.removeTableCollider();
     const table = this.room.table;
     if (!table) return;
-    const mesh = new Mesh(polygonShape(table.polygon, tabletopThickness), new MeshBasicMaterial({ visible: false }));
-    mesh.name = 'Table collider';
-    mesh.position.y = table.topY;
+    this.tableCollider = this.createSurfaceCollider('Table collider', table.polygon, table.topY, tabletopThickness);
+  }
+
+  private createSurfaceCollider(name: string, polygon: Vec2[], top: number, thickness: number) {
+    const mesh = new Mesh(polygonShape(polygon, thickness), new MeshBasicMaterial({ visible: false }));
+    mesh.name = name;
+    mesh.position.y = top;
     const entity = this.world.createTransformEntity(mesh);
     entity.addComponent(PhysicsShape, { shape: PhysicsShapeType.TriMesh, friction: 0.8 });
     entity.addComponent(PhysicsBody, { state: PhysicsState.Static });
-    this.tableCollider = entity;
+    return entity;
   }
 
   private buildTableOccluder() {
@@ -1961,6 +1978,7 @@ export class GarageBuildSystem extends createSystem({}) {
     this.clearScanOverlay(true);
     this.tableEditToken++;
     this.removeTableCollider();
+    this.removeFloorCollider();
     for (const texture of this.stickerTextures) texture.dispose?.();
     this.stickerTextures = [];
     this.revealStickers = [];

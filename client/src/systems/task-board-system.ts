@@ -1,4 +1,6 @@
-import { CanvasTexture, createSystem, DoubleSide, Group, Mesh, MeshBasicMaterial, PlaneGeometry, SRGBColorSpace, Vector3 } from '@iwsdk/core';
+import { CanvasTexture, createSystem, DoubleSide, Group, loadUIKitMLAsset, Mesh, MeshBasicMaterial, PlaneGeometry, PokeInteractable, RayInteractable, SRGBColorSpace, Vector3 } from '@iwsdk/core';
+import type { UIKitMLAsset } from '@iwsdk/core';
+import { bindPress } from '../ui-press.js';
 import { emit, garageEvents } from '../events.js';
 import { garageState } from '../garage-state.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
@@ -58,6 +60,9 @@ export class TaskBoardSystem extends createSystem({}) {
   private splatMeshes = new Map<string, Group>();
   private built = false;
   private refreshTimer = 0;
+  private pinnedActions?: UIKitMLAsset;
+  private pinnedRows: (string | undefined)[] = [];
+  private pending = new Set<string>();
 
   init() {
     this.root.name = 'Garage boards';
@@ -79,6 +84,12 @@ export class TaskBoardSystem extends createSystem({}) {
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<FocusState>).detail ?? this.focus; this.schedule(); };
     const onDone = () => { this.progress = loadProgress(); this.addSplat(); this.schedule(); };
     const onReset = () => { this.clear(); };
+    const onPending = (event: Event) => {
+      const { id, pending } = (event as CustomEvent<{ id: string; pending: boolean }>).detail;
+      if (pending) this.pending.add(id);
+      else this.pending.delete(id);
+      this.refreshPinnedActions();
+    };
     const onProgress = () => { this.progress = loadProgress(); this.rebuildSplats(); this.schedule(); };
     garageEvents.addEventListener('garage-revealed', onRevealed);
     garageEvents.addEventListener('garage-props-rebuilt', onLayout);
@@ -87,6 +98,8 @@ export class TaskBoardSystem extends createSystem({}) {
     garageEvents.addEventListener('task-done', onDone);
     garageEvents.addEventListener('progress-updated', onProgress);
     garageEvents.addEventListener('garage-reset', onReset);
+    garageEvents.addEventListener('pinned-task-pending', onPending);
+    void this.createPinnedActions().catch(error => console.warn('[board] Could not load task controls', error));
     if (location.hostname === 'localhost') {
       const system = this;
       (window as any).garageBoardDebug = {
@@ -94,6 +107,7 @@ export class TaskBoardSystem extends createSystem({}) {
         addSplat: () => this.addSplat(),
         get splats() { return system.progress.mural.length; },
         get tasks() { return system.tasks.length; },
+        get pinnedActions() { return system.pinnedActions; },
       };
     }
     void fetch(apiUrl('/api/state')).then(response => response.ok ? response.json() : null).then((remote: GarageProgress | null) => {
@@ -124,10 +138,42 @@ export class TaskBoardSystem extends createSystem({}) {
       garageEvents.removeEventListener('task-done', onDone);
       garageEvents.removeEventListener('progress-updated', onProgress);
       garageEvents.removeEventListener('garage-reset', onReset);
+      garageEvents.removeEventListener('pinned-task-pending', onPending);
+      this.pinnedActions?.dispose();
       unregisterGarageRoot(this.root);
       this.clear();
       this.root.removeFromParent();
     });
+  }
+
+  private async createPinnedActions() {
+    const panel = await loadUIKitMLAsset('/ui/pinned-task-actions.uikitml', { kit: 'horizon', preferredColorScheme: 'dark' });
+    panel.name = 'Pinned task actions';
+    panel.visible = false;
+    panel.document.rootElement.setProperties({ depthWrite: false, renderOrder: 5 });
+    const entity = this.world.createTransformEntity(panel, { persistent: true });
+    entity.addComponent(RayInteractable, {});
+    entity.addComponent(PokeInteractable, {});
+    this.root.add(panel);
+    this.pinnedActions = panel;
+    for (let index = 0; index < 3; index++) {
+      bindPress(panel, `pinned-done-${index}`, () => {
+        const id = this.pinnedRows[index];
+        if (this.root.visible && panel.visible && id && !this.pending.has(id)) emit('pinned-task-done', { id });
+      });
+    }
+    this.schedule();
+  }
+
+  private refreshPinnedActions() {
+    if (!this.pinnedActions) return;
+    for (let index = 0; index < 3; index++) {
+      const id = this.pinnedRows[index];
+      const pending = !!id && this.pending.has(id);
+      this.pinnedActions.requireElementById(`pinned-done-${index}`).setProperties({
+        display: id ? 'flex' : 'none', text: pending ? 'Saving' : 'Done', disabled: pending,
+      });
+    }
   }
 
   private schedule() {
@@ -136,6 +182,9 @@ export class TaskBoardSystem extends createSystem({}) {
   }
 
   private clear() {
+    this.pinnedRows = [];
+    this.pending.clear();
+    if (this.pinnedActions) this.pinnedActions.visible = false;
     this.built = false;
     window.clearTimeout(this.refreshTimer);
     this.refreshTimer = 0;
@@ -247,6 +296,7 @@ export class TaskBoardSystem extends createSystem({}) {
       if (!ranked.length) {
         ctx.fillStyle = '#4b302d'; ctx.font = 'bold 24px "GarageDisplay", sans-serif'; ctx.fillText('No papers yet', 38, 128);
       }
+      this.pinnedRows = ranked.map(task => this.progress.pinned.includes(task.id) ? task.id : undefined);
       ranked.forEach((task, index) => {
         const y = 82 + index * 84;
         ctx.fillStyle = 'rgba(83,48,34,0.32)'; ctx.fillRect(42, y + 5, w - 80, 67);
@@ -254,12 +304,23 @@ export class TaskBoardSystem extends createSystem({}) {
         ctx.fillStyle = ['#a74463', '#4c7774', '#ac642f'][index];
         ctx.beginPath(); ctx.arc(55, y + 12, 5, 0, Math.PI * 2); ctx.fill();
         ctx.fillStyle = '#382a2c'; ctx.font = 'bold 22px "GarageDisplay", sans-serif';
-        ctx.fillText(fitted(ctx, task.title, 380, 22, 1)[0] ?? task.title, 72, y + 34, 380);
+        const titleWidth = this.pinnedRows[index] ? 284 : 380;
+        ctx.fillText(fitted(ctx, task.title, titleWidth, 22, 1)[0] ?? task.title, 72, y + 34, titleWidth);
         if (this.progress.pinned.includes(task.id)) {
           ctx.fillStyle = '#79405c'; ctx.font = 'bold 14px sans-serif'; ctx.fillText('PINNED', 72, y + 55);
         }
       });
       cork.texture.needsUpdate = true;
+    }
+    if (this.pinnedActions) {
+      this.pinnedActions.visible = !!cork && this.pinnedRows.some(Boolean);
+      if (cork) {
+        this.pinnedActions.position.copy(cork.mesh.position);
+        this.pinnedActions.quaternion.copy(cork.mesh.quaternion);
+        this.pinnedActions.translateZ(0.012);
+        this.pinnedActions.scale.setScalar(cork.mesh.scale.x * 0.8 / 5.12);
+      }
+      this.refreshPinnedActions();
     }
     const whiteboard = this.ensureBoard('whiteboard');
     if (whiteboard) {

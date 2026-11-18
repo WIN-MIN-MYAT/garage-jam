@@ -1,4 +1,4 @@
-import { createSystem, Grabbed, Group, LinearFilter, Mesh, MeshBasicMaterial, OneHandGrabbable, PlaneGeometry, RayInteractable, SRGBColorSpace, Vector3, VideoTexture, VisibilityState } from '@iwsdk/core';
+import { createSystem, Grabbed, GrabSystem, Group, LinearFilter, Mesh, MeshBasicMaterial, OneHandGrabbable, PlaneGeometry, RayInteractable, SRGBColorSpace, Vector3, VideoTexture, VisibilityState } from '@iwsdk/core';
 import type { Entity } from '@iwsdk/core';
 import { roomConfig } from '../room-config.js';
 import { emit, garageEvents } from '../events.js';
@@ -18,6 +18,7 @@ import { isUdpCandidate, udpOnlyDescription } from '../stream-shared/IcePolicy.j
 import { showComicWord } from '../comic-word.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
 import { GarageBuildSystem } from './garage-build-system.js';
+import { uiInputActive } from '../ui-press.js';
 
 type Channel = {
   name: string; root: Group; screen: Mesh<PlaneGeometry, MeshBasicMaterial>; video: HTMLVideoElement; enabled: boolean;
@@ -35,6 +36,7 @@ type Channel = {
 type MonitorPreset = 'desk' | 'arc';
 type SavedMonitor = { enabled: boolean; pose?: ReturnType<typeof worldToSeat> };
 type MonitorLayout = { preset: MonitorPreset | 'custom'; monitors: SavedMonitor[] };
+type HandTurn = { side: 'left' | 'right'; channel: Channel; start: Vector3; right: Vector3; yaw: number; appliedYaw: number; changed: boolean };
 
 export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
   private builder?: GarageBuildSystem;
@@ -48,6 +50,12 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   private diagnosticsVisible = true;
   private preset: MonitorLayout['preset'] = 'arc';
   private wasGrabbed = false;
+  private handTurn?: HandTurn;
+  private pinchPoint = new Vector3();
+  private rayStart = new Vector3();
+  private rayDirection = new Vector3();
+  private screenPoint = new Vector3();
+  private screenNormal = new Vector3();
   private layoutKey = 'garage-jam-monitor-layout-v2';
   private saved: MonitorLayout | null = this.loadLayout();
   private room = getStreamRoom();
@@ -211,6 +219,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private placeMonitors() {
+    this.endHandTurn();
     const room = garageState.room;
     if (!room) return;
     const active = this.channels.filter(channel => channel.enabled);
@@ -261,6 +270,16 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     if (editing === this.editingLayout) return;
     this.editingLayout = editing;
     this.refreshPresentation();
+  }
+
+  turnMonitor(index: number, degrees: number) {
+    const channel = this.channels[index];
+    if (!channel?.root.visible || !garageRootsVisible()) return;
+    this.endHandTurn();
+    const yaw = channel.root.rotation.y + degrees * Math.PI / 180;
+    channel.root.rotation.set(0, Math.atan2(Math.sin(yaw), Math.cos(yaw)), 0);
+    this.preset = 'custom';
+    this.saveLayout();
   }
 
   private refreshPresentation() {
@@ -357,11 +376,95 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     return channel.machine.state;
   }
 
-  update() {
+  private monitorAtHand(side: HandTurn['side']) {
+    const xr = this.input.xr;
+    xr.xrOrigin.indexTipSpaces[side].getWorldPosition(this.pinchPoint);
+    const ray = xr.xrOrigin.raySpaces[side];
+    ray.getWorldPosition(this.rayStart);
+    ray.getWorldDirection(this.rayDirection).negate();
+    let closest: Channel | undefined;
+    let closestDistance = Infinity;
+    for (const channel of this.channels) {
+      const root = channel.root;
+      if (!root.visible) continue;
+      root.worldToLocal(this.screenPoint.copy(this.pinchPoint));
+      if (Math.abs(this.screenPoint.z) < 0.13 && this.insideMonitor()) return channel;
+      root.getWorldDirection(this.screenNormal);
+      const denom = this.rayDirection.dot(this.screenNormal);
+      if (Math.abs(denom) < 0.001) continue;
+      root.getWorldPosition(this.screenPoint);
+      const distance = this.screenPoint.sub(this.rayStart).dot(this.screenNormal) / denom;
+      if (distance < 0 || distance > 4 || distance >= closestDistance) continue;
+      root.worldToLocal(this.screenPoint.copy(this.rayStart).addScaledVector(this.rayDirection, distance));
+      if (!this.insideMonitor()) continue;
+      closest = channel;
+      closestDistance = distance;
+    }
+    return closest;
+  }
+
+  private insideMonitor() {
+    return Math.abs(this.screenPoint.x) <= monitorScreenWidth / 2 + 0.065
+      && Math.abs(this.screenPoint.y) <= monitorScreenHeight / 2 + 0.055;
+  }
+
+  private endHandTurn() {
+    const turn = this.handTurn;
+    if (!turn) return;
+    this.handTurn = undefined;
+    if (turn.channel.entity?.hasComponent(OneHandGrabbable)) turn.channel.entity.setValue(OneHandGrabbable, 'rotate', true);
+    if (turn.changed) {
+      const yaw = turn.appliedYaw;
+      turn.channel.root.rotation.y = Math.atan2(Math.sin(yaw), Math.cos(yaw));
+      this.preset = 'custom';
+      this.saveLayout();
+    }
+  }
+
+  private updateHandTurn(delta: number) {
+    const xr = this.input.xr;
+    const turn = this.handTurn;
+    if (!this.world.session || !garageRootsVisible()) {
+      this.endHandTurn();
+      return;
+    }
+    if (turn) {
+      if (!turn.channel.root.visible || !xr.isPrimary('hand', turn.side) || !xr.getSelectState(turn.side).active) {
+        this.endHandTurn();
+        return;
+      }
+      xr.xrOrigin.indexTipSpaces[turn.side].getWorldPosition(this.pinchPoint);
+      const movement = this.pinchPoint.sub(turn.start).dot(turn.right);
+      const drag = Math.sign(movement) * Math.max(0, Math.abs(movement) - 0.012);
+      const target = turn.yaw - 4.5 * drag;
+      const alpha = 1 - Math.exp(-Math.min(delta, 0.05) * 24);
+      turn.appliedYaw += (target - turn.appliedYaw) * alpha;
+      turn.channel.root.rotation.set(0, turn.appliedYaw, 0);
+      turn.changed ||= Math.abs(drag) > 0.002;
+      return;
+    }
+    if (uiInputActive()) return;
+    const grab = this.world.getSystem(GrabSystem);
+    for (const side of ['left', 'right'] as const) {
+      if (!xr.isPrimary('hand', side) || !xr.getSelectState(side).start) continue;
+      const held = this.channels.find(channel => channel.entity && grab?.getHolderHand(channel.entity) === side);
+      if (held && this.editingLayout) continue;
+      const channel = held ?? this.monitorAtHand(side);
+      if (!channel?.entity?.hasComponent(OneHandGrabbable)) continue;
+      const yaw = channel.root.rotation.y;
+      xr.xrOrigin.indexTipSpaces[side].getWorldPosition(this.pinchPoint);
+      channel.entity.setValue(OneHandGrabbable, 'rotate', false);
+      this.handTurn = { side, channel, start: this.pinchPoint.clone(), right: new Vector3(Math.cos(yaw), 0, -Math.sin(yaw)), yaw, appliedYaw: yaw, changed: false };
+      break;
+    }
+  }
+
+  update(delta: number) {
+    this.updateHandTurn(delta);
     const grabbed = this.channels.some(channel => channel.entity && this.queries.grabbed.entities.has(channel.entity));
     if (grabbed === this.wasGrabbed) return;
     this.wasGrabbed = grabbed;
-    if (!grabbed) {
+    if (!grabbed && !this.handTurn) {
       for (const channel of this.channels) {
         const direction = channel.root.getWorldDirection(new Vector3());
         channel.root.rotation.set(0, Math.atan2(direction.x, direction.z), 0);

@@ -10,6 +10,7 @@
   .note { color: #d4c1c7; font-size: 15px; }
   .button { flex-grow: 1; height: 40px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 15px; font-weight: 700; }
   .toggle { width: 74px; height: 38px; border-radius: 8px; background-color: #4c424d; color: #f3e5df; font-size: 15px; font-weight: 800; }
+  .turn { width: 46px; height: 38px; border-radius: 8px; background-color: #4c424d; color: #f3e5df; font-size: 14px; font-weight: 800; }
   .action { height: 42px; border-radius: 8px; background-color: #e3b394; color: #2c232e; font-size: 16px; font-weight: 800; }
   .close { width: 42px; height: 36px; border-radius: 8px; background-color: #39313e; color: #f3e5df; font-size: 16px; font-weight: 700; }
   .address { color: #f2c3a6; font-size: 16px; font-weight: 700; }
@@ -24,17 +25,25 @@
   <div id="mm-layout" class="page">
     <div class="screen">
       <div class="screenText"><div class="label">Monitor 1</div><div id="mm-state-1" class="note">Ready to share</div></div>
-      <button id="mm-monitor-1" class="toggle">On</button>
+      <div class="row">
+        <button id="mm-turn-left-1" class="turn">-15</button>
+        <button id="mm-turn-right-1" class="turn">+15</button>
+        <button id="mm-monitor-1" class="toggle">On</button>
+      </div>
     </div>
     <div class="screen">
       <div class="screenText"><div class="label">Monitor 2</div><div id="mm-state-2" class="note">Disabled</div></div>
-      <button id="mm-monitor-2" class="toggle">Off</button>
+      <div class="row">
+        <button id="mm-turn-left-2" class="turn">-15</button>
+        <button id="mm-turn-right-2" class="turn">+15</button>
+        <button id="mm-monitor-2" class="toggle">Off</button>
+      </div>
     </div>
     <div class="row">
       <button id="mm-layout-desk" class="button">Desk row</button>
       <button id="mm-layout-arc" class="button">Centered arc</button>
     </div>
-    <div id="mm-placement-note" class="note">Grab a monitor to turn it. Open this page to move it.</div>
+    <div id="mm-placement-note" class="note">Pinch and drag sideways to turn. Use -15 / +15 for fine adjustment.</div>
     <button id="mm-use-streaming" class="action" style="display:none">Show streamed monitors</button>
     <button id="mm-sharing" class="button">Screen sharing setup</button>
   </div>

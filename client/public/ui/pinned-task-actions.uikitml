@@ -1,0 +1,10 @@
+<style>
+  .board { width: 512px; height: 384px; padding-top: 82px; padding-right: 44px; align-items: flex-end; flex-direction: column; background-color: transparent; }
+  .row { height: 84px; width: 94px; justify-content: center; }
+  .done { height: 46px; width: 94px; border-radius: 9px; background-color: #42594d; color: #fff6dc; font-size: 20px; font-weight: 800; }
+</style>
+<Panel class="board">
+  <div class="row"><button id="pinned-done-0" class="done" style="display:none">Done</button></div>
+  <div class="row"><button id="pinned-done-1" class="done" style="display:none">Done</button></div>
+  <div class="row"><button id="pinned-done-2" class="done" style="display:none">Done</button></div>
+</Panel>

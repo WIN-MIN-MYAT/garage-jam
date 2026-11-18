@@ -70,7 +70,11 @@ export class MonitorManagerSystem extends createSystem({}) {
     on('mm-layout-desk', () => this.stream?.setPreset('desk'));
     on('mm-layout-arc', () => this.stream?.setPreset('arc'));
     on('mm-use-streaming', () => setWorkMode('streaming'));
-    for (let index = 0; index < 2; index++) on('mm-monitor-' + (index + 1), () => this.stream?.toggleMonitor(index));
+    for (let index = 0; index < 2; index++) {
+      on('mm-monitor-' + (index + 1), () => this.stream?.toggleMonitor(index));
+      on('mm-turn-left-' + (index + 1), () => this.stream?.turnMonitor(index, -15));
+      on('mm-turn-right-' + (index + 1), () => this.stream?.turnMonitor(index, 15));
+    }
     if (this.open) this.show(this.page);
     if (location.hostname === 'localhost') {
       (window as any).garageMonitorDebug = {
@@ -132,6 +136,11 @@ export class MonitorManagerSystem extends createSystem({}) {
         disabled: !monitor,
       });
       set('mm-state-' + (index + 1), { text: streamLabels[monitor?.state ?? 'off'] ?? 'Ready to share' });
+      for (const direction of ['left', 'right']) {
+        set(`mm-turn-${direction}-${index + 1}`, {
+          display: streaming && monitor?.enabled ? 'flex' : 'none', disabled: !monitor?.enabled,
+        });
+      }
     }
     set('mm-use-streaming', { display: streaming ? 'none' : 'flex' });
     set('mm-placement-note', { display: streaming ? 'flex' : 'none' });
