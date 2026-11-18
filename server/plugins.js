@@ -21,6 +21,17 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
   const sharedProfile = typeof env.PLUGIN_SHARED_PROFILE === 'string' && profilePattern.test(env.PLUGIN_SHARED_PROFILE)
     ? env.PLUGIN_SHARED_PROFILE : '';
   const demoLocked = env.PLUGIN_DEMO_LOCK === '1';
+  const normalizeOrigin = value => {
+    try { return new URL(value).origin; } catch { return null; }
+  };
+  const allowedClientOrigins = new Set([
+    'https://localhost:8091',
+    'http://localhost:8091',
+    ...(env.PLUGIN_CLIENT_ORIGINS ?? '')
+      .split(',')
+      .map(value => normalizeOrigin(value.trim()))
+      .filter(Boolean),
+  ]);
   const pending = new Map();
   const pendingByState = new Map();
   const pairingCodes = new Map();
@@ -83,7 +94,9 @@ export function createPluginRouter({ env = process.env, fetcher = fetch, directo
     const proto = req.secure || req.get('x-forwarded-proto')?.split(',')[0].trim() === 'https' ? 'https' : 'http';
     const origin = `${proto}://${req.get('host')}`;
     req.pluginOrigin = URL.canParse(origin) ? new URL(origin).origin : undefined;
-    if (['POST', 'DELETE'].includes(req.method) && (!req.pluginOrigin || req.get('origin') !== req.pluginOrigin)) {
+    const requestOrigin = req.get('origin');
+    const sameOrigin = requestOrigin === req.pluginOrigin;
+    if (['POST', 'DELETE'].includes(req.method) && (!req.pluginOrigin || (!sameOrigin && !allowedClientOrigins.has(requestOrigin)))) {
       return res.status(403).json({ error: 'Open Plugins from the Garage Jam browser page.' });
     }
     next();

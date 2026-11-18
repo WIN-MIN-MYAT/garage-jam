@@ -24,6 +24,7 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
     NOTION_CLIENT_ID: 'notion-client', NOTION_CLIENT_SECRET: 'notion-secret', NOTION_REDIRECT_URI: origin + base + '/notion/callback',
     SPOTIFY_CLIENT_ID: 'spotify-client', SPOTIFY_REDIRECT_URI: origin + base + '/spotify/callback',
     CALENDAR_CLIENT_ID: 'calendar-client', CALENDAR_CLIENT_SECRET: 'calendar-secret', CALENDAR_REDIRECT_URI: origin + base + '/calendar/callback',
+    PLUGIN_CLIENT_ORIGINS: 'https://garage-jam.vercel.app',
   };
   let challenge;
   let spotifyExpired = false;
@@ -116,6 +117,11 @@ test('plugin OAuth state, account verification, refresh, storage and weather con
   const post = (path, body, requestOrigin = origin) => fetch(origin + base + path, {
     method: 'POST', headers: { cookie: owner, origin: requestOrigin, 'Content-Type': 'application/json' }, body: JSON.stringify(body),
   });
+  const crossOriginPair = await post('/notion/pair', {}, 'https://garage-jam.vercel.app');
+  assert.equal(crossOriginPair.status, 200);
+  assert.match((await crossOriginPair.json()).code, /^[0-9A-F]{6}$/);
+  const blockedPair = await post('/notion/pair', {}, 'https://not-garage-jam.example');
+  assert.equal(blockedPair.status, 403);
   const authorize = async id => {
     const response = await post(`/${id}/authorize`);
     assert.equal(response.status, 200);

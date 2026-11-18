@@ -42,6 +42,7 @@ NOTION_DATABASE_ID=...
 TASKS_SEND_TO=notion
 PLUGIN_SHARED_PROFILE=<a 20-80 character demo profile id>
 PLUGIN_DEMO_LOCK=1
+PLUGIN_CLIENT_ORIGINS=https://<VERCEL_URL>
 SPOTIFY_CLIENT_ID=...
 SPOTIFY_CLIENT_SECRET=...
 SPOTIFY_REDIRECT_URI=https://<BACKEND_URL>/api/plugins/spotify/callback
@@ -94,7 +95,7 @@ The new `client/src/backend.ts` helper resolves the backend once:
 
 When `VITE_BACKEND_ORIGIN` is empty, the helper falls back to `location.origin`, so local development still uses the Vite proxy on port 8091.
 
-The backend already has `cors({ origin: true })`. It now runs **before** the plugin router, so cross-origin `/api/plugins/*` requests also get CORS headers and preflight handling.
+The backend already has `cors({ origin: true })`. It now runs **before** the plugin router, so cross-origin `/api/plugins/*` requests also get CORS headers and preflight handling. Plugin `POST`/`DELETE` requests also enforce an origin allowlist; set `PLUGIN_CLIENT_ORIGINS=https://<VERCEL_URL>` on the backend. The backend origin and `https://localhost:8091` are always allowed.
 
 The sender page stays on the backend, so its relative `/stream-shared/*` imports and `wss://<BACKEND_HOST>/signal` socket keep working without any Vercel configuration.
 
