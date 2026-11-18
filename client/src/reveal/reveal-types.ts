@@ -1,4 +1,5 @@
 import type { Group, Mesh, Quaternion, Vector2, Vector3 } from '@iwsdk/core';
+import type { createDoorwayAtmosphere } from './DoorwayAtmosphere.js';
 
 export type RevealSurfaceMode = 'radial' | 'vertical' | 'directional';
 export type RevealBeatId = 'blueprint' | 'floor' | 'walls' | 'stickers' | 'ceiling' | 'door' | 'table' | 'props' | 'finish';
@@ -61,8 +62,7 @@ export type RevealSticker = {
 export type RevealDoor = {
   group: Group;
   materials: unknown[];
-  beams: Mesh[];
-  dust?: unknown;
+  atmosphere?: ReturnType<typeof createDoorwayAtmosphere>;
   opacity: number;
 };
 

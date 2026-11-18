@@ -11,6 +11,9 @@ try {
   const page = await browser.newPage({ viewport: { width: 1200, height: 800 } });
   const errors = [];
   const playerActions = [];
+  let activeDevice = 'external-mock';
+  let playing = false;
+  let title = 'Mock Song';
   page.on('pageerror', error => errors.push(String(error)));
   page.on('console', message => { if (message.type() === 'error') errors.push(message.text()); });
   await page.route('**/api/plugins/status', route => route.fulfill({
@@ -28,8 +31,8 @@ try {
   await page.route('**/api/plugins/spotify/state', route => route.fulfill({
     contentType: 'application/json',
     body: JSON.stringify({
-      active: true, connected: true, playing: false, title: 'Mock Song', artists: 'Mock Artist',
-      device: { id: 'external-mock', name: 'Other speaker', type: 'Computer', volume: 80 },
+      active: true, connected: true, playing, title, artists: 'Mock Artist',
+      device: { id: activeDevice, name: 'Other speaker', type: 'Computer', volume: 80 },
     }),
   }));
   await page.route('**/api/plugins/spotify/devices', route => route.fulfill({
@@ -41,7 +44,16 @@ try {
     body: JSON.stringify([{ id: 'mock-playlist', name: 'Demo', uri: 'spotify:playlist:mock', tracks: 3 }]),
   }));
   await page.route('**/api/plugins/spotify/player', async route => {
-    playerActions.push(JSON.parse(route.request().postData() ?? '{}'));
+    const action = JSON.parse(route.request().postData() ?? '{}');
+    playerActions.push(action);
+    if (action.action === 'transfer') {
+      activeDevice = action.deviceId;
+      playing = action.play;
+    }
+    if (action.action === 'next') title = 'Next mock song';
+    if (action.action === 'previous') title = 'Mock Song';
+    if (action.action === 'pause') playing = false;
+    if (action.action === 'play') playing = true;
     await route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
   });
   await page.route('https://sdk.scdn.co/spotify-player.js', route => route.fulfill({
@@ -77,12 +89,31 @@ try {
   assert.equal(state.token, 'mock-token');
   assert.equal(state.device, 'Garage Jam Headset');
   assert.deepEqual(playerActions, [], 'Registering headset audio should leave existing playback alone');
-  await page.evaluate(async () => {
-    const { emit } = await import('/src/events.ts');
-    emit('music-toggle');
-  });
+  await page.waitForFunction(() => window.garageWristDebug?.panel);
+  await page.evaluate(() => window.garageWristDebug.show('music'));
+  const press = id => page.evaluate(id => window.garageWristDebug.panel.requireElementById(id).dispatchEvent({ type: 'click' }), id);
+  const text = (id, text) => page.waitForFunction(({ id, text }) =>
+    window.garageWristDebug.panel.requireElementById(id).properties.value.text === text, { id, text });
+  await press('wm-music-next');
+  assert.deepEqual(playerActions, [], 'Next must leave playback on the other device alone');
+  await press('wm-music-play');
   await expectTransfer();
   assert.deepEqual(playerActions, [{ action: 'transfer', deviceId: 'mock-device', play: true }]);
+  await text('wm-music-play', 'PAUSE');
+  await press('wm-music-next');
+  await text('wm-music-title', 'Next mock song');
+  await press('wm-music-prev');
+  await text('wm-music-title', 'Mock Song');
+  await press('wm-music-play');
+  await text('wm-music-play', 'PLAY');
+  await press('wm-music-playlist');
+  await text('wm-music-play', 'PAUSE');
+  assert.deepEqual(playerActions.slice(1), [
+    { action: 'next', deviceId: 'mock-device' },
+    { action: 'previous', deviceId: 'mock-device' },
+    { action: 'pause', deviceId: 'mock-device' },
+    { action: 'play', contextUri: 'spotify:playlist:mock', deviceId: 'mock-device' },
+  ]);
   await page.locator('#gj-enter').click();
   await page.waitForFunction(() => window.__garageMockPlayer.volume > 0);
   const roomVolume = await page.evaluate(() => window.__garageMockPlayer.volume);

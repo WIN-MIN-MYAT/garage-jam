@@ -8,7 +8,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const bundle = await build({ entryPoints: [join(here, 'device-entry.ts')], bundle: true, platform: 'node', format: 'esm', write: false });
 const {
   deviceInsideTyping, deviceObstacles, devicesFromSeat, devicesToSeat, keyboardVolume,
-  makeExtra, makeLaptop, makeMonitor, nextDeviceState, screenVolume, seatFrameYaw, seatToWorld,
+  makeExtra, makeLaptop, makeMonitor, matchesSavedWorkspace, nextDeviceState, screenVolume, seatFrameYaw, seatToWorld,
   rememberDevice, restoreDevice, rememberRoomPoint, restoreRoomPoint, screenDragCorners, minScreenDepth, minZoneHeight,
   worldToSeat, solve, slotRules, validatePlacements,
 } = await import(`data:text/javascript;base64,${Buffer.from(bundle.outputFiles[0].text).toString('base64')}`);
@@ -36,6 +36,25 @@ function room(overrides = {}) {
     ...overrides,
   };
 }
+
+test('fast resume verifies the same room and table across a changed tracking origin', () => {
+  const saved = room();
+  const transform = point => ({ x: 4 - point.z, z: point.x + 2 });
+  const scanned = room({
+    source: 'webxr',
+    floor: { y: 0.3, polygon: saved.floor.polygon.map(transform) },
+    table: { ...saved.table, topY: 1.05, polygon: saved.table.polygon.map(transform) },
+  });
+  assert.equal(matchesSavedWorkspace(saved, scanned), true);
+  assert.equal(matchesSavedWorkspace(saved, { ...scanned, table: null }), false);
+  assert.equal(matchesSavedWorkspace(saved, { ...scanned, table: { ...scanned.table, topY: 1.15 } }), false);
+  assert.equal(matchesSavedWorkspace(saved, { ...scanned, table: {
+    ...scanned.table, polygon: scanned.table.polygon.map(point => ({ ...point, x: point.x + 0.3 })),
+  } }), false);
+  assert.equal(matchesSavedWorkspace(saved, { ...scanned, floor: {
+    ...scanned.floor, polygon: scanned.floor.polygon.map(point => ({ ...point, z: point.z * 1.25 })),
+  } }), false);
+});
 
 const laptopCorners = [
   { x: -0.30, y: 1.20, z: -1.65 },

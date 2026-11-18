@@ -403,12 +403,28 @@ export function rememberDevice(room: RoomModel, device: DeviceRecord): DeviceMem
   return { device: devicesToSeat(frame, [device])[0], reference };
 }
 
-function matchRoomFrame(room: RoomModel, reference: DeviceReference) {
+function matchRoomFrame(room: RoomModel, reference: DeviceReference, distance = referenceDistance) {
   const candidates = [0, 1, 2, 3].map(turn => deviceFrame(room, turn))
-    .map(candidate => ({ frame: candidate.frame, error: referenceDistance(reference, candidate.reference) }))
+    .map(candidate => ({ frame: candidate.frame, error: distance(reference, candidate.reference) }))
     .sort((a, b) => a.error - b.error);
   if (!Number.isFinite(candidates[0].error) || candidates[1].error - candidates[0].error < 0.10) return null;
   return candidates[0].frame;
+}
+
+export function matchesSavedWorkspace(saved: RoomModel, scanned: RoomModel) {
+  if (!saved.table || !scanned.table || saved.source === 'mock' || scanned.source !== 'webxr') return false;
+  if (!Array.isArray(saved.openings) || !Array.isArray(saved.table.polygon) || saved.table.polygon.length < 3) return false;
+  const reference = deviceFrame(saved).reference;
+  return matchRoomFrame(scanned, reference, (previous, current) => {
+    // Confirm desk height and its position relative to the room before reusing setup.
+    if (Math.abs(previous.width - current.width) > 0.08 || Math.abs(previous.depth - current.depth) > 0.08
+      || Math.abs(previous.roomEdges[4] - current.roomEdges[4]) > 0.04
+      || previous.roomEdges.slice(0, 4).some((edge, index) => Math.abs(edge - current.roomEdges[index]) > 0.12)) return Infinity;
+    if (saved.source === 'webxr' && (['door', 'window'] as const).some(type =>
+      previous.openings.filter(opening => opening.type === type).length
+        !== current.openings.filter(opening => opening.type === type).length)) return Infinity;
+    return referenceDistance(previous, current);
+  }) !== null;
 }
 
 export function restoreDevice(room: RoomModel, memory: DeviceMemory): DeviceRecord | null {

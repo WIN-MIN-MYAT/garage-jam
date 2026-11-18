@@ -73,6 +73,7 @@ export function setWorkMode(mode: WorkMode) {
 }
 
 export const lastRoomStorageKey = 'garage-jam-last-room-v1';
+export const confirmedRoomStorageKey = 'garage-jam-confirmed-room-v1';
 
 export const garageState = {
   room: null as RoomModel | null,
@@ -85,8 +86,28 @@ export function saveLastRoom(room: RoomModel) {
 }
 
 export function loadLastRoom(): RoomModel | null {
+  return loadRoom(lastRoomStorageKey);
+}
+
+export function saveConfirmedRoom(room: RoomModel | null) {
+  try { localStorage.setItem(confirmedRoomStorageKey, JSON.stringify(room)); } catch { /* private mode */ }
+}
+
+export function loadConfirmedRoom(): RoomModel | null {
   try {
-    const stored = localStorage.getItem(lastRoomStorageKey);
+    if (localStorage.getItem(confirmedRoomStorageKey) !== null) return loadRoom(confirmedRoomStorageKey);
+  } catch { return null; }
+  const room = loadLastRoom();
+  const { tableConfirmed, tableHeight } = garageState.preferences;
+  if (!tableConfirmed || tableHeight == null || !room?.table
+    || Math.abs(room.table.topY - room.floor.y - tableHeight) > 0.005) return null;
+  saveConfirmedRoom(room);
+  return room;
+}
+
+function loadRoom(key: string): RoomModel | null {
+  try {
+    const stored = localStorage.getItem(key);
     if (!stored) return null;
     const room = JSON.parse(stored) as RoomModel;
     if (room?.floor?.polygon?.length >= 3 && room.walls?.length) return room;

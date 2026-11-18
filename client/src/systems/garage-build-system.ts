@@ -1,23 +1,26 @@
 import {
-  AdditiveBlending, BackSide, Box3, BoxGeometry, BufferAttribute, BufferGeometry, CanvasTexture, Color, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
+  BackSide, Box3, BoxGeometry, BufferGeometry, CanvasTexture, Color, createSystem, CylinderGeometry, DoubleSide, ExtrudeGeometry, Group,
   LineBasicMaterial, LineDashedMaterial, LineLoop, Mesh, MeshBasicMaterial, PhysicsBody, PhysicsShape, PhysicsShapeType, PhysicsState,
-  PlaneGeometry, Points, PointsMaterial, Quaternion, RepeatWrapping, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, TextureLoader, Vector3,
+  PlaneGeometry, Points, Quaternion, RepeatWrapping, RingGeometry, Shape, ShapeGeometry, SphereGeometry, Sprite, SpriteMaterial, SRGBColorSpace, TextureLoader, Vector3,
 } from '@iwsdk/core';
-import type { Entity, Texture } from '@iwsdk/core';
+import type { Entity, Material, Texture } from '@iwsdk/core';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { MeshoptDecoder } from 'meshoptimizer';
 import { addOutline, comicMaterial } from '../comic-style.js';
+import { applySurfacePrint, type PrintTextures } from '../surface-print.js';
 import { makeDemoRoom } from '../demo-room.js';
 import { emit, garageEvents } from '../events.js';
-import { garageState, saveLastRoom, savePreferences, setPreference, type TableView } from '../garage-state.js';
+import { garageState, saveConfirmedRoom, saveLastRoom, savePreferences, setPreference, type TableView } from '../garage-state.js';
+import { matchesSavedWorkspace } from '../device-model.js';
 import { registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
 import { isProductEntry } from '../app-flow/app-flow.js';
 import { manualRoomStorageKey, outlineBounds, pointInPolygon, roomFingerprint, type RoomModel, type Vec2 } from '../room-model.js';
-import { readPlaneSnapshots, readRoomFromFrame, type PlaneSnapshot, type ScanInfo } from '../room-scan.js';
+import { readPlaneSnapshots, readRoomFromFrame, withScannedTable, type PlaneSnapshot, type ScanInfo } from '../room-scan.js';
 import { solve, wallThickness, type Obstacle, type SlotPlacement, type SlotRule, type SlotType } from '../placement-solver.js';
 import { slotRules } from '../slot-rules.js';
 import { createPlaceholder, type Slot } from '../slot-manager.js';
 import { applyRevealMaterial, createRevealSurface, projectionRange } from '../reveal/reveal-shader.js';
+import { createDoorwayAtmosphere } from '../reveal/DoorwayAtmosphere.js';
 import type { RevealBlueprint, RevealDoor, RevealProp, RevealRuntime, RevealSticker, RevealSurface } from '../reveal/reveal-types.js';
 const assetForSlot: Record<string, string> = {
   trash: 'SLOT_TrashCan',
@@ -161,6 +164,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private propGroup?: Group;
   private tableMaterial?: any;
   private wallTexture?: Texture;
+  private printTextures: PrintTextures = {};
   private tableCollider?: Entity;
   private tableOccluder?: Mesh;
   private tableEditToken = 0;
@@ -228,6 +232,7 @@ export class GarageBuildSystem extends createSystem({}) {
       unregisterGarageRoot(this.root);
       this.disposeGroup(this.root);
       this.wallTexture?.dispose();
+      for (const texture of Object.values(this.printTextures)) texture.dispose();
     });
   }
 
@@ -310,8 +315,13 @@ export class GarageBuildSystem extends createSystem({}) {
     if (hide) this.scanOverlay.visible = false;
   }
 
-  beginRoomScan() {
+  private resumeRoom?: RoomModel;
+  private resumeMatch?: { center: { x: number; y: number; z: number }; since: number };
+
+  beginRoomScan(resumeRoom?: RoomModel) {
     if (this.ready || this.building || this.scanning) return;
+    this.resumeRoom = resumeRoom;
+    this.resumeMatch = undefined;
     this.scanning = true;
     this.scanStartedAt = 0;
     this.lastScanAt = 0;
@@ -376,6 +386,7 @@ export class GarageBuildSystem extends createSystem({}) {
     try {
       const viewer = frame.getViewerPose(referenceSpace);
       if (!viewer || viewer.emulatedPosition) {
+        this.resumeMatch = undefined;
         this.trackedScanFrame = false;
         this.scanCandidate = null;
         this.candidateAt = -Infinity;
@@ -388,6 +399,7 @@ export class GarageBuildSystem extends createSystem({}) {
       scan = readRoomFromFrame(frame, referenceSpace, snapshots, isProductEntry, this.scanCandidate?.info.tableCenter ?? undefined);
       this.updateScanOverlay(snapshots, scan?.info.tableCenter ?? null);
     } catch (error) {
+      this.resumeMatch = undefined;
       if (!this.scanErrorLogged) {
         this.scanErrorLogged = true;
         console.warn('[garage-build] plane conversion failed', error);
@@ -396,6 +408,7 @@ export class GarageBuildSystem extends createSystem({}) {
       return;
     }
     if (!scan) {
+      this.resumeMatch = undefined;
       if (now - this.scanStartedAt > 10000) this.scanFallback();
       return;
     }
@@ -410,10 +423,33 @@ export class GarageBuildSystem extends createSystem({}) {
     const hasTable = !!scan.room.table;
     const progress = (hasFloor ? 1 : 0) + (hasWalls ? 1 : 0) + (hasTable ? 1 : 0);
     const elapsed = now - this.scanStartedAt;
+    if (!hasWalls) this.resumeMatch = undefined;
+    else if (this.resumeRoom && this.tryResumeScan(this.resumeRoom, scan, now)) return;
+    if (this.resumeRoom && this.resumeMatch && elapsed < 3500) return;
+    if (elapsed >= 2500) this.resumeRoom = undefined;
     const needsChoice = isProductEntry && elapsed >= 2500 && (scan.info.tableCount !== 1 || !hasTable);
     emit('scan-progress', { info: scan.info, hasFloor, hasWalls, hasTable, progress, needsChoice });
     if (elapsed < 2500 || needsChoice || (elapsed < 8000 && !scan.info.tableCount)) return;
     this.useLiveScan(hasTable);
+  }
+
+  private tryResumeScan(saved: RoomModel, scan: NonNullable<ReturnType<typeof readRoomFromFrame>>, now: number) {
+    const matches = scan.tables.filter(({ table }) => matchesSavedWorkspace(saved, { ...scan.room, table }));
+    if (matches.length !== 1) {
+      this.resumeMatch = undefined;
+      return false;
+    }
+    const { table, center } = matches[0];
+    const previous = this.resumeMatch;
+    if (!previous || Math.hypot(center.x - previous.center.x, center.y - previous.center.y, center.z - previous.center.z) > 0.05) {
+      this.resumeMatch = { center, since: now };
+      return false;
+    }
+    if (now - previous.since < 600) return false;
+    this.stopScanning();
+    emit('room-resume-matched');
+    this.buildRoom(withScannedTable(scan.room, table), 'SCAN', { ...scan.info, tableTopY: table.topY, tableCenter: center });
+    return true;
   }
 
   private scanFallback() {
@@ -441,6 +477,8 @@ export class GarageBuildSystem extends createSystem({}) {
     if (this.scanTimeout != null) window.clearTimeout(this.scanTimeout);
     this.scanTimeout = undefined;
     this.scanCandidate = null;
+    this.resumeRoom = undefined;
+    this.resumeMatch = undefined;
   }
 
   private buildRoom(room: RoomModel, sourceLabel: string, scanInfo: ScanInfo | null, applySavedTable = true) {
@@ -699,6 +737,7 @@ export class GarageBuildSystem extends createSystem({}) {
     this.doorRuntime = null;
     this.modelLoads = [];
     const floorMaterial = comicMaterial(0x49414b);
+    applySurfacePrint(floorMaterial, this.printTextures, 'floor', this.room.floor.polygon[0]);
     if (!this.wallTexture) {
       this.wallTexture = new TextureLoader().load('/assets/textures/garage-wall-painted-concrete-2k.webp');
       this.wallTexture.colorSpace = SRGBColorSpace;
@@ -708,6 +747,7 @@ export class GarageBuildSystem extends createSystem({}) {
     const wallMaterial = comicMaterial(0xc9bdcb, this.wallTexture);
     const ceilingMaterial = comicMaterial(0x51495b);
     const tableMaterial = comicMaterial(0xa06e51);
+    this.applyWorkbenchPrint(tableMaterial);
     this.tableMaterial = tableMaterial;
     const trimMaterial = comicMaterial(0x3f343f);
     (floorMaterial as any).side = DoubleSide;
@@ -1131,6 +1171,7 @@ export class GarageBuildSystem extends createSystem({}) {
       if (length < 0.05) continue;
       const yaw = Math.atan2(-dz, dx);
       const material = baseMaterial.clone ? baseMaterial.clone() : baseMaterial;
+      applySurfacePrint(material, this.printTextures, 'wall', { ...wall.p0, y: floorY }, yaw);
       const surface = createRevealSurface(`wall-${wall.id}`, 'walls', 'vertical', order);
       surface.uniforms.uRevealRange.value.set(floorY, ceilingY);
       surface.uniforms.uRevealOrigin.value.set(wall.p0.x, floorY, wall.p0.z);
@@ -1232,6 +1273,7 @@ export class GarageBuildSystem extends createSystem({}) {
     };
     savePreferences();
     saveLastRoom(this.room);
+    saveConfirmedRoom(this.room);
     emit('table-confirmed', info);
     emit('status', `Table confirmed: ${(info.height * 100).toFixed(1)} cm`);
   }
@@ -1532,6 +1574,13 @@ export class GarageBuildSystem extends createSystem({}) {
     };
   }
 
+  private applyWorkbenchPrint(material: Material) {
+    const table = this.room.table;
+    if (!table) return;
+    const { center, width, depth, yaw } = tableFrame(table.polygon);
+    applySurfacePrint(material, this.printTextures, 'wood', center, yaw, { y: table.topY, width, depth });
+  }
+
   private loadWorkbenchModel(root: Group, slot: Slot, target: [number, number, number], fallback: () => void, token = this.tableEditToken) {
     const load = new Promise<void>(resolve => {
       this.loader.load(slot.model!, gltf => {
@@ -1551,6 +1600,7 @@ export class GarageBuildSystem extends createSystem({}) {
           const material = Array.isArray(mesh.material) ? mesh.material[0] : mesh.material;
           const color = new Color((material as any)?.color ?? 0xffffff).multiply(new Color(0xc7d4de));
           const next = comicMaterial(color, (material as any)?.map ?? null);
+          this.applyWorkbenchPrint(next);
           if (this.tableSurface) applyRevealMaterial(next, this.tableSurface);
           mesh.material = next;
         });
@@ -1750,23 +1800,25 @@ export class GarageBuildSystem extends createSystem({}) {
     plane.renderOrder = -29;
     const wall = door && this.room.walls.find(item => item.id === door.wallId);
     if (door && wall) {
-      plane.position.set(door.position.x - wall.normal.x * 4, this.room.floor.y + 2.1, door.position.z - wall.normal.z * 4);
+      const depth = 4;
+      const tangent = { x: wall.normal.z, z: -wall.normal.x };
+      const seatOffset = { x: this.room.seat.x - door.position.x, z: this.room.seat.z - door.position.z };
+      const seatDepth = Math.max(0.8, seatOffset.x * wall.normal.x + seatOffset.z * wall.normal.z);
+      const seatAcross = seatOffset.x * tangent.x + seatOffset.z * tangent.z;
+      const sunAcross = door.footprint.width * door.scale * 0.14;
+      const skyOffset = sunAcross + (sunAcross - seatAcross) * depth / seatDepth - (580 / 1024 - 0.5) * 9;
+      plane.position.set(
+        door.position.x - wall.normal.x * depth + tangent.x * skyOffset,
+        this.room.floor.y + 1.85,
+        door.position.z - wall.normal.z * depth + tangent.z * skyOffset,
+      );
       plane.rotation.y = Math.atan2(wall.normal.x, wall.normal.z);
     } else {
       plane.position.set(0, 2.1, -5);
     }
     group.add(plane);
 
-    const beamCanvas = document.createElement('canvas'); beamCanvas.width = 256; beamCanvas.height = 256;
-    const beamCtx = beamCanvas.getContext('2d')!;
-    const beamGradient = beamCtx.createRadialGradient(128, 128, 14, 128, 128, 126);
-    beamGradient.addColorStop(0, 'rgba(255,199,131,0.50)');
-    beamGradient.addColorStop(0.55, 'rgba(255,175,102,0.18)');
-    beamGradient.addColorStop(1, 'rgba(255,196,112,0)');
-    beamCtx.fillStyle = beamGradient; beamCtx.fillRect(0, 0, 256, 256);
-    const beamTexture = new CanvasTexture(beamCanvas); beamTexture.colorSpace = SRGBColorSpace;
-    const beamMaterial = new MeshBasicMaterial({ map: beamTexture, transparent: true, opacity: 0, depthWrite: false, side: DoubleSide, blending: AdditiveBlending });
-    const beams: Mesh[] = [];
+    let atmosphere: RevealDoor['atmosphere'];
     const exteriorMaterials: MeshBasicMaterial[] = [];
     if (door && wall) {
       const driveCanvas = document.createElement('canvas');
@@ -1788,37 +1840,16 @@ export class GarageBuildSystem extends createSystem({}) {
       group.add(driveway);
       exteriorMaterials.push(drivewayMaterial);
 
-      const spill = new Mesh(new PlaneGeometry(door.footprint.width * door.scale, 1.9), beamMaterial);
-      spill.name = 'Doorway light spill';
-      spill.position.set(door.position.x + wall.normal.x * 0.64, this.room.floor.y + 0.005, door.position.z + wall.normal.z * 0.64);
-      spill.rotation.set(-Math.PI / 2, plane.rotation.y, 0, 'YXZ');
-      beamMaterial.userData.ownedTexture = beamTexture;
-      group.add(spill);
-      beams.push(spill);
-    } else {
-      beamTexture.dispose();
-      beamMaterial.dispose();
+      const doorRule = slotRules.find(rule => rule.id === 'door');
+      const height = Math.min((doorRule?.height ?? 2.2) * door.scale, this.room.ceilingY - this.room.floor.y);
+      atmosphere = createDoorwayAtmosphere(this.room, door.position, wall.normal, door.footprint.width * door.scale + 0.14, height);
+      group.add(atmosphere.root);
     }
-
-    const dustGeometry = new BufferGeometry();
-    const dustCount = 70;
-    const dustPositions = new Float32Array(dustCount * 3);
-    for (let i = 0; i < dustCount; i++) {
-      dustPositions[i * 3] = plane.position.x + (Math.random() - 0.5) * 2.6;
-      dustPositions[i * 3 + 1] = this.room.floor.y + 0.3 + Math.random() * 2.2;
-      dustPositions[i * 3 + 2] = plane.position.z + (Math.random() - 0.5) * 2.6;
-    }
-    dustGeometry.setAttribute('position', new BufferAttribute(dustPositions, 3));
-    const dustMaterial = new PointsMaterial({ color: 0xffe5a4, size: 0.016, transparent: true, opacity: 0, depthWrite: false });
-    const dust = new Points(dustGeometry, dustMaterial);
-    dust.name = 'Dust motes in the sun beam';
-    group.add(dust);
 
     this.doorRuntime = {
       group,
       materials: [enclosureMaterial, material, ...exteriorMaterials, ...(this.doorFrameMaterial ? [this.doorFrameMaterial] : [])],
-      beams,
-      dust,
+      atmosphere,
       opacity: 0,
     };
   }
@@ -1963,7 +1994,7 @@ export class GarageBuildSystem extends createSystem({}) {
 
   private disposeGroup(group: Group) {
     group.traverse(object => {
-      if (object instanceof Mesh) {
+      if (object instanceof Mesh || object instanceof Points) {
         object.geometry.dispose();
         const list = Array.isArray(object.material) ? object.material : [object.material];
         const owned = new Set<any>();

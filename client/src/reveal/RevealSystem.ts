@@ -297,6 +297,12 @@ export class RevealSystem extends createSystem({}) {
   }
 
   update(delta: number) {
+    const atmosphere = this.runtime?.door?.atmosphere;
+    if (atmosphere && atmosphere.uniforms.uPresence.value > 0 && garageRootsVisible()) {
+      const motion = garageState.preferences.reducedMotion ? 0 : 1;
+      atmosphere.uniforms.uMotion.value = motion;
+      atmosphere.uniforms.uTime.value += Math.min(delta, 0.1) * motion;
+    }
     if (this.presenceFade) {
       this.stepPresenceFade(Math.min(delta, 0.1));
       this.particles?.update(Math.min(delta, 0.1));
@@ -644,19 +650,10 @@ export class RevealSystem extends createSystem({}) {
   }
 
   private setDoorLighting(opacity: number) {
-    const door = this.runtime?.door;
-    if (!door) return;
-    const outsideLight = opacity * Math.pow(1 - this.focusShutter, 2);
-    for (const beam of door.beams) {
-      const material = beam.material as any;
-      material.opacity = outsideLight * 0.55;
-      beam.visible = outsideLight > 0.001;
-    }
-    if (door.dust) {
-      const dust = door.dust as any;
-      if (dust.material) dust.material.opacity = outsideLight * 0.62;
-      dust.visible = outsideLight > 0.001;
-    }
+    const atmosphere = this.runtime?.door?.atmosphere;
+    if (!atmosphere) return;
+    atmosphere.uniforms.uPresence.value = opacity;
+    atmosphere.uniforms.uClosure.value = this.focusShutter;
   }
 
   private trackFrame(dt: number) {

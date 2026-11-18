@@ -4,6 +4,7 @@ import { garageState } from '../garage-state.js';
 import { garageRootsVisible, registerGarageRoot, unregisterGarageRoot } from '../garage-visibility.js';
 import { addFocusMinutes, loadProgress } from '../progress-store.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { shutterVents } from '../reveal/DoorwayAtmosphere.js';
 import { slotRules } from '../slot-rules.js';
 import { showComicWord } from '../comic-word.js';
 
@@ -142,9 +143,20 @@ export class FocusSystem extends createSystem({}) {
     edgeShade.addColorStop(1, 'rgba(17, 12, 27, .65)');
     ctx.fillStyle = edgeShade;
     ctx.fillRect(0, 0, 512, 512);
+    for (const vent of shutterVents) {
+      const width = vent.width * canvas.width;
+      const height = vent.height * canvas.height;
+      const x = vent.x * canvas.width - width / 2;
+      const y = (1 - vent.y) * canvas.height - height / 2;
+      ctx.fillStyle = '#27232a';
+      ctx.fillRect(x - 3, y - 2, width + 6, height + 5);
+      ctx.fillStyle = '#a4714d';
+      ctx.fillRect(x, y + height, width, 2);
+      ctx.clearRect(x, y, width, height);
+    }
     const texture = new CanvasTexture(canvas);
     texture.colorSpace = SRGBColorSpace;
-    this.shutter = new Mesh(new PlaneGeometry(width, height), new MeshBasicMaterial({ map: texture }));
+    this.shutter = new Mesh(new PlaneGeometry(width, height), new MeshBasicMaterial({ map: texture, alphaTest: 0.5 }));
     this.shutter.name = 'Roll-down focus door';
     this.shutter.position.z = 0.018;
     doorway.add(this.shutter);

@@ -10,6 +10,7 @@ export {
   makeExtra,
   makeLaptop,
   makeMonitor,
+  matchesSavedWorkspace,
   rememberDevice,
   restoreDevice,
   rememberRoomPoint,

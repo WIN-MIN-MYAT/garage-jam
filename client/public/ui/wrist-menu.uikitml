@@ -27,9 +27,18 @@
   .danger { color: #ff9a9a; }
   .foot { flex-direction: row; align-items: center; justify-content: space-between; height: 14px; padding-top: 1px; }
   .hint { color: #7f8590; font-size: 10.5px; letter-spacing: 0.2px; }
-  .track { flex-direction: column; gap: 2px; justify-content: center; padding: 2px; }
-  .song { color: #f1eadc; font-size: 13px; font-weight: 800; }
-  .artist { color: #9de6ef; font-size: 10.5px; font-weight: 700; }
+  .track { height: 58px; flex-direction: column; gap: 2px; justify-content: center; padding: 7px; border-radius: 8px; background-color: #1b2027; }
+  .music-source { color: #9de6ef; font-size: 9px; font-weight: 800; letter-spacing: 0.8px; }
+  .song { color: #f1eadc; font-size: 15px; font-weight: 800; }
+  .artist { color: #c6cbd2; font-size: 10.5px; font-weight: 700; }
+  .transport { flex-direction: row; gap: 6px; }
+  .transport-key { flex-grow: 1; flex-basis: 0px; height: 38px; border-radius: 8px; background-color: #252c35; color: #f1eadc; font-size: 11px; font-weight: 800; }
+  .transport-play { background-color: #e8ff70; color: #14161c; }
+  .volume-row { flex-direction: row; align-items: center; gap: 6px; }
+  .volume-readout { flex-direction: row; align-items: center; justify-content: space-between; padding: 4px; flex-grow: 1; }
+  .volume-key { width: 36px; height: 30px; border-radius: 7px; background-color: #242a33; color: #f1eadc; font-size: 16px; font-weight: 800; }
+  .music-action { height: 32px; }
+  .music-note { font-size: 10px; color: #aeb3be; }
   .wide { flex-grow: 1; height: 30px; border-radius: 8px; background-color: #1d2129; color: #e8e2d6; font-size: 11px; font-weight: 700; }
   .grid { flex-direction: row; gap: 8px; }
   .cell { flex-grow: 1; height: 30px; padding: 4px; border-radius: 7px; background-color: #1d2129; flex-direction: column; align-items: center; justify-content: center; gap: 1px; }
@@ -82,21 +91,23 @@
 
   <Panel id="page-music" class="page" style="display: none">
     <div class="track">
-      <div id="wm-music-title" class="song">Not connected</div>
-      <div id="wm-music-artist" class="artist">Open CONNECT to link Spotify</div>
+      <div id="wm-music-source" class="music-source">BOOMBOX</div>
+      <div id="wm-music-title" class="song">Garage lo-fi</div>
+      <div id="wm-music-artist" class="artist">Plays in the garage</div>
     </div>
-    <div class="row">
-      <button id="wm-music-prev" class="third">PREV</button>
-      <button id="wm-music-play" class="third">PLAY</button>
-      <button id="wm-music-next" class="third">NEXT</button>
+    <div class="transport">
+      <button id="wm-music-prev" class="transport-key">Previous</button>
+      <button id="wm-music-play" class="transport-key transport-play">PLAY</button>
+      <button id="wm-music-next" class="transport-key">Next</button>
     </div>
-    <div class="row">
-      <button id="wm-music-vol-down" class="half">Volume -</button>
-      <div id="wm-music-volume" class="value">40%</div>
-      <button id="wm-music-vol-up" class="half">Volume +</button>
+    <div class="volume-row">
+      <div class="volume-readout"><div class="label">Volume</div><div id="wm-music-volume" class="value">40%</div></div>
+      <button id="wm-music-vol-down" class="volume-key">-</button>
+      <button id="wm-music-vol-up" class="volume-key">+</button>
     </div>
-    <button id="wm-music-playlist" class="action"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">NONE</div></button>
-    <div class="foot"><div id="wm-music-note" class="hint">Local fallback available</div><div class="hint">MUSIC</div></div>
+    <button id="wm-music-playlist" class="action music-action" style="display: none"><div class="label">Playlist</div><div id="wm-music-playlist-value" class="value">Loading…</div></button>
+    <button id="wm-music-connect" class="action music-action">Connect Spotify</button>
+    <div id="wm-music-note" class="music-note">Press Play to listen here.</div>
   </Panel>
 
   <Panel id="page-settings" class="page" style="display: none">

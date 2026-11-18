@@ -135,7 +135,22 @@ function findTable(horizontal: PlaneSnapshot[], floor: Vec2[], floorY: number, v
   const best = choices.sort((a, b) => score(b) - score(a))[0];
   // A single labelled surface is usable immediately. Ambiguous surfaces need a real look hit.
   const table = pointed ?? previous ?? (lookY == null || labeled.length === 1 ? best : undefined);
-  return { table, labeledCount: labeled.length, candidateCount: choices.length };
+  return { table, labeledCount: labeled.length, choices };
+}
+
+function scannedTable(plane: PlaneSnapshot): NonNullable<RoomModel['table']> | null {
+  const polygon = normalizePolygon(plane.polygon.map(({ x, z }) => ({ x, z })));
+  return polygon.length >= 3
+    ? { topY: plane.y, polygon, label: plane.label || 'unlabeled surface', confidence: plane.label ? 0.85 : 0.55 }
+    : null;
+}
+
+export function withScannedTable(room: RoomModel, table: RoomModel['table']): RoomModel {
+  if (!table) return { ...room, table };
+  const center = outlineBounds(table.polygon).center;
+  const x = center.x - room.seat.x, z = center.z - room.seat.z;
+  const length = Math.hypot(x, z);
+  return { ...room, table, forward: length > 0.05 ? { x: x / length, z: z / length } : room.forward };
 }
 
 function wallOutline(vertical: PlaneSnapshot[], floor: Vec2[], floorY: number, viewer: Vec3) {
@@ -207,7 +222,7 @@ function mapOpenings(vertical: PlaneSnapshot[], room: RoomModel): Opening[] {
   return openings;
 }
 
-export function roomFromSnapshots(snapshots: PlaneSnapshot[], viewer: ScanViewer, previousTarget?: Vec3): { room: RoomModel; info: ScanInfo } | null {
+export function roomFromSnapshots(snapshots: PlaneSnapshot[], viewer: ScanViewer, previousTarget?: Vec3) {
   const horizontal = snapshots.filter(plane => plane.orientation === 'horizontal');
   const vertical = snapshots.filter(plane => plane.orientation === 'vertical');
   const floor = findFloor(horizontal, viewer.position);
@@ -222,30 +237,22 @@ export function roomFromSnapshots(snapshots: PlaneSnapshot[], viewer: ScanViewer
     plane.label.includes('ceiling') && plane.y > floorY + 1.6 && pointInPolygon(viewer.position, plane.polygon),
   ).sort((a, b) => b.area - a.area)[0];
   const ceilingY = ceiling?.y ?? boundary?.ceilingY ?? floorY + 2.6;
-  const { table, labeledCount, candidateCount } = findTable(horizontal, floorPolygon, floorY, viewer, previousTarget);
-  const tablePolygon = table ? normalizePolygon(table.polygon.map(point => ({ x: point.x, z: point.z }))) : null;
+  const { table, labeledCount, choices } = findTable(horizontal, floorPolygon, floorY, viewer, previousTarget);
   const seat = { x: viewer.position.x, y: floorY, z: viewer.position.z };
-  let forward = viewer.forward;
-  if (tablePolygon?.length) {
-    const center = tablePolygon.reduce((sum, point) => ({ x: sum.x + point.x / tablePolygon.length, z: sum.z + point.z / tablePolygon.length }), { x: 0, z: 0 });
-    const dx = center.x - seat.x, dz = center.z - seat.z, length = Math.hypot(dx, dz);
-    if (length > 0.05) forward = { x: dx / length, z: dz / length };
-  }
+  const forward = viewer.forward;
   const forwardLength = Math.hypot(forward.x, forward.z) || 1;
-  const room: RoomModel = {
+  const room = withScannedTable({
     floor: { y: floorY, polygon: floorPolygon },
     ceilingY,
     walls: wallsFromFloor(floorPolygon, floorY, ceilingY),
     openings: [],
     furniture: [],
-    table: table && tablePolygon && tablePolygon.length >= 3
-      ? { topY: table.y, polygon: tablePolygon, label: table.label || 'unlabeled surface', confidence: table.label ? 0.85 : 0.55 }
-      : null,
+    table: null,
     seat,
     forward: { x: forward.x / forwardLength, z: forward.z / forwardLength },
     confidence: 0.85,
     source: 'webxr',
-  };
+  }, table ? scannedTable(table) : null);
   room.openings = mapOpenings(vertical, room);
   const labels = snapshots.reduce((counts, plane) => {
     counts[plane.label || 'unlabeled'] = (counts[plane.label || 'unlabeled'] ?? 0) + 1;
@@ -254,6 +261,10 @@ export function roomFromSnapshots(snapshots: PlaneSnapshot[], viewer: ScanViewer
   const { width, depth } = outlineBounds(floorPolygon);
   return {
     room,
+    tables: choices.flatMap(plane => {
+      const candidate = scannedTable(plane);
+      return candidate ? [{ table: candidate, center: plane.center }] : [];
+    }),
     info: {
       planeCount: snapshots.length,
       labels,
@@ -263,9 +274,9 @@ export function roomFromSnapshots(snapshots: PlaneSnapshot[], viewer: ScanViewer
       tableTopY: room.table?.topY ?? null,
       tableCenter: table ? { ...table.center } : null,
       tableCount: labeledCount,
-      tableCandidateCount: candidateCount,
+      tableCandidateCount: choices.length,
       openingCount: room.openings.length,
-    },
+    } satisfies ScanInfo,
   };
 }
 

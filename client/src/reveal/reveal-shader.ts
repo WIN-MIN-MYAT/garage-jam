@@ -102,8 +102,8 @@ export function createRevealSurface(id: string, beat: RevealBeatId, mode: Reveal
 export function applyRevealMaterial(material: any, surface: RevealSurface) {
   if (!material || material.userData?.gjRevealSurface === surface.id) return;
   const previousCompile = material.onBeforeCompile;
-  material.onBeforeCompile = (shader: any) => {
-    previousCompile?.call(material, shader);
+  material.onBeforeCompile = (shader: any, renderer: unknown) => {
+    previousCompile?.call(material, shader, renderer);
     for (const [key, uniform] of Object.entries(surface.uniforms)) shader.uniforms[key] = uniform;
     shader.vertexShader = `varying vec3 vRevealWorld;\n${shader.vertexShader}`.replace(
       '#include <begin_vertex>',

@@ -15,12 +15,13 @@ try {
     localStorage.setItem('garage-jam-last-room-v1', JSON.stringify({
       source: 'webxr', floor: { y: 0, polygon: floor },
       walls: [{ id: 'stale wall' }],
+      openings: [],
       table: { label: 'old table', topY: 0.42, polygon: floor.map(p => ({ x: p.x + 50, z: p.z })) },
     }));
     localStorage.setItem('garage-jam-flow-v1', JSON.stringify({ stage: 'S11', completed: ['S10'] }));
     localStorage.setItem('garage-jam-preferences-v1', JSON.stringify({ tableConfirmed: true, tableHeight: 0.42 }));
   });
-  await page.goto('https://localhost:8091/?revealOff=1');
+  await page.goto(`${process.env.GARAGE_TEST_URL ?? 'https://localhost:8091'}/?revealSpeed=3`);
   await page.waitForFunction(() => window.garageFlowDebug?.panel && window.IWER_DEVICE);
   assert.match(await page.locator('#gj-enter').innerText(), /RESUME/);
   await page.locator('#gj-enter').click();
@@ -34,7 +35,7 @@ try {
     window.garageFlowDebug.panel.getElementById('flow-use-table').properties.value.display === 'flex');
   const measuredTable = () => page.evaluate(() => {
     const debug = window.garageBuildDebug;
-    return { scan: debug.scan, y: debug.root.getObjectByName('Workbench top').position.y };
+    return { scan: debug.scan, y: debug.getTableInfo().topY };
   });
 
   await stage('S2');
@@ -48,6 +49,37 @@ try {
   assert.ok(Math.abs(first.y - 0.42) < 0.01);
   assert.ok(Math.abs(first.scan.tableCenter.x) < 0.01);
   assert.ok(Math.abs(first.scan.tableCenter.z + 1.95) < 0.01);
+
+  await page.waitForFunction(() => window.garageTableDebug?.panel.visible);
+  await page.evaluate(() => window.garageTableDebug.panel.requireElementById('yep-button').dispatchEvent({ type: 'click' }));
+  await stage('S10');
+  await button('flow-start');
+  await page.evaluate(async () => {
+    const { garageEvents } = await import('/src/events.ts');
+    window.resumeStages = [];
+    window.resumeReveals = [];
+    garageEvents.addEventListener('app-flow-stage', event => window.resumeStages.push(event.detail.stage));
+    garageEvents.addEventListener('reveal-started', event => window.resumeReveals.push(event.detail.mode));
+    await window.garageEmulatorWorld.renderer.xr.getSession().end();
+  });
+  await stage('S11');
+  await page.locator('#gj-enter').click();
+  await stage('S10');
+  const matched = await measuredTable();
+  assert.ok(Math.abs(matched.y - first.y) < 0.01);
+  assert.deepEqual(matched.scan.tableCenter, first.scan.tableCenter);
+  const visible = await page.evaluate(() => ({
+    flow: window.garageFlowDebug.panel.visible,
+    table: window.garageTableDebug.panel.visible,
+    stages: window.resumeStages,
+    reveals: window.resumeReveals,
+  }));
+  assert.equal(visible.flow, false);
+  assert.equal(visible.table, false);
+  assert.ok(visible.stages.includes('S2'));
+  assert.ok(visible.stages.includes('S6'));
+  assert.ok(!visible.stages.includes('S7'));
+  assert.deepEqual(visible.reveals, ['quick']);
 
   const desk = await page.evaluate(() => new Promise(resolve => {
     const world = window.garageEmulatorWorld;
@@ -71,8 +103,11 @@ try {
   assert.equal(await page.evaluate(() => !!window.garageBuildDebug), false, 'the old build must be removed on reset');
   await choices();
   await aim(desk);
-  await page.waitForFunction(() =>
-    window.garageFlowDebug.panel.getElementById('scan-detail').properties.value.text.includes('74 cm'));
+  await page.waitForFunction(async desk => {
+    const { GarageBuildSystem } = await import('/src/systems/garage-build-system.ts');
+    const center = window.garageEmulatorWorld.getSystem(GarageBuildSystem).scanInfo?.tableCenter;
+    return center && Math.hypot(center.x - desk.x, center.z - desk.z) < 0.01;
+  }, desk);
   await button('flow-use-table');
   await stage('S7');
   const reset = await measuredTable();
@@ -96,7 +131,7 @@ try {
   assert.ok(Math.abs(marked.y - 0.76) < 0.01);
   assert.deepEqual(marked.scan.floorSize, first.scan.floorSize);
   assert.deepEqual(errors, []);
-  console.log('Resume uses live room coordinates, aimed tabletop selection works, and tracking-space reset realigns the tabletop.');
+  console.log('Matching rooms resume without confirmation, stale saved geometry falls back, and tracking-space reset realigns the tabletop.');
 } finally {
   await browser.close();
 }

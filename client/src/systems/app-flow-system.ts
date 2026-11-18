@@ -1,7 +1,7 @@
 import { createSystem, loadUIKitMLAsset, PokeInteractable, RayInteractable, Vector3, VisibilityState } from '@iwsdk/core';
 import type { UIKitMLAsset } from '@iwsdk/core';
 import { emit, garageEvents } from '../events.js';
-import { garageState, loadLastRoom, saveLastRoom, setWorkMode } from '../garage-state.js';
+import { garageState, loadConfirmedRoom, loadLastRoom, saveConfirmedRoom, setWorkMode } from '../garage-state.js';
 import { GarageBuildSystem } from './garage-build-system.js';
 import {
   describeLastRoom, flowDebug, isProductEntry, loadFlow, needsTableConfirm, resetFlow, resumeAvailable, revealModeFor, saveFlow,
@@ -30,6 +30,7 @@ export class AppFlowSystem extends createSystem({}) {
   private resume = false;
   private resumeStage: AppStage = 'S0';
   private resumeDirectToLive = false;
+  private matchedResume = false;
   private sessionWasVisible = false;
   private enterTimeout?: number;
   private live = false;
@@ -54,6 +55,7 @@ export class AppFlowSystem extends createSystem({}) {
     const onTableConfirmed = () => this.chooseTableDone();
     const onScanProgress = (event: Event) => this.onScanProgress((event as CustomEvent).detail);
     const onScanMissing = () => this.onScanMissing();
+    const onRoomMatched = () => { this.matchedResume = true; };
     const onTrackingPending = () => {
       if (this.stage !== 'S2' || this.openingSpaceSetup) return;
       this.showScanChoices(false);
@@ -98,6 +100,7 @@ export class AppFlowSystem extends createSystem({}) {
     garageEvents.addEventListener('table-confirmed', onTableConfirmed);
     garageEvents.addEventListener('scan-progress', onScanProgress);
     garageEvents.addEventListener('room-scan-missing', onScanMissing);
+    garageEvents.addEventListener('room-resume-matched', onRoomMatched);
     garageEvents.addEventListener('room-tracking-pending', onTrackingPending);
     garageEvents.addEventListener('room-manual-saved', onManualSaved);
     garageEvents.addEventListener('room-manual-ended', onManualEnded);
@@ -124,6 +127,7 @@ export class AppFlowSystem extends createSystem({}) {
       garageEvents.removeEventListener('table-confirmed', onTableConfirmed);
       garageEvents.removeEventListener('scan-progress', onScanProgress);
       garageEvents.removeEventListener('room-scan-missing', onScanMissing);
+      garageEvents.removeEventListener('room-resume-matched', onRoomMatched);
       garageEvents.removeEventListener('room-tracking-pending', onTrackingPending);
       garageEvents.removeEventListener('room-manual-saved', onManualSaved);
       garageEvents.removeEventListener('room-manual-ended', onManualEnded);
@@ -204,10 +208,13 @@ export class AppFlowSystem extends createSystem({}) {
     this.showedScanLock = false;
     this.revealHandled = false;
     this.markTableAfterBuild = false;
+    this.matchedResume = false;
     this.setStage('S2');
     this.placePanel('scan');
     this.refreshScanPage();
-    this.builder?.beginRoomScan();
+    const confirmedRoom = this.resume && this.resumeDirectToLive && garageState.preferences.tableConfirmed
+      ? loadConfirmedRoom() : null;
+    this.builder?.beginRoomScan(confirmedRoom ?? undefined);
   }
 
   private onSessionHidden() {
@@ -243,7 +250,9 @@ export class AppFlowSystem extends createSystem({}) {
     this.revealHandled = true;
     const room = garageState.room;
     this.live = false;
-    if (this.markTableAfterBuild && room && !room.table) {
+    if (this.matchedResume) {
+      this.goLive();
+    } else if (this.markTableAfterBuild && room && !room.table) {
       this.markTableAfterBuild = false;
       this.setStage('S7');
       emit('room-manual-start', { mode: 'table' });
@@ -275,8 +284,6 @@ export class AppFlowSystem extends createSystem({}) {
   private goLive() {
     this.live = true;
     this.setStage('S10');
-    this.showPage('ready');
-    this.placePanel('ready');
     emit('status', 'Garage live');
   }
 
@@ -336,6 +343,7 @@ export class AppFlowSystem extends createSystem({}) {
   }
 
   private rescan(realign = false) {
+    this.matchedResume = false;
     this.showedScanLock = false;
     this.resumeDirectToLive = this.stage === 'S10' || this.resumeDirectToLive;
     this.resume = realign && this.resumeDirectToLive;
@@ -394,7 +402,7 @@ export class AppFlowSystem extends createSystem({}) {
     if (stage === 'S8') return 'mode';
     if (stage === 'S9a') return 'devices';
     if (stage === 'S9b') return 'pairing';
-    if (stage === 'S10') return 'ready';
+    if (stage === 'S10' && !this.matchedResume) return 'ready';
     return null;
   }
 
@@ -527,6 +535,7 @@ export class AppFlowSystem extends createSystem({}) {
       on('flow-start', () => {
         this.hidePanel();
         this.live = true;
+        if (!garageState.room?.table) saveConfirmedRoom(null);
         emit('status', 'Garage live - look at either wrist or palm-up pinch for the menu');
       });
       this.panelReady = true;
