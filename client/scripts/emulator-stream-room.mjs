@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const base = process.env.GARAGE_TEST_URL ?? 'https://localhost:8091';
+const backend = process.env.GARAGE_BACKEND_ORIGIN ?? 'https://garage-jam.onrender.com';
 const browser = await chromium.launch({
   headless: true,
   executablePath: 'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -34,7 +35,7 @@ try {
       return canvas.captureStream(20);
     };
   });
-  await sender.goto(`${base}/sender?room=${room}&allowScreen=1`, { waitUntil: 'domcontentloaded' });
+  await sender.goto(`${backend}/sender?room=${room}&allowScreen=1`, { waitUntil: 'domcontentloaded' });
   await sender.waitForFunction(() => document.querySelectorAll('.channel').length === 2);
   const channel = await sender.evaluate(() => document.querySelector('.channel').dataset.channel);
   assert.equal(channel, `${room}:monitor1`);
