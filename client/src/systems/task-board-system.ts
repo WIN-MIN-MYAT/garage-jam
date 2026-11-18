@@ -82,7 +82,7 @@ export class TaskBoardSystem extends createSystem({}) {
       this.schedule();
     };
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<FocusState>).detail ?? this.focus; this.schedule(); };
-    const onDone = () => { this.progress = loadProgress(); this.addSplat(); this.schedule(); };
+    const onDone = () => { this.progress = loadProgress(); this.schedule(); };
     const onReset = () => { this.clear(); };
     const onPending = (event: Event) => {
       const { id, pending } = (event as CustomEvent<{ id: string; pending: boolean }>).detail;

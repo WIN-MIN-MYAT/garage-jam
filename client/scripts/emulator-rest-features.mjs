@@ -259,13 +259,13 @@ try {
     completed: JSON.parse(localStorage.getItem('garage-jam-progress-v1') || '{}').completedByDay ?? {},
   }));
   assert.equal(after.papers.length, 1);
-  assert.ok(after.splats > before.boards.splats, JSON.stringify({ before: before.boards, after }));
+  assert.equal(after.splats, before.boards.splats, 'task completion should not add a mural splat');
   assert.ok(Object.values(after.completed).some(value => value > 0), JSON.stringify(after));
   await lookAt({ x: -2.2, y: 1.3, z: 0 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: 'scripts/rest-boards.png' });
   assert.deepEqual(errors, []);
-  console.log('Papers, native task completion, mural, focus door, boards, streaming sender and plugin status passed.');
+  console.log('Papers, native task completion without a new splat, focus door, boards, streaming sender and plugin status passed.');
 } finally {
   await browser.close();
 }

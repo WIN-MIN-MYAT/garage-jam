@@ -39,7 +39,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 
 - [ ] With no Notion configured, open S10 and confirm two starter papers land on the paper zone.
 - [ ] Grab a paper, press the trigger while holding it, and hear/feel the crumple.
-- [ ] Throw the crumpled paper into the trash. Confirm it disappears, the HUD says **DONE!**, a splat/stat is added, and the count changes.
+- [ ] Throw the crumpled paper into the trash. Confirm it disappears, the HUD says **DONE!**, the stat count changes, and no new mural splash appears.
 - [ ] Throw a flat paper into the trash. Confirm it does **not** complete.
 - [ ] With Notion configured, mark a real Notion task done. Confirm the Notion row changes to **Done** and the paper disappears.
 - [ ] Disable the network after loading tasks, complete one task, and confirm the queued-write message appears.
@@ -72,7 +72,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Start Focus from the wrist Home page. Confirm the shutter rolls down, the sky dims, the countdown appears, and music starts.
 - [ ] Pause/resume/cancel. Confirm the shutter and timer behave correctly and the sky restores.
 - [ ] Finish a 1-minute demo focus (`?focusDemo=1`) or the configured 25-minute session. Confirm break mode, chime, and focus minutes on the stats board/whiteboard.
-- [ ] Confirm each completed task adds a paint splat to the mural and that splats persist after reload.
+- [ ] Confirm completing a task does **not** add a new paint splat to the mural; any previously saved mural art may remain until progress is cleared.
 - [ ] Drop/release a flat paper near the corkboard. Confirm it freezes on the corkboard, pins into Today / Top 3, and persists after reload.
 - [ ] Point the dominant controller at the whiteboard and hold the trigger to draw. Confirm strokes persist after reload and **Clear board** in wrist SET clears them.
 - [ ] Let the break nudge appear (use `?nudgeDemo=1`), confirm the neon message, sound, and dismissal event.
@@ -85,7 +85,7 @@ This list is for the physical Quest 3 / 3S pass. Emulator evidence is already re
 - [ ] Check that the wrist menu, panels, and scan labels remain readable over props.
 - [ ] Confirm `?style=plain` improves performance if the comic materials are too heavy.
 - [ ] Confirm the app still works after a headset sleep/wake and an XR session restart.
-- [ ] Confirm **Forget room** on wrist ROOM clears the room, devices, progress, mural, pins, and whiteboard, and returns to S0.
+- [ ] Confirm **Forget room** on wrist ROOM clears the room, devices, saved progress, mural art, pins, and whiteboard, and returns to S0.
 
 ## Evidence to collect
 

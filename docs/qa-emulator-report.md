@@ -136,7 +136,7 @@ The Vite dev server uses a self-signed certificate and the browser ignores it fo
 - Two Notion tasks spawned as papers.
 - Controller grab → trigger crumple → trash completion.
 - Notion write-back and task completion.
-- Mural splat, stats board, Top 3 board, calendar board.
+- Stats board, Top 3 board, calendar board; existing mural art remains but task completion no longer adds a new splat.
 - Focus shutter, countdown, dimmed sky, cancel.
 - Monitor manager: presets, symmetry, resize/curve controls, saved layout.
 - Streaming sender state and plugin status.
