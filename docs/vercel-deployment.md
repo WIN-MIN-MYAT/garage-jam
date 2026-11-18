@@ -146,6 +146,9 @@ The free plan spins down. Use the Starter plan or keep the service warm.
 **Vercel still shows an old build.**
 The service worker cache name in `client/public/sw.js` is fixed (`garage-jam-v1`). Clear the site data in Quest Browser/Chrome, or bump the cache name after a major deploy.
 
+**The install fails on `onnxruntime-node` / CUDA.**
+The current `vercel.json` install command includes `--onnxruntime-node-install-cuda=skip`. Keep that flag if you change the command, or set `ONNXRUNTIME_NODE_INSTALL_CUDA=skip` in the Vercel project. The app does not need the CUDA execution provider at build time.
+
 ---
 
 ## 7. If you really want everything on Vercel
