@@ -430,7 +430,7 @@ export class PluginSystem extends createSystem({}) {
   }
 
   private updateSpeakerPosition() {
-    if (this.boomboxDirty || !this.boombox || !this.boomboxAttached()) this.refreshBoombox();
+    if (this.boomboxDirty || (this.boombox && !this.boomboxAttached())) this.refreshBoombox();
     // The placement is the authoritative boombox pose. It is replaced on every
     // room build and prop rearrangement, so the music follows a moved boombox.
     const placement = garageState.placements.find(item => item.slotId === 'boombox');
