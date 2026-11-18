@@ -607,7 +607,7 @@ export class DeviceSystem extends createSystem({}) {
     const garage = garageRootsVisible();
     const cutouts = garageState.preferences.cutouts;
     const physicalMode = garageState.preferences.mode === 'passthrough';
-    this.root.visible = this.loaded;
+    this.root.visible = this.loaded && (this.builder?.isRevealed() ?? true);
     for (const { device, occluder, display, outline } of this.visuals) {
       occluder.visible = physicalMode && device.enabled && garage && cutouts;
       const virtualBody = display.getObjectByName('Low-poly monitor');

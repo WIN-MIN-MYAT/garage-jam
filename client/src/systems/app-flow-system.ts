@@ -328,7 +328,6 @@ export class AppFlowSystem extends createSystem({}) {
     this.builder?.cancelRoomScan();
     this.setStage('S3');
     emit('room-manual-start');
-    emit('status', 'Manual room: touch the floor corners with the controller tip');
   }
 
   private startManualBuild(room: RoomModel) {

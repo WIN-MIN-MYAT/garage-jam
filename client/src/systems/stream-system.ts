@@ -17,6 +17,7 @@ import { latencySample, percentile } from '../stream-shared/LatencyProbe.js';
 import { isUdpCandidate, udpOnlyDescription } from '../stream-shared/IcePolicy.js';
 import { showComicWord } from '../comic-word.js';
 import { revealAudio } from '../reveal/RevealAudio.js';
+import { GarageBuildSystem } from './garage-build-system.js';
 
 type Channel = {
   name: string; root: Group; screen: Mesh<PlaneGeometry, MeshBasicMaterial>; video: HTMLVideoElement; enabled: boolean;
@@ -36,6 +37,7 @@ type SavedMonitor = { enabled: boolean; pose?: ReturnType<typeof worldToSeat> };
 type MonitorLayout = { preset: MonitorPreset | 'custom'; monitors: SavedMonitor[] };
 
 export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] } }) {
+  private builder?: GarageBuildSystem;
   private channels: Channel[] = [];
   private monitorRoot = new Group();
   private editingLayout = false;
@@ -50,6 +52,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   private saved: MonitorLayout | null = this.loadLayout();
   private room = getStreamRoom();
   init() {
+    this.builder = this.world.getSystem(GarageBuildSystem) ?? undefined;
     const config = roomConfig.monitors;
     const query = new URLSearchParams(location.search);
     const count = Math.max(1, Math.min(2, Number(query.get('monitors')) || config.count));
@@ -103,6 +106,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     const onPassthrough = () => { if (garageRootsVisible()) this.layout(); };
     const onOverlay = (event: Event) => { if (!(event as CustomEvent<boolean>).detail) this.layout(); };
     garageEvents.addEventListener('garage-revealed', onLayout);
+    garageEvents.addEventListener('garage-reset', onRefresh);
     garageEvents.addEventListener('stream-refresh', onRefresh);
     garageEvents.addEventListener('stream-forget', onForget);
     garageEvents.addEventListener('stream-recenter', onRecenter);
@@ -113,6 +117,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
     garageEvents.addEventListener('table-confirm-visibility', onOverlay);
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('garage-revealed', onLayout);
+      garageEvents.removeEventListener('garage-reset', onRefresh);
       garageEvents.removeEventListener('stream-refresh', onRefresh);
       garageEvents.removeEventListener('stream-forget', onForget);
       garageEvents.removeEventListener('stream-recenter', onRecenter);
@@ -259,7 +264,7 @@ export class StreamSystem extends createSystem({ grabbed: { required: [Grabbed] 
   }
 
   private refreshPresentation() {
-    const show = this.showMonitors && garageRootsVisible();
+    const show = this.showMonitors && garageRootsVisible() && (this.builder?.isRevealed() ?? true);
     this.channels.forEach(channel => {
       channel.root.visible = show && channel.enabled;
       channel.screen.visible = !!channel.texture && channel.machine.state !== 'source-stopped';

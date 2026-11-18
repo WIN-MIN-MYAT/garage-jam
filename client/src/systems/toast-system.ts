@@ -124,9 +124,12 @@ export class ToastSystem extends createSystem({}) {
         this.show(text, severity);
       }
     });
+    const onGarageReset = () => this.hideNow();
     garageEvents.addEventListener('status', onStatus);
+    garageEvents.addEventListener('garage-reset', onGarageReset);
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('status', onStatus);
+      garageEvents.removeEventListener('garage-reset', onGarageReset);
       stopVisibility();
       this.sprite?.removeFromParent();
       this.material?.dispose();

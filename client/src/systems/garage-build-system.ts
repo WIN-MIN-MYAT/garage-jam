@@ -139,6 +139,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private deviceObstacles: Obstacle[] = [];
   private deviceSignature = '[]';
   private layoutResolveToken = 0;
+  private buildLayer = new Group();
   private root = new Group();
   private loader = new GLTFLoader();
   private surfaces: RevealSurface[] = [];
@@ -191,7 +192,10 @@ export class GarageBuildSystem extends createSystem({}) {
     if (shell) shell.visible = false;
     this.loader.setMeshoptDecoder(MeshoptDecoder);
     this.root.name = 'Room-driven garage';
-    this.world.createTransformEntity(this.root, { persistent: true });
+    this.buildLayer.name = 'Garage build layer';
+    this.buildLayer.visible = false;
+    this.buildLayer.add(this.root);
+    this.world.createTransformEntity(this.buildLayer, { persistent: true });
     this.scanOverlay.name = 'Room scan overlay';
     this.world.scene.add(this.scanOverlay);
     registerGarageRoot(this.root);
@@ -330,7 +334,7 @@ export class GarageBuildSystem extends createSystem({}) {
     this.trackedScanFrame = false;
     this.scanErrorLogged = false;
     this.scanOverlay.visible = true;
-    emit('status', 'SCANNING ROOM... move around lightly so Quest can detect the floor and table');
+    if (!isProductEntry) emit('status', 'SCANNING ROOM... move around lightly so Quest can detect the floor and table');
     this.stopScan = this.world.onXRFrame(frame => this.scanFrame(frame));
   }
 
@@ -484,6 +488,7 @@ export class GarageBuildSystem extends createSystem({}) {
   private buildRoom(room: RoomModel, sourceLabel: string, scanInfo: ScanInfo | null, applySavedTable = true) {
     if (this.ready || this.building) return;
     this.building = true;
+    this.buildLayer.visible = false;
     this.scanning = false;
     this.clearScanOverlay(true);
     if (applySavedTable && room.source !== 'webxr' && garageState.preferences.tableConfirmed && garageState.preferences.tableHeight != null && room.table) {
@@ -834,6 +839,9 @@ export class GarageBuildSystem extends createSystem({}) {
     this.ready = true;
     saveLastRoom(this.room);
     emit('garage-built', { room: this.room, placements });
+    // The synchronous reveal handler sets the initial surface and prop visibility.
+    // Expose the staged geometry only after that handoff.
+    this.buildLayer.visible = true;
     if (location.hostname === 'localhost') {
       (window as any).garageBuildDebug = {
         room: this.room, placements, report, ready: true, root: this.root,
@@ -1881,6 +1889,7 @@ export class GarageBuildSystem extends createSystem({}) {
 
   resetForRescan(startScan = true) {
     this.buildGeneration++;
+    this.buildLayer.visible = false;
     this.layoutResolveToken++;
     this.stopScanning();
     this.clearScanOverlay(true);

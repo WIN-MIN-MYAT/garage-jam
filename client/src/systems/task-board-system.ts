@@ -67,7 +67,12 @@ export class TaskBoardSystem extends createSystem({}) {
     this.root.add(this.mural);
     this.world.scene.add(this.root);
     registerGarageRoot(this.root);
-    const onBuilt = () => { this.built = true; this.schedule(); };
+    const onRevealed = () => {
+      this.built = true;
+      this.rebuildSplats();
+      this.schedule();
+    };
+    const onLayout = () => this.schedule();
     const onTasks = (event: Event) => {
       const detail = (event as CustomEvent<{ tasks: Task[] }>).detail;
       this.tasks = detail?.tasks ?? [];
@@ -77,13 +82,14 @@ export class TaskBoardSystem extends createSystem({}) {
     const onFocus = (event: Event) => { this.focus = (event as CustomEvent<FocusState>).detail ?? this.focus; this.schedule(); };
     const onDone = () => { this.progress = loadProgress(); this.addSplat(); this.schedule(); };
     const onReset = () => { this.clear(); };
-    garageEvents.addEventListener('garage-revealed', onBuilt);
-    garageEvents.addEventListener('garage-props-rebuilt', onBuilt);
+    const onProgress = () => { this.progress = loadProgress(); this.rebuildSplats(); this.schedule(); };
+    garageEvents.addEventListener('garage-revealed', onRevealed);
+    garageEvents.addEventListener('garage-props-rebuilt', onLayout);
     garageEvents.addEventListener('tasks-updated', onTasks);
     garageEvents.addEventListener('calendar-events', onCalendar);
     garageEvents.addEventListener('focus-state', onFocus);
     garageEvents.addEventListener('task-done', onDone);
-    garageEvents.addEventListener('progress-updated', () => { this.progress = loadProgress(); this.rebuildSplats(); this.schedule(); });
+    garageEvents.addEventListener('progress-updated', onProgress);
     garageEvents.addEventListener('garage-reset', onReset);
     if (location.hostname === 'localhost') {
       const system = this;
@@ -115,12 +121,13 @@ export class TaskBoardSystem extends createSystem({}) {
       this.schedule();
     }).catch(() => { /* local progress is enough */ });
     this.cleanupFuncs.push(() => {
-      garageEvents.removeEventListener('garage-revealed', onBuilt);
-      garageEvents.removeEventListener('garage-props-rebuilt', onBuilt);
+      garageEvents.removeEventListener('garage-revealed', onRevealed);
+      garageEvents.removeEventListener('garage-props-rebuilt', onLayout);
       garageEvents.removeEventListener('tasks-updated', onTasks);
       garageEvents.removeEventListener('calendar-events', onCalendar);
       garageEvents.removeEventListener('focus-state', onFocus);
       garageEvents.removeEventListener('task-done', onDone);
+      garageEvents.removeEventListener('progress-updated', onProgress);
       garageEvents.removeEventListener('garage-reset', onReset);
       unregisterGarageRoot(this.root);
       this.clear();
@@ -134,6 +141,9 @@ export class TaskBoardSystem extends createSystem({}) {
   }
 
   private clear() {
+    this.built = false;
+    window.clearTimeout(this.refreshTimer);
+    this.refreshTimer = 0;
     for (const { mesh, texture } of this.content.values()) {
       mesh.geometry.dispose();
       (mesh.material as MeshBasicMaterial).dispose();
@@ -348,7 +358,7 @@ export class TaskBoardSystem extends createSystem({}) {
   }
 
   private buildSplat(splat: MuralSplat) {
-    if (this.splatMeshes.has(splat.id)) return;
+    if (!this.built || this.splatMeshes.has(splat.id)) return;
     const group = new Group();
     group.name = `Mural splat ${splat.id}`;
     const texture = this.splatTexture(splat.color);
@@ -386,6 +396,7 @@ export class TaskBoardSystem extends createSystem({}) {
   }
 
   private rebuildSplats() {
+    if (!this.built) return;
     for (const group of this.splatMeshes.values()) this.disposeSplatGroup(group);
     this.splatMeshes.clear();
     this.mural.clear();

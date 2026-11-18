@@ -42,7 +42,10 @@ export class WhiteboardSystem extends createSystem({}) {
     registerGarageRoot(this.root);
     const onRevealed = () => this.build();
     const onClear = () => this.clear();
-    const onReset = () => this.clear();
+    const onReset = () => {
+      if (this.drawing) this.finish();
+      this.clearMeshes();
+    };
     garageEvents.addEventListener('garage-revealed', onRevealed);
     garageEvents.addEventListener('garage-props-rebuilt', onRevealed);
     garageEvents.addEventListener('garage-reset', onReset);

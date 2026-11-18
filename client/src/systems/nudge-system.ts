@@ -26,15 +26,15 @@ export class NudgeSystem extends createSystem({}) {
     registerGarageRoot(this.root);
     const onRevealed = () => this.build();
     const onDismiss = () => this.hide();
+    const onReset = () => this.clear();
     garageEvents.addEventListener('garage-revealed', onRevealed);
+    garageEvents.addEventListener('garage-reset', onReset);
     garageEvents.addEventListener('nudge-dismiss', onDismiss);
     this.cleanupFuncs.push(() => {
       garageEvents.removeEventListener('garage-revealed', onRevealed);
+      garageEvents.removeEventListener('garage-reset', onReset);
       garageEvents.removeEventListener('nudge-dismiss', onDismiss);
-      window.clearInterval(this.timer);
-      this.hide();
-      this.sprite?.removeFromParent();
-      this.texture?.dispose();
+      this.clear();
       unregisterGarageRoot(this.root);
       this.root.removeFromParent();
     });
@@ -90,5 +90,14 @@ export class NudgeSystem extends createSystem({}) {
 
   private hide() {
     if (this.sprite) this.sprite.visible = false;
+  }
+
+  private clear() {
+    window.clearInterval(this.timer);
+    this.sprite?.removeFromParent();
+    this.sprite?.material.dispose();
+    this.texture?.dispose();
+    this.sprite = undefined;
+    this.texture = undefined;
   }
 }
